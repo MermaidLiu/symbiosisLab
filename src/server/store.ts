@@ -7,6 +7,12 @@ import {
   Booking,
   AuditLog,
   AppNotification,
+  Todo,
+  ProgressReport,
+  PptTemplate,
+  RaAchievementRecord,
+  RaAnalyticsMetrics,
+  RaDataEntry,
 } from "@/types";
 import {
   ManagedAnimal,
@@ -38,6 +44,18 @@ export interface DbStore {
   managedAnimals: ManagedAnimal[];
   cages: Cage[];
   applications: OperationApplication[];
+  /** RA daily todos table */
+  todos: Todo[];
+  /** Lab member weekly progress reports */
+  progressReports: ProgressReport[];
+  /** PPT template metadata (files on disk under data/ppt-templates/) */
+  pptTemplates: PptTemplate[];
+  /** Achievement scans (files under data/ra-achievements/) */
+  raAchievements: RaAchievementRecord[];
+  /** Manually entered analytics KPIs */
+  raAnalytics: RaAnalyticsMetrics | null;
+  /** Manual data-management rows */
+  raDataEntries: RaDataEntry[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -62,6 +80,12 @@ function emptyStore(): DbStore {
     managedAnimals: [],
     cages: [],
     applications: [],
+    todos: [],
+    progressReports: [],
+    pptTemplates: [],
+    raAchievements: [],
+    raAnalytics: null,
+    raDataEntries: [],
   };
 }
 
@@ -81,6 +105,12 @@ function seedStore(): DbStore {
     managedAnimals: [...SEED_MANAGED_ANIMALS],
     cages: [...SEED_CAGES],
     applications: [...SEED_APPLICATIONS],
+    todos: [],
+    progressReports: [],
+    pptTemplates: [],
+    raAchievements: [],
+    raAnalytics: null,
+    raDataEntries: [],
   };
 }
 
@@ -118,6 +148,46 @@ function readFromDisk(): DbStore {
     parsed.managedAnimals = parsed.managedAnimals ?? [...SEED_MANAGED_ANIMALS];
     parsed.cages = parsed.cages ?? [...SEED_CAGES];
     parsed.applications = parsed.applications ?? [...SEED_APPLICATIONS];
+    if (!Array.isArray(parsed.todos)) {
+      parsed.todos = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.progressReports)) {
+      parsed.progressReports = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.pptTemplates)) {
+      parsed.pptTemplates = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.raAchievements)) {
+      parsed.raAchievements = [];
+      dirty = true;
+    }
+    if (parsed.raAnalytics === undefined) {
+      parsed.raAnalytics = null;
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.raDataEntries)) {
+      parsed.raDataEntries = [];
+      dirty = true;
+    }
+    // Ensure seed RA + demo students exist for existing databases
+    for (const email of ["ra@lab.edu.cn", "chen@lab.edu.cn", "zhao@lab.edu.cn"]) {
+      if (!parsed.users.some((u) => u.email === email)) {
+        const seed = SEED_USERS.find((u) => u.email === email);
+        if (seed) {
+          parsed.users.push({ ...seed, password: hashPassword(seed.password) });
+          dirty = true;
+        }
+      }
+    }
+    // Keep demo RA display name in sync
+    const ra = parsed.users.find((u) => u.email === "ra@lab.edu.cn");
+    if (ra && ra.name !== "助理小刘") {
+      ra.name = "助理小刘";
+      dirty = true;
+    }
     if (dirty) writeToDisk(parsed);
     return parsed;
   } catch {
@@ -137,6 +207,25 @@ function writeToDisk(store: DbStore): void {
 export function getStore(): DbStore {
   if (!globalThis.__symbiosisDb) {
     globalThis.__symbiosisDb = readFromDisk();
+  } else {
+    if (!Array.isArray(globalThis.__symbiosisDb.todos)) {
+      globalThis.__symbiosisDb.todos = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.progressReports)) {
+      globalThis.__symbiosisDb.progressReports = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.pptTemplates)) {
+      globalThis.__symbiosisDb.pptTemplates = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raAchievements)) {
+      globalThis.__symbiosisDb.raAchievements = [];
+    }
+    if (globalThis.__symbiosisDb.raAnalytics === undefined) {
+      globalThis.__symbiosisDb.raAnalytics = null;
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raDataEntries)) {
+      globalThis.__symbiosisDb.raDataEntries = [];
+    }
   }
   return globalThis.__symbiosisDb;
 }

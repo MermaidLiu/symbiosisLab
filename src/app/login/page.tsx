@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { Input } from "@/components/ui/Input";
@@ -54,10 +53,7 @@ function LoginForm() {
         </form>
 
         <p className="mt-4 text-center text-xs text-lab-muted">{t.auth.demoHint}</p>
-        <p className="mt-3 text-center text-sm text-lab-muted">
-          {t.auth.noAccount}{" "}
-          <Link href="/register" className="font-medium text-thu hover:underline">{t.auth.register}</Link>
-        </p>
+        <p className="mt-3 text-center text-sm text-lab-muted">{t.auth.adminCreatesAccounts}</p>
       </div>
     </div>
   );

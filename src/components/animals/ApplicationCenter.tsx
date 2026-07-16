@@ -11,6 +11,7 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api/client";
 import { getApplications, setCachePartial } from "@/lib/storage/db";
+import { canManageAnimals } from "@/lib/roles";
 import { OperationApplication, ApplicationWorkflowStatus, ApplicationType } from "@/types/animal-management";
 
 const TABS: ApplicationWorkflowStatus[] = [
@@ -33,6 +34,9 @@ export function ApplicationCenter() {
   const { t, locale } = useLocale();
   const a = t.animalMgmt.applications;
   const { user } = useAuth();
+  const canReview = user
+    ? user.roles.includes("super_admin") || canManageAnimals(user.roles)
+    : false;
 
   const [applications, setApplications] = useState<OperationApplication[]>([]);
   const [activeTab, setActiveTab] = useState<ApplicationWorkflowStatus>("pending_receipt");
@@ -42,6 +46,7 @@ export function ApplicationCenter() {
   const [modalOpen, setModalOpen] = useState(false);
   const [newDesc, setNewDesc] = useState("");
   const [newType, setNewType] = useState<ApplicationType>("veterinary");
+  const [reviewing, setReviewing] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -59,6 +64,7 @@ export function ApplicationCenter() {
 
   const typeLabel = (type: ApplicationType) => {
     const map: Record<ApplicationType, string> = {
+      custody: a.typeCustody,
       veterinary: a.typeVeterinary,
       transfer: a.typeTransfer,
       cage_change: a.typeCageChange,
@@ -117,6 +123,20 @@ export function ApplicationCenter() {
     setApplications(list);
   }
 
+  async function reviewApp(id: string, action: "approve" | "reject") {
+    if (!user || !canReview) return;
+    setReviewing(id);
+    try {
+      const { applications: list } = await api.reviewApplication(id, action);
+      setCachePartial({ applications: list });
+      setApplications(list);
+      if (action === "approve") setActiveTab("completed");
+      else setActiveTab("rejected");
+    } finally {
+      setReviewing(null);
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -132,7 +152,7 @@ export function ApplicationCenter() {
             <FluentInput label={a.dateTo} type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="min-w-[140px]" />
             <FluentSelect label={a.appType} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="min-w-[160px]">
               <option value="">{t.common.all}</option>
-              {(["veterinary", "transfer", "cage_change", "breeding", "euthanasia", "other"] as ApplicationType[]).map((type) => (
+              {(["custody", "veterinary", "transfer", "cage_change", "breeding", "euthanasia", "other"] as ApplicationType[]).map((type) => (
                 <option key={type} value={type}>{typeLabel(type)}</option>
               ))}
             </FluentSelect>
@@ -204,11 +224,33 @@ export function ApplicationCenter() {
                       </td>
                       <td className="max-w-[120px] truncate px-3 py-2 text-xs">{app.feedback ?? "—"}</td>
                       <td className="px-3 py-2">
-                        <div className="flex gap-1">
-                          <FluentButton variant="ghost" size="sm">{a.view}</FluentButton>
-                          {app.status === "pending_receipt" && (
-                            <FluentButton variant="ghost" size="sm" onClick={() => cancelApp(app.id)}>{a.cancel}</FluentButton>
+                        <div className="flex flex-wrap gap-1">
+                          {app.status === "pending_receipt" && canReview && (
+                            <>
+                              <FluentButton
+                                variant="secondary"
+                                size="sm"
+                                disabled={reviewing === app.id}
+                                onClick={() => void reviewApp(app.id, "approve")}
+                              >
+                                {a.approve}
+                              </FluentButton>
+                              <FluentButton
+                                variant="ghost"
+                                size="sm"
+                                disabled={reviewing === app.id}
+                                onClick={() => void reviewApp(app.id, "reject")}
+                              >
+                                {a.reject}
+                              </FluentButton>
+                            </>
                           )}
+                          {app.status === "pending_receipt" &&
+                            (!canReview || app.applicantUserId === user?.id) && (
+                              <FluentButton variant="ghost" size="sm" onClick={() => cancelApp(app.id)}>
+                                {a.cancel}
+                              </FluentButton>
+                            )}
                         </div>
                       </td>
                     </tr>

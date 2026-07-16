@@ -114,7 +114,22 @@ export async function registerUser(input: {
   name: string;
   phone?: string;
   department?: string;
+  roles?: Role[];
+}) {
+  // Public self-registration is disabled — only admins may create accounts.
+  return { ok: false as const, error: "register_disabled" };
+}
+
+/** Admin-only account creation with explicit roles */
+export async function createUserByAdmin(input: {
+  email: string;
+  password: string;
+  name: string;
+  phone?: string;
+  department?: string;
   roles: Role[];
+  actorId: string;
+  actorName: string;
 }) {
   const email = input.email.trim().toLowerCase();
   const store = getStore();
@@ -122,9 +137,6 @@ export async function registerUser(input: {
     return { ok: false as const, error: "email_exists" };
   }
   let roles: Role[] = input.roles.includes("user") ? input.roles : [...input.roles, "user"];
-  if (roles.includes("super_admin")) {
-    return { ok: false as const, error: "cannot_self_admin" };
-  }
   roles = Array.from(new Set(roles)) as Role[];
 
   const newUser: User = {
@@ -138,23 +150,22 @@ export async function registerUser(input: {
     createdAt: new Date().toISOString(),
   };
 
-  const session = createSessionToken(newUser.id);
   await mutateStore((s) => {
     s.users.push(newUser);
-    s.sessions = [session, ...s.sessions].slice(0, 200);
     s.logs.unshift({
       id: uid("log"),
-      userId: newUser.id,
-      userName: newUser.name,
-      action: "register",
-      entityType: "auth",
-      details: `新用户注册: ${email}, 角色: ${roles.join(",")}`,
+      userId: input.actorId,
+      userName: input.actorName,
+      action: "create_user",
+      entityType: "user",
+      entityId: newUser.id,
+      details: `管理员开通账号: ${email}, 角色: ${roles.join(",")}`,
       timestamp: new Date().toISOString(),
     });
     s.logs = s.logs.slice(0, 500);
   });
 
-  return { ok: true as const, user: publicUser(newUser), session };
+  return { ok: true as const, user: publicUser(newUser) };
 }
 
 export function getTokenFromRequest(req: NextRequest): string | null {

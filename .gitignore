@@ -37,6 +37,8 @@ yarn-error.log*
 # local server database
 /data/db.json
 /data/db.json.tmp
+/data/ppt-templates/
+/data/ra-achievements/
 
 # typescript
 *.tsbuildinfo

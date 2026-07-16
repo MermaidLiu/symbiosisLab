@@ -53,6 +53,7 @@ export type ApplicationWorkflowStatus =
   | "rejected";
 
 export type ApplicationType =
+  | "custody"
   | "veterinary"
   | "transfer"
   | "cage_change"
@@ -64,9 +65,13 @@ export interface OperationApplication {
   id: string;
   applicationTime: string;
   applicant: string;
+  /** User id of applicant — used for approval notifications */
+  applicantUserId?: string;
   pi: string;
   type: ApplicationType;
   description: string;
+  /** Managed animal ids when type is custody */
+  animalIds?: string[];
   status: ApplicationWorkflowStatus;
   waitingHours: number;
   processor?: string;

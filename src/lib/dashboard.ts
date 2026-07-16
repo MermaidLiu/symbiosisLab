@@ -2,10 +2,16 @@ import { AuditLog, Animal, Booking, Instrument, Role } from "@/types";
 import { getNotifications } from "@/lib/storage/db";
 import { canManageAnimals, canManageInstruments, hasRole } from "@/lib/roles";
 
-export type DashboardView = "admin" | "instrument_manager" | "animal_manager" | "student";
+export type DashboardView =
+  | "admin"
+  | "instrument_manager"
+  | "animal_manager"
+  | "research_assistant"
+  | "student";
 
 export function getDashboardView(roles: Role[]): DashboardView {
   if (hasRole(roles, "super_admin")) return "admin";
+  if (roles.includes("research_assistant")) return "research_assistant";
   const inst = canManageInstruments(roles);
   const animal = canManageAnimals(roles);
   if (inst && !animal) return "instrument_manager";
@@ -86,7 +92,7 @@ export function filterDashboardLogs(
 
   const view = getDashboardView(roles);
   if (view === "admin") return sorted.slice(0, limit);
-  if (view === "student") return [];
+  if (view === "student" || view === "research_assistant") return [];
 
   const isInstMgr = canManageInstruments(roles);
   const isAnimalMgr = canManageAnimals(roles);

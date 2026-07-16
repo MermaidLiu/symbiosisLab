@@ -9,7 +9,6 @@ import { FluentSelect, FluentInput, FluentRadioGroup } from "@/components/fluent
 import { FluentModal } from "@/components/fluent/FluentModal";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
-import { useAnimalCart } from "@/context/AnimalCartContext";
 import { canManageAnimals } from "@/lib/roles";
 import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
@@ -54,8 +53,8 @@ export function ManagedAnimals() {
   const { t } = useLocale();
   const m = t.animalMgmt.managed;
   const { user } = useAuth();
-  const { addItems } = useAnimalCart();
   const canExport = user ? canManageAnimals(user.roles) : false;
+  const [applying, setApplying] = useState(false);
 
   const [filters, setFilters] = useState<AnimalFilterState>(EMPTY_FILTER);
   const [applied, setApplied] = useState<AnimalFilterState>(EMPTY_FILTER);
@@ -158,19 +157,34 @@ export function ManagedAnimals() {
     else setSelected(new Set(filtered.map((r) => r.id)));
   }
 
-  function handleBatchCart() {
-    if (selected.size === 0) {
+  async function submitCustody(ids: string[]) {
+    if (ids.length === 0) {
       showToast(m.selectRows);
       return;
     }
-    addItems([...selected]);
-    showToast(m.addedToCart);
+    setApplying(true);
+    try {
+      await api.createApplication({
+        type: "custody",
+        description: `申请代管动物: ${ids.join(", ")}`,
+        animalIds: ids,
+      });
+      setSelected(new Set());
+      setViewAnimal(null);
+      showToast(m.applyPending);
+    } catch {
+      showToast(m.applyError);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  function handleBatchApply() {
+    void submitCustody([...selected]);
   }
 
   function handleApplyCustody(animal: ManagedAnimal) {
-    addItems([animal.id]);
-    showToast(m.applySuccess);
-    setViewAnimal(null);
+    void submitCustody([animal.id]);
   }
 
   function handleExport() {
@@ -327,7 +341,9 @@ export function ManagedAnimals() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               <FluentButton variant="secondary" size="sm">{m.vetCare}</FluentButton>
-              <FluentButton variant="secondary" size="sm" onClick={handleBatchCart}>{m.batchCart}</FluentButton>
+              <FluentButton variant="secondary" size="sm" disabled={applying} onClick={handleBatchApply}>
+                {m.batchApply}
+              </FluentButton>
               <FluentButton variant="outline" size="sm">{m.transfer} ▾</FluentButton>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -491,7 +507,9 @@ export function ManagedAnimals() {
           viewAnimal ? (
             <div className="flex justify-end gap-2">
               <FluentButton variant="outline" onClick={() => setViewAnimal(null)}>{t.common.cancel}</FluentButton>
-              <FluentButton onClick={() => handleApplyCustody(viewAnimal)}>{m.applyCustody}</FluentButton>
+              <FluentButton disabled={applying} onClick={() => handleApplyCustody(viewAnimal)}>
+                {m.applyCustody}
+              </FluentButton>
             </div>
           ) : undefined
         }

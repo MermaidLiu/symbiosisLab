@@ -1,5 +1,11 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser, jsonError, jsonOk, requireRole } from "@/server/auth";
+import {
+  createUserByAdmin,
+  getCurrentUser,
+  jsonError,
+  jsonOk,
+  requireRole,
+} from "@/server/auth";
 import { getStore, mutateStore, publicUser } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { Role } from "@/types";
@@ -10,6 +16,42 @@ export async function GET() {
   return jsonOk({
     users: getStore().users.map((u) => publicUser(u)),
   });
+}
+
+/** Admin creates a new account and assigns roles */
+export async function POST(req: NextRequest) {
+  const me = await getCurrentUser();
+  if (!me) return jsonError("unauthorized", 401);
+  if (!requireRole(me, "super_admin")) return jsonError("forbidden", 403);
+
+  const body = await req.json().catch(() => ({}));
+  const email = String(body.email ?? "").trim();
+  const password = String(body.password ?? "");
+  const name = String(body.name ?? "").trim();
+  if (!email || !password || !name) return jsonError("invalid_body", 400);
+
+  const roles = (Array.isArray(body.roles) ? body.roles : ["user"]) as Role[];
+
+  const result = await createUserByAdmin({
+    email,
+    password,
+    name,
+    phone: body.phone ? String(body.phone) : undefined,
+    department: body.department ? String(body.department) : undefined,
+    roles,
+    actorId: me.id,
+    actorName: me.name,
+  });
+
+  if (!result.ok) return jsonError(result.error, 400);
+
+  return jsonOk(
+    {
+      user: result.user,
+      users: getStore().users.map((u) => publicUser(u)),
+    },
+    { status: 201 }
+  );
 }
 
 export async function PATCH(req: NextRequest) {

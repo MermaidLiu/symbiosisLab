@@ -39,10 +39,8 @@ export async function POST(req: NextRequest) {
       department: body.department ? String(body.department) : undefined,
       roles: Array.isArray(body.roles) ? body.roles : ["user"],
     });
-    if (!result.ok) return jsonError(result.error, 400);
-    const res = jsonOk({ user: result.user });
-    await setSessionCookie(res, result.session.token, result.session.expiresAt);
-    return res;
+    if (!result.ok) return jsonError(result.error, 403);
+    return jsonError("register_disabled", 403);
   }
 
   if (action === "logout") {

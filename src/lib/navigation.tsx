@@ -1,5 +1,11 @@
 import { Role } from "@/types";
-import { canManageUsers, canViewAllLogs, canManageInstruments, canManageAnimals } from "@/lib/roles";
+import {
+  canManageUsers,
+  canViewAllLogs,
+  canManageInstruments,
+  canManageAnimals,
+  canAccessResearchAssistant,
+} from "@/lib/roles";
 
 export interface NavLink {
   type: "link";
@@ -14,6 +20,8 @@ export interface NavGroup {
   labelKey: keyof typeof import("@/i18n/locales/zh").default.nav;
   icon: string;
   show: (roles: Role[]) => boolean;
+  /** Path prefix used to auto-expand the group */
+  pathPrefix: string;
   children: {
     href: string;
     labelKey: keyof typeof import("@/i18n/locales/zh").default.nav;
@@ -29,6 +37,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     type: "group",
     labelKey: "animals",
     icon: "animal",
+    pathPrefix: "/animals",
     show: () => true,
     children: [
       { href: "/animals/managed", labelKey: "managedAnimals" },
@@ -36,7 +45,37 @@ export const NAV_ENTRIES: NavEntry[] = [
       { href: "/animals/applications", labelKey: "applications" },
     ],
   },
+  {
+    type: "group",
+    labelKey: "researchAssistant",
+    icon: "ra",
+    pathPrefix: "/ra",
+    show: canAccessResearchAssistant,
+    children: [
+      { href: "/ra/projects", labelKey: "raProjects" },
+      { href: "/ra/submissions", labelKey: "raSubmissions" },
+      { href: "/ra/review", labelKey: "raReview" },
+      { href: "/ra/achievements", labelKey: "raAchievements" },
+      { href: "/ra/analytics", labelKey: "raAnalytics" },
+      { href: "/ra/data", labelKey: "raData" },
+      { href: "/ra/advisor", labelKey: "raAdvisor" },
+      { href: "/ra/expenses", labelKey: "raExpenses" },
+      { href: "/ra/progress", labelKey: "raProgress" },
+      { href: "/ra/ppt", labelKey: "raPpt" },
+      { href: "/ra/supplies", labelKey: "raSupplies" },
+    ],
+  },
   { type: "link", href: "/bookings", labelKey: "bookings", icon: "calendar", show: () => true },
+  {
+    type: "link",
+    href: "/progress",
+    labelKey: "progressSubmit",
+    icon: "ra",
+    show: (roles) =>
+      roles.includes("user") &&
+      !roles.includes("research_assistant") &&
+      !roles.includes("super_admin"),
+  },
   {
     type: "link",
     href: "/logs",
@@ -68,6 +107,12 @@ export function NavIcon({ name, className }: { name: string; className?: string 
       return (
         <svg className={cn} {...stroke}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6c-2 0-3 1.5-3 3.5S10 13 12 13s3-1.5 3-3.5S14 6 12 6zm-7 8c0-2 2-3 4-3h6c2 0 4 1 4 3v2H5v-2z" />
+        </svg>
+      );
+    case "ra":
+      return (
+        <svg className={cn} {...stroke}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.611L5 14.5" />
         </svg>
       );
     case "calendar":

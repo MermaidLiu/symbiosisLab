@@ -155,14 +155,38 @@ export const api = {
 
   applications: () => request<{ applications: OperationApplication[] }>("/api/applications"),
 
-  createApplication: (data: { type: ApplicationType; description: string; pi?: string }) =>
+  createApplication: (data: {
+    type: ApplicationType;
+    description: string;
+    pi?: string;
+    animalIds?: string[];
+  }) =>
     request<{ application: OperationApplication; applications: OperationApplication[] }>(
       "/api/applications",
       { method: "POST", body: JSON.stringify(data) }
     ),
 
+  reviewApplication: (id: string, action: "approve" | "reject" | "receive", feedback?: string) =>
+    request<{ application: OperationApplication; applications: OperationApplication[] }>(
+      "/api/applications",
+      { method: "PATCH", body: JSON.stringify({ id, action, feedback }) }
+    ),
+
   cancelApplication: (id: string) =>
     request<{ applications: OperationApplication[] }>(`/api/applications?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
+    }),
+
+  createUser: (data: {
+    email: string;
+    password: string;
+    name: string;
+    phone?: string;
+    department?: string;
+    roles: Role[];
+  }) =>
+    request<{ user: PublicUser; users: PublicUser[] }>("/api/users", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };
