@@ -99,7 +99,7 @@ export interface AppNotification {
   messageEn: string;
   read: boolean;
   link?: string;
-  kind?: "info" | "booking_pending" | "booking_status" | "application_status";
+  kind?: "info" | "booking_pending" | "booking_status" | "application_status" | "application_pending";
   bookingId?: string;
   applicationId?: string;
   handled?: boolean;

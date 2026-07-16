@@ -4,6 +4,7 @@ import { getStore, mutateStore, uid } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { canManageAnimals } from "@/lib/roles";
 import { ApplicationType, OperationApplication } from "@/types/animal-management";
+import { approverRecipientIds, pushNotificationToUsers } from "@/server/notify";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -49,15 +50,13 @@ export async function POST(req: NextRequest) {
   await mutateStore((s) => {
     s.applications = [item, ...s.applications];
 
-    // Notify animal/area managers + super admins
-    const managers = s.users.filter(
-      (u) => u.roles.includes("super_admin") || canManageAnimals(u.roles)
-    );
-    for (const mgr of managers) {
-      if (mgr.id === user.id) continue;
-      s.notifications.unshift({
-        id: uid("ntf"),
-        userId: mgr.id,
+    const recipients = approverRecipientIds(s, {
+      resourceType: type === "custody" ? "custody" : "application",
+    });
+    pushNotificationToUsers(
+      s,
+      recipients,
+      {
         title: type === "custody" ? "新的代管申领待审核" : "新的操作申请待处理",
         titleEn: type === "custody" ? "Custody request pending" : "New application pending",
         message:
@@ -68,14 +67,12 @@ export async function POST(req: NextRequest) {
           type === "custody"
             ? `${user.name} requested custody of ${animalIds!.length} animal(s)`
             : `${user.name} submitted application ${item.id}`,
-        read: false,
         link: "/animals/applications",
-        kind: "info",
+        kind: "application_pending",
         applicationId: item.id,
-        handled: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
+      },
+      user.id
+    );
   });
 
   await appendAuditLog({

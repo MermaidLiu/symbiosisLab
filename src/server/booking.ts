@@ -1,5 +1,6 @@
 import { Booking } from "@/types";
 import { DbStore, mutateStore, uid } from "@/server/store";
+import { approverRecipientIds, pushNotificationToUsers } from "@/server/notify";
 
 export function bookingOverlaps(
   aStart: string,
@@ -84,20 +85,26 @@ export async function createBookingAtomic(input: {
     };
 
     s.bookings.push(booking);
-    s.notifications.unshift({
-      id: uid("ntf"),
-      userId: resource.contactUserId,
-      title: "新预约待审批",
-      titleEn: "New booking pending",
-      message: `${input.userName} 预约了 ${resource.name}`,
-      messageEn: `${input.userName} booked ${resource.nameEn}`,
-      read: false,
-      link: "/bookings",
-      kind: "booking_pending",
-      bookingId: booking.id,
-      handled: false,
-      createdAt: new Date().toISOString(),
+
+    const recipients = approverRecipientIds(s, {
+      contactUserId: resource.contactUserId,
+      resourceType: input.resourceType,
     });
+    pushNotificationToUsers(
+      s,
+      recipients,
+      {
+        title: "新预约待审批",
+        titleEn: "New booking pending",
+        message: `${input.userName} 预约了 ${resource.name}`,
+        messageEn: `${input.userName} booked ${resource.nameEn}`,
+        link: "/bookings",
+        kind: "booking_pending",
+        bookingId: booking.id,
+      },
+      input.userId
+    );
+
     s.logs.unshift({
       id: uid("log"),
       userId: input.userId,

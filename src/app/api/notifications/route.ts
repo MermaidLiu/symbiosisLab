@@ -71,6 +71,15 @@ export async function PATCH(req: NextRequest) {
         handled: action === "approve" || action === "reject" ? true : n.handled,
       };
     });
+    // After approve/reject, clear pending actions for the same booking/application for everyone
+    if ((action === "approve" || action === "reject") && (target.bookingId || target.applicationId)) {
+      s.notifications = s.notifications.map((n) => {
+        const sameBooking = Boolean(target.bookingId && n.bookingId === target.bookingId);
+        const sameApp = Boolean(target.applicationId && n.applicationId === target.applicationId);
+        if (!sameBooking && !sameApp) return n;
+        return { ...n, handled: true, read: n.userId === user.id ? true : n.read };
+      });
+    }
   });
 
   const actionLabels: Record<string, string> = {
