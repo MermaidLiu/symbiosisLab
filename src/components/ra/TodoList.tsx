@@ -53,9 +53,11 @@ async function apiDeleteTodo(id: string): Promise<void> {
 
 interface TodoListProps {
   onStatsChange?: (stats: { total: number; done: number; remaining: number }) => void;
+  /** Tighter spacing for side panels / workbench */
+  compact?: boolean;
 }
 
-export function TodoList({ onStatsChange }: TodoListProps) {
+export function TodoList({ onStatsChange, compact }: TodoListProps) {
   const { t, locale } = useLocale();
   const r = t.ra;
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -160,10 +162,10 @@ export function TodoList({ onStatsChange }: TodoListProps) {
   }
 
   return (
-    <GlassPanel>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+    <GlassPanel className={compact ? "h-full" : undefined}>
+      <div className={clsx("flex flex-wrap items-start justify-between gap-2", compact ? "mb-3" : "mb-4")}>
         <div>
-          <h3 className="text-base font-semibold text-thu">{r.todoTitle}</h3>
+          <h3 className={clsx("font-semibold text-thu", compact ? "text-sm" : "text-base")}>{r.todoTitle}</h3>
           <p className="mt-0.5 text-xs text-lab-muted">
             {new Date(`${date}T12:00:00`).toLocaleDateString(localeStr, {
               weekday: "long",
@@ -171,13 +173,17 @@ export function TodoList({ onStatsChange }: TodoListProps) {
               month: "long",
               day: "numeric",
             })}
-            {" · "}
-            {r.todoHint}
+            {!compact && (
+              <>
+                {" · "}
+                {r.todoHint}
+              </>
+            )}
           </p>
         </div>
       </div>
 
-      <form onSubmit={handleAdd} className="mb-4 flex gap-2">
+      <form onSubmit={handleAdd} className={clsx("flex gap-2", compact ? "mb-3" : "mb-4")}>
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -192,13 +198,18 @@ export function TodoList({ onStatsChange }: TodoListProps) {
       {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
 
       {loading ? (
-        <p className="py-8 text-center text-sm text-lab-muted">{t.common.loading}</p>
+        <p className="py-6 text-center text-sm text-lab-muted">{t.common.loading}</p>
       ) : todos.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-white/50 bg-white/25 px-4 py-10 text-center text-sm text-lab-muted">
+        <p
+          className={clsx(
+            "rounded-lg border border-dashed border-white/50 bg-white/25 px-4 text-center text-sm text-lab-muted",
+            compact ? "py-6" : "py-10"
+          )}
+        >
           {r.emptyTodos}
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className={clsx("space-y-2", compact && "max-h-56 overflow-y-auto pr-1")}>
           {todos.map((todo) => (
             <li
               key={todo.id}

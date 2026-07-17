@@ -40,6 +40,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     pathPrefix: "/animals",
     show: () => true,
     children: [
+      { href: "/animals/facility-board", labelKey: "facilityBoard" },
       { href: "/animals/managed", labelKey: "managedAnimals" },
       // { href: "/animals/cages", labelKey: "myCages" }, // temporarily hidden
       { href: "/animals/applications", labelKey: "applications" },

@@ -13,7 +13,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!requireRole(user, "animal_manager")) return jsonError("forbidden", 403);
+  if (!requireRole(user, "animal_manager", "animal_facility_supervisor")) return jsonError("forbidden", 403);
 
   const body = await req.json().catch(() => ({}));
   const now = new Date().toISOString();

@@ -15,6 +15,7 @@ export function isLabStudent(roles: string[]): boolean {
     !roles.includes("instrument_manager") &&
     !roles.includes("animal_manager") &&
     !roles.includes("research_assistant") &&
-    !roles.includes("veterinarian")
+    !roles.includes("veterinarian") &&
+    !roles.includes("animal_facility_supervisor")
   );
 }

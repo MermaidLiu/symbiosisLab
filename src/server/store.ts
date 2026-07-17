@@ -20,12 +20,14 @@ import {
   ManagedAnimal,
   Cage,
   OperationApplication,
+  AnimalDayActivity,
 } from "@/types/animal-management";
 import { SEED_USERS, SEED_INSTRUMENTS, SEED_ANIMALS } from "@/lib/storage/seed";
 import {
   SEED_MANAGED_ANIMALS,
   SEED_CAGES,
   SEED_APPLICATIONS,
+  buildSeedAnimalDayActivities,
 } from "@/lib/mock/animalManagement";
 import { hashPassword, uid } from "@/server/crypto";
 
@@ -62,6 +64,8 @@ export interface DbStore {
   raImageLibrary: RaImageLibraryItem[];
   /** RA project board */
   raProjects: RaProject[];
+  /** Daily animal-facility activity feed for calendar */
+  animalDayActivities: AnimalDayActivity[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -94,6 +98,7 @@ function emptyStore(): DbStore {
     raDataEntries: [],
     raImageLibrary: [],
     raProjects: [],
+    animalDayActivities: [],
   };
 }
 
@@ -128,6 +133,7 @@ function seedStore(): DbStore {
     raDataEntries: [],
     raImageLibrary: [],
     raProjects: DEFAULT_RA_PROJECTS.map((p) => ({ ...p })),
+    animalDayActivities: buildSeedAnimalDayActivities(),
   };
 }
 
@@ -197,15 +203,36 @@ function readFromDisk(): DbStore {
       parsed.raProjects = DEFAULT_RA_PROJECTS.map((p) => ({ ...p }));
       dirty = true;
     }
-    // Default purpose on managed animals
+    if (!Array.isArray(parsed.animalDayActivities) || parsed.animalDayActivities.length === 0) {
+      parsed.animalDayActivities = buildSeedAnimalDayActivities();
+      dirty = true;
+    }
+    // Default purpose / lifecycle on managed animals
     for (const a of parsed.managedAnimals ?? []) {
       if (!a.purpose) {
         a.purpose = "blank";
         dirty = true;
       }
+      if (!a.lifecycleStatus) {
+        a.lifecycleStatus = a.purpose === "blank" ? "entered" : "entered";
+        dirty = true;
+      }
     }
-    // Ensure seed RA + demo students + vet exist for existing databases
-    for (const email of ["ra@lab.edu.cn", "chen@lab.edu.cn", "zhao@lab.edu.cn", "vet@lab.edu.cn"]) {
+    // One-time: upgrade to cage-linked facility board seed when cageId missing
+    const hasCageLink = (parsed.managedAnimals ?? []).some((a) => a.cageId);
+    if (!hasCageLink) {
+      parsed.managedAnimals = SEED_MANAGED_ANIMALS.map((a) => ({ ...a }));
+      parsed.cages = SEED_CAGES.map((c) => ({ ...c }));
+      dirty = true;
+    }
+    // Ensure seed demo accounts exist
+    for (const email of [
+      "ra@lab.edu.cn",
+      "chen@lab.edu.cn",
+      "zhao@lab.edu.cn",
+      "vet@lab.edu.cn",
+      "facility@lab.edu.cn",
+    ]) {
       if (!parsed.users.some((u) => u.email === email)) {
         const seed = SEED_USERS.find((u) => u.email === email);
         if (seed) {
@@ -213,6 +240,11 @@ function readFromDisk(): DbStore {
           dirty = true;
         }
       }
+    }
+    const tech = parsed.users.find((u) => u.email === "animal@lab.edu.cn");
+    if (tech && tech.name !== "李技术") {
+      tech.name = "李技术";
+      dirty = true;
     }
     // Keep demo RA display name in sync
     const ra = parsed.users.find((u) => u.email === "ra@lab.edu.cn");
@@ -263,6 +295,10 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.raProjects)) {
       globalThis.__symbiosisDb.raProjects = DEFAULT_RA_PROJECTS.map((p) => ({ ...p }));
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.animalDayActivities) || globalThis.__symbiosisDb.animalDayActivities.length === 0) {
+      globalThis.__symbiosisDb.animalDayActivities = buildSeedAnimalDayActivities();
+      writeToDisk(globalThis.__symbiosisDb);
     }
   }
   return globalThis.__symbiosisDb;

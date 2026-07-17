@@ -1,6 +1,7 @@
 export type Role =
   | "super_admin"
   | "instrument_manager"
+  | "animal_facility_supervisor"
   | "animal_manager"
   | "veterinarian"
   | "research_assistant"

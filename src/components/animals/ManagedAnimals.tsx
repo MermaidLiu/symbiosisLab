@@ -14,12 +14,17 @@ import { canManageAnimals } from "@/lib/roles";
 import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
 import { getManagedAnimals, setCachePartial } from "@/lib/storage/db";
+import { formatTrackingMinutes, trackingMinutes } from "@/lib/animals/facility-board";
 import {
   ManagedAnimal,
   AnimalFilterState,
   GenotypeStatusFilter,
   AnimalPurpose,
   ANIMAL_PURPOSES,
+  EphysRecordStatus,
+  DeathMethod,
+  MouseLifecycleStatus,
+  EuthanasiaMethod,
 } from "@/types/animal-management";
 
 const EMPTY_FILTER: AnimalFilterState = {
@@ -34,19 +39,61 @@ const EMPTY_FILTER: AnimalFilterState = {
   animalId: "",
 };
 
+/** All columns available in column settings */
 const COLUMN_KEYS = [
   "id",
+  "purpose",
+  "ephysStatus",
+  "cageEntryAt",
+  "implantAt",
+  "collectionAt",
+  "lastCollectionAt",
+  "tracking",
+  "deathMethod",
+  "specialExperiment",
+  "status",
   "gender",
   "strain",
-  "purpose",
   "birthDate",
   "ageWeeks",
   "cageLocation",
-  "status",
 ] as const;
 
 type ColumnKey = (typeof COLUMN_KEYS)[number];
 type SortKey = ColumnKey;
+
+const PAGE_SIZE = 10;
+
+/** Default visible columns for the Excel-style list */
+const DEFAULT_COLUMNS: ColumnKey[] = [
+  "id",
+  "purpose",
+  "ephysStatus",
+  "cageEntryAt",
+  "implantAt",
+  "collectionAt",
+  "lastCollectionAt",
+  "tracking",
+  "deathMethod",
+  "specialExperiment",
+  "status",
+];
+
+const STATUS_TIP: Record<ManagedAnimal["status"], string> = {
+  active: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
+  breeding: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
+  quarantine: "bg-[#FFF3E0] text-[#E65100] ring-[#FFCC80]",
+  reserved: "bg-[#E3F2FD] text-[#1565C0] ring-[#90CAF9]",
+  deceased: "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]",
+};
+
+const LIFECYCLE_TIP: Record<MouseLifecycleStatus, string> = {
+  entered: "bg-[#F3E5F5] text-[#660874] ring-[#CE93D8]",
+  electrode_implant: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
+  signal_recording: "bg-[#E3F2FD] text-[#1565C0] ring-[#90CAF9]",
+  observing: "bg-[#E0F7FA] text-[#00838F] ring-[#80DEEA]",
+  euthanasia: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
+};
 
 export function ManagedAnimals() {
   const { t } = useLocale();
@@ -61,11 +108,15 @@ export function ManagedAnimals() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortAsc, setSortAsc] = useState(true);
+  const [page, setPage] = useState(1);
   const [toast, setToast] = useState("");
   const [displayMode, setDisplayMode] = useState<"list" | "grid">("list");
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => new Set(COLUMN_KEYS));
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => new Set(DEFAULT_COLUMNS));
   const [columnModalOpen, setColumnModalOpen] = useState(false);
   const [viewAnimal, setViewAnimal] = useState<ManagedAnimal | null>(null);
+  const [opAction, setOpAction] = useState<"" | "record_signal" | "force_euthanasia">("");
+  const [opEuthMethod, setOpEuthMethod] = useState<EuthanasiaMethod | "">("");
+  const [opEuthCustom, setOpEuthCustom] = useState("");
   const [animals, setAnimals] = useState<ManagedAnimal[]>([]);
   const [vetModalOpen, setVetModalOpen] = useState(false);
   const [vetAction, setVetAction] = useState("");
@@ -130,13 +181,21 @@ export function ManagedAnimals() {
 
   const columnLabels: Record<ColumnKey, string> = {
     id: m.colId,
+    purpose: m.colPurpose,
+    ephysStatus: m.colEphys,
+    cageEntryAt: m.colCageEntry,
+    implantAt: m.colImplant,
+    collectionAt: m.colCollection,
+    lastCollectionAt: m.colLastCollection,
+    tracking: m.colTracking,
+    deathMethod: m.colDeathMethod,
+    specialExperiment: m.colSpecialExperiment,
+    status: m.colStatus,
     gender: m.colGender,
     strain: m.colStrain,
-    purpose: m.colPurpose,
     birthDate: m.colBirth,
     ageWeeks: m.colAge,
     cageLocation: m.colCage,
-    status: m.colStatus,
   };
 
   const strains = useMemo(
@@ -166,13 +225,31 @@ export function ManagedAnimals() {
     if (f.animalId) rows = rows.filter((r) => r.id.toLowerCase().includes(f.animalId.toLowerCase()));
 
     rows.sort((a, b) => {
-      const av = a[sortKey] ?? "";
-      const bv = b[sortKey] ?? "";
+      if (sortKey === "tracking") {
+        const av = trackingMinutes(a.collectionAt, a.lastCollectionAt) ?? -Infinity;
+        const bv = trackingMinutes(b.collectionAt, b.lastCollectionAt) ?? -Infinity;
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortAsc ? cmp : -cmp;
+      }
+      const av = a[sortKey as keyof ManagedAnimal] ?? "";
+      const bv = b[sortKey as keyof ManagedAnimal] ?? "";
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
       return sortAsc ? cmp : -cmp;
     });
     return rows;
   }, [animals, applied, sortKey, sortAsc]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+
+  const paged = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -185,6 +262,7 @@ export function ManagedAnimals() {
       setSortKey(key);
       setSortAsc(true);
     }
+    setPage(1);
   }
 
   function toggleRow(id: string) {
@@ -197,8 +275,17 @@ export function ManagedAnimals() {
   }
 
   function toggleAll() {
-    if (selected.size === filtered.length) setSelected(new Set());
-    else setSelected(new Set(filtered.map((r) => r.id)));
+    const pageIds = paged.map((r) => r.id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const id of pageIds) next.delete(id);
+      } else {
+        for (const id of pageIds) next.add(id);
+      }
+      return next;
+    });
   }
 
   async function submitCustody(ids: string[]) {
@@ -227,8 +314,70 @@ export function ManagedAnimals() {
     void submitCustody([...selected]);
   }
 
-  function handleApplyCustody(animal: ManagedAnimal) {
-    void submitCustody([animal.id]);
+  function openViewAnimal(row: ManagedAnimal) {
+    setViewAnimal(row);
+    setOpAction("");
+    setOpEuthMethod("");
+    setOpEuthCustom("");
+  }
+
+  async function submitViewOperation() {
+    if (!viewAnimal) return;
+    if (!opAction) {
+      showToast(m.opNeedAction);
+      return;
+    }
+    if (opAction === "force_euthanasia") {
+      if (!opEuthMethod) {
+        showToast(m.opNeedEuthanasiaMethod);
+        return;
+      }
+      if (opEuthMethod === "other" && !opEuthCustom.trim()) {
+        showToast(m.opNeedCustomNote);
+        return;
+      }
+    }
+
+    setApplying(true);
+    try {
+      const now = new Date().toISOString();
+      let patch: Record<string, unknown>;
+      if (opAction === "record_signal") {
+        patch = {
+          lifecycleStatus: "signal_recording",
+          lastCollectionAt: viewAnimal.collectionAt || undefined,
+          collectionAt: now,
+          ephysStatus: viewAnimal.ephysStatus === "ephys_no_signal" ? "ephys_has_signal" : viewAnimal.ephysStatus ?? "ephys_has_signal",
+        };
+      } else {
+        const deathMethod: DeathMethod | undefined =
+          opEuthMethod === "cervical"
+            ? "cervical"
+            : opEuthMethod === "perfusion"
+              ? "perfusion"
+              : undefined;
+        patch = {
+          lifecycleStatus: "euthanasia",
+          status: "deceased",
+          euthanasiaMethod: opEuthMethod,
+          euthanasiaNote: opEuthMethod === "other" ? opEuthCustom.trim() : undefined,
+          deathMethod: deathMethod ?? viewAnimal.deathMethod,
+        };
+      }
+
+      const res = await api.updateManagedAnimal(viewAnimal.id, patch);
+      setCachePartial({ managedAnimals: res.managedAnimals });
+      setAnimals(res.managedAnimals);
+      setViewAnimal(null);
+      setOpAction("");
+      setOpEuthMethod("");
+      setOpEuthCustom("");
+      showToast(opAction === "record_signal" ? m.opSuccessRecord : m.opSuccessEuthanasia);
+    } catch {
+      showToast(m.opError);
+    } finally {
+      setApplying(false);
+    }
   }
 
   function openTransferModal() {
@@ -276,7 +425,56 @@ export function ManagedAnimals() {
   function purposeLabel(p?: AnimalPurpose) {
     if (p === "signal_processing") return m.purposeSignal;
     if (p === "immunity") return m.purposeImmunity;
+    if (p === "breeding") return m.purposeBreeding;
     return m.purposeBlank;
+  }
+
+  function ephysLabel(s?: EphysRecordStatus) {
+    if (!s) return "—";
+    const map: Record<EphysRecordStatus, string> = {
+      dead: m.ephysDead,
+      ephys_no_signal: m.ephysNoSignal,
+      ephys_has_signal: m.ephysHasSignal,
+      twophoton: m.ephysTwophoton,
+      immunity_mouse: m.ephysImmunity,
+      poor_condition: m.ephysPoor,
+      no_spike: m.ephysNoSpike,
+    };
+    return map[s];
+  }
+
+  function deathLabel(d?: DeathMethod) {
+    if (!d) return "—";
+    const map: Record<DeathMethod, string> = {
+      cervical: m.deathCervical,
+      perfusion: m.deathPerfusion,
+      found_dead: m.deathFound,
+    };
+    return map[d];
+  }
+
+  function euthanasiaMethodLabel(row: ManagedAnimal) {
+    if (row.euthanasiaMethod === "humane") return m.opEuthanasiaHumane;
+    if (row.euthanasiaMethod === "perfusion") return m.opEuthanasiaPerfusion;
+    if (row.euthanasiaMethod === "cervical") return m.opEuthanasiaCervical;
+    if (row.euthanasiaMethod === "brain_harvest") return m.opEuthanasiaBrain;
+    if (row.euthanasiaMethod === "other") {
+      return row.euthanasiaNote?.trim() || m.opEuthanasiaCustom;
+    }
+    return deathLabel(row.deathMethod);
+  }
+
+  function formatTime(iso?: string) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (!Number.isFinite(d.getTime())) return iso;
+    return d.toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   function openVetModal() {
@@ -426,18 +624,52 @@ export function ManagedAnimals() {
   }
 
   function handleExport() {
-    const visible = COLUMN_KEYS.filter((k) => visibleColumns.has(k));
+    const headers = [
+      m.colId,
+      m.colPurpose,
+      m.colEphys,
+      m.colCageEntry,
+      m.colImplant,
+      m.colCollection,
+      m.colLastCollection,
+      m.colTracking,
+      m.colDeathMethod,
+      m.colSpecialExperiment,
+      m.colStatus,
+      m.colGender,
+      m.colStrain,
+      m.colCage,
+      m.colClaimant,
+      m.colTech,
+    ];
     exportToCsv(
       `managed-animals-${Date.now()}.csv`,
-      visible.map((k) => columnLabels[k]),
-      filtered.map((row) =>
-        visible.map((k) => {
-          if (k === "gender") return genderLabel(row.gender);
-          if (k === "status") return statusLabel(row.status);
-          return String(row[k]);
-        })
-      )
+      headers,
+      filtered.map((row) => {
+        const isSignal = row.purpose === "signal_processing";
+        return [
+          row.id,
+          purposeLabel(row.purpose),
+          ephysLabel(row.ephysStatus),
+          formatTime(row.cageEntryAt),
+          formatTime(row.implantAt),
+          isSignal ? formatTime(row.collectionAt) : "—",
+          isSignal ? formatTime(row.lastCollectionAt) : "—",
+          isSignal
+            ? formatTrackingMinutes(trackingMinutes(row.collectionAt, row.lastCollectionAt), m.trackingUnit)
+            : "—",
+          euthanasiaMethodLabel(row),
+          row.specialExperiment?.trim() || "—",
+          currentStatusLabel(row),
+          genderLabel(row.gender),
+          row.strain,
+          row.cageLocation,
+          row.claimantName ?? "未分配",
+          row.technicianName ?? "未分配",
+        ];
+      })
     );
+    showToast(m.exportDone);
   }
 
   function handleRefresh() {
@@ -469,6 +701,31 @@ export function ManagedAnimals() {
     return map[s];
   }
 
+  function lifecycleLabel(s?: MouseLifecycleStatus) {
+    if (!s) return "";
+    const map: Record<MouseLifecycleStatus, string> = {
+      entered: t.animalMgmt.facilityBoard.lifeEntered,
+      electrode_implant: t.animalMgmt.facilityBoard.lifeElectrode,
+      signal_recording: t.animalMgmt.facilityBoard.lifeRecording,
+      observing: t.animalMgmt.facilityBoard.lifeObserving,
+      euthanasia: t.animalMgmt.facilityBoard.lifeEuthanasia,
+    };
+    return map[s];
+  }
+
+  function currentStatusLabel(row: ManagedAnimal) {
+    return lifecycleLabel(row.lifecycleStatus) || statusLabel(row.status);
+  }
+
+  function statusTipClass(row: ManagedAnimal) {
+    if (row.lifecycleStatus) return LIFECYCLE_TIP[row.lifecycleStatus];
+    return STATUS_TIP[row.status];
+  }
+
+  function isSignalMouse(row: ManagedAnimal) {
+    return row.purpose === "signal_processing";
+  }
+
   function genderLabel(g: "male" | "female") {
     return g === "male" ? m.genderMale : m.genderFemale;
   }
@@ -486,15 +743,27 @@ export function ManagedAnimals() {
   }
 
   function cellValue(row: ManagedAnimal, key: ColumnKey): string {
+    const signal = isSignalMouse(row);
     if (key === "gender") return genderLabel(row.gender);
-    if (key === "status") return statusLabel(row.status);
+    if (key === "status") return currentStatusLabel(row);
     if (key === "purpose") return purposeLabel(row.purpose);
-    return String(row[key] ?? "");
+    if (key === "ephysStatus") return ephysLabel(row.ephysStatus);
+    if (key === "deathMethod") return euthanasiaMethodLabel(row);
+    if (key === "cageEntryAt") return formatTime(row.cageEntryAt);
+    if (key === "implantAt") return formatTime(row.implantAt);
+    if (key === "collectionAt") return signal ? formatTime(row.collectionAt) : "—";
+    if (key === "lastCollectionAt") return signal ? formatTime(row.lastCollectionAt) : "—";
+    if (key === "tracking") {
+      if (!signal) return "—";
+      return formatTrackingMinutes(trackingMinutes(row.collectionAt, row.lastCollectionAt), m.trackingUnit);
+    }
+    if (key === "specialExperiment") return row.specialExperiment?.trim() || "—";
+    return String(row[key as keyof ManagedAnimal] ?? "");
   }
 
   const SortTh = ({ col, label }: { col: SortKey; label: string }) => (
     <th
-      className="cursor-pointer whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-lab-muted hover:text-thu"
+      className="cursor-pointer whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold text-thu hover:text-thu-dark"
       onClick={() => toggleSort(col)}
     >
       {label} {sortKey === col ? (sortAsc ? "↑" : "↓") : ""}
@@ -509,7 +778,7 @@ export function ManagedAnimals() {
   );
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
         title={m.title}
         action={
@@ -520,7 +789,7 @@ export function ManagedAnimals() {
           ) : undefined
         }
       />
-      <div className="fluent-mica-bg flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
         <GlassPanel className="mb-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
             <FluentSelect label={m.strain} value={filters.strain} onChange={(e) => setFilters({ ...filters, strain: e.target.value })}>
@@ -578,8 +847,22 @@ export function ManagedAnimals() {
             <FluentInput label={m.animalId} value={filters.animalId} onChange={(e) => setFilters({ ...filters, animalId: e.target.value })} />
           </div>
           <div className="mt-4 flex gap-2">
-            <FluentButton onClick={() => setApplied({ ...filters })}>{m.query}</FluentButton>
-            <FluentButton variant="outline" onClick={() => { setFilters(EMPTY_FILTER); setApplied(EMPTY_FILTER); }}>
+            <FluentButton
+              onClick={() => {
+                setApplied({ ...filters });
+                setPage(1);
+              }}
+            >
+              {m.query}
+            </FluentButton>
+            <FluentButton
+              variant="outline"
+              onClick={() => {
+                setFilters(EMPTY_FILTER);
+                setApplied(EMPTY_FILTER);
+                setPage(1);
+              }}
+            >
               {m.reset}
             </FluentButton>
           </div>
@@ -688,91 +971,124 @@ export function ManagedAnimals() {
         {displayMode === "list" ? (
           <GlassPanel padding={false} className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] text-sm">
-                <thead className="border-b border-white/30 bg-white/30">
-                  <tr>
+              <table className="w-full min-w-[1280px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-[#E0D4E8] bg-[#F3EAF6]">
                     <th className="px-3 py-2.5">
-                      <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="accent-thu" />
+                      <input
+                        type="checkbox"
+                        checked={paged.length > 0 && paged.every((r) => selected.has(r.id))}
+                        onChange={toggleAll}
+                        className="accent-thu"
+                      />
                     </th>
                     {COLUMN_KEYS.filter((k) => visibleColumns.has(k)).map((key) =>
-                      key === "purpose" ? (
-                        <th key={key} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase text-lab-muted">
+                      key === "purpose" || key === "specialExperiment" ? (
+                        <th
+                          key={key}
+                          className="whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold text-thu"
+                        >
                           {columnLabels[key]}
                         </th>
                       ) : (
                         <SortTh key={key} col={key} label={columnLabels[key]} />
                       )
                     )}
-                    <th className="sticky right-0 bg-white/70 px-3 py-2.5 text-left text-[11px] font-semibold uppercase text-lab-muted backdrop-blur-md">
+                    <th className="sticky right-0 bg-[#F3EAF6] px-3 py-2.5 text-left text-[11px] font-semibold text-thu">
                       {m.colActions}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((row) => (
-                    <tr key={row.id} className="border-b border-white/20 transition-colors hover:bg-white/40">
-                      <td className="px-3 py-2">
-                        <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
-                      </td>
-                      {COLUMN_KEYS.filter((k) => visibleColumns.has(k)).map((key) => (
-                        <td
-                          key={key}
-                          className={clsx(
-                            "px-3 py-2 text-xs",
-                            key === "id" && "font-mono text-thu"
-                          )}
-                        >
-                          {key === "status" ? (
-                            <span className="fluent-badge rounded-full px-2 py-0.5 text-[10px]">{statusLabel(row.status)}</span>
-                          ) : (
-                            cellValue(row, key)
-                          )}
+                  {paged.map((row, idx) => {
+                    const zebra = idx % 2 === 0 ? "bg-white" : "bg-[#F7F1FA]";
+                    return (
+                      <tr
+                        key={row.id}
+                        className={clsx(
+                          "border-b border-[#EDE4F2] transition-colors hover:bg-[#EFE4F5]",
+                          zebra
+                        )}
+                      >
+                        <td className="px-3 py-2">
+                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
                         </td>
-                      ))}
-                      <td className="sticky right-0 bg-white/55 px-3 py-2 backdrop-blur-md">
-                        <div className="flex flex-nowrap items-center gap-1">
-                          <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
-                            {m.view}
-                          </FluentButton>
-                          {canEditAnimals && (
-                            <FluentButton
-                              variant="ghost"
-                              size="sm"
-                              className="!text-red-600 hover:!bg-red-50/70"
-                              disabled={removing}
-                              onClick={() => void removeOne(row.id)}
-                            >
-                              {t.common.delete}
+                        {COLUMN_KEYS.filter((k) => visibleColumns.has(k)).map((key) => (
+                          <td
+                            key={key}
+                            className={clsx(
+                              "whitespace-nowrap px-3 py-2 text-xs text-lab-text",
+                              key === "id" && "font-mono font-medium text-thu"
+                            )}
+                          >
+                            {key === "status" ? (
+                              <span
+                                className={clsx(
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+                                  statusTipClass(row)
+                                )}
+                              >
+                                {currentStatusLabel(row)}
+                              </span>
+                            ) : key === "purpose" ? (
+                              <span className="font-medium">{cellValue(row, key)}</span>
+                            ) : (
+                              cellValue(row, key)
+                            )}
+                          </td>
+                        ))}
+                        <td className={clsx("sticky right-0 px-3 py-2", zebra)}>
+                          <div className="flex flex-nowrap items-center gap-1">
+                            <FluentButton variant="ghost" size="sm" onClick={() => openViewAnimal(row)}>
+                              {m.view}
                             </FluentButton>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {canEditAnimals && (
+                              <FluentButton
+                                variant="ghost"
+                                size="sm"
+                                className="!text-red-600 hover:!bg-red-50/70"
+                                disabled={removing}
+                                onClick={() => void removeOne(row.id)}
+                              >
+                                {t.common.delete}
+                              </FluentButton>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </GlassPanel>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((row) => (
+            {paged.map((row) => (
               <GlassPanel key={row.id} className="flex flex-col">
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <label className="flex items-center gap-2">
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
                     <span className="font-mono text-sm font-semibold text-thu">{row.id}</span>
                   </label>
-                  <span className="fluent-badge rounded-full px-2 py-0.5 text-[10px]">{statusLabel(row.status)}</span>
+                  <span
+                    className={clsx(
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+                      statusTipClass(row)
+                    )}
+                  >
+                    {currentStatusLabel(row)}
+                  </span>
                 </div>
                 <dl className="flex-1 space-y-1 text-xs">
-                  <div><span className="text-lab-muted">{m.colGender}: </span>{genderLabel(row.gender)}</div>
-                  <div><span className="text-lab-muted">{m.colStrain}: </span>{row.strain}</div>
                   <div><span className="text-lab-muted">{m.colPurpose}: </span>{purposeLabel(row.purpose)}</div>
+                  <div><span className="text-lab-muted">{m.colEphys}: </span>{ephysLabel(row.ephysStatus)}</div>
+                  <div><span className="text-lab-muted">{m.colCageEntry}: </span>{formatTime(row.cageEntryAt)}</div>
+                  <div><span className="text-lab-muted">{m.colImplant}: </span>{formatTime(row.implantAt)}</div>
                   <div><span className="text-lab-muted">{m.colCage}: </span>{row.cageLocation}</div>
-                  <div><span className="text-lab-muted">{m.colAge}: </span>{row.ageWeeks}</div>
                 </dl>
                 <div className="mt-3 flex flex-wrap gap-1">
-                  <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
+                  <FluentButton variant="ghost" size="sm" onClick={() => openViewAnimal(row)}>
                     {m.view}
                   </FluentButton>
                   {canEditAnimals && (
@@ -789,6 +1105,39 @@ export function ManagedAnimals() {
                 </div>
               </GlassPanel>
             ))}
+          </div>
+        )}
+
+        {filtered.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E0D4E8] bg-white/60 px-4 py-2.5">
+            <p className="text-xs text-lab-muted">
+              {m.pageInfo
+                .replace("{total}", String(filtered.length))
+                .replace("{page}", String(safePage))
+                .replace("{pages}", String(totalPages))
+                .replace("{size}", String(PAGE_SIZE))}
+            </p>
+            <div className="flex items-center gap-2">
+              <FluentButton
+                variant="outline"
+                size="sm"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                {m.pagePrev}
+              </FluentButton>
+              <span className="min-w-[4.5rem] text-center text-xs font-medium text-thu">
+                {safePage} / {totalPages}
+              </span>
+              <FluentButton
+                variant="outline"
+                size="sm"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                {m.pageNext}
+              </FluentButton>
+            </div>
           </div>
         )}
       </div>
@@ -822,32 +1171,112 @@ export function ManagedAnimals() {
         open={!!viewAnimal}
         title={m.viewDetail}
         size="lg"
-        onClose={() => setViewAnimal(null)}
+        onClose={() => {
+          setViewAnimal(null);
+          setOpAction("");
+          setOpEuthMethod("");
+          setOpEuthCustom("");
+        }}
         footer={
           viewAnimal ? (
             <div className="flex justify-end gap-2">
-              <FluentButton variant="outline" onClick={() => setViewAnimal(null)}>{t.common.cancel}</FluentButton>
-              <FluentButton disabled={applying} onClick={() => handleApplyCustody(viewAnimal)}>
-                {m.claim}
+              <FluentButton
+                variant="outline"
+                onClick={() => {
+                  setViewAnimal(null);
+                  setOpAction("");
+                  setOpEuthMethod("");
+                  setOpEuthCustom("");
+                }}
+              >
+                {t.common.cancel}
+              </FluentButton>
+              <FluentButton disabled={applying} onClick={() => void submitViewOperation()}>
+                {m.opConfirm}
               </FluentButton>
             </div>
           ) : undefined
         }
       >
         {viewAnimal && (
-          <dl>
-            <DetailRow label={m.colId} value={viewAnimal.id} />
-            <DetailRow label={m.colGender} value={genderLabel(viewAnimal.gender)} />
-            <DetailRow label={m.colStrain} value={viewAnimal.strain} />
-            <DetailRow label={m.colBirth} value={viewAnimal.birthDate} />
-            <DetailRow label={m.colAge} value={viewAnimal.ageWeeks} />
-            <DetailRow label={m.colCage} value={viewAnimal.cageLocation} />
-            <DetailRow label={m.colStatus} value={statusLabel(viewAnimal.status)} />
-            <DetailRow label={m.colPurpose} value={purposeLabel(viewAnimal.purpose)} />
-            <DetailRow label={m.generationLabel} value={viewAnimal.generation} />
-            <DetailRow label={m.weaningLabel} value={weaningLabel(viewAnimal.weaningStatus)} />
-            <DetailRow label={m.genotypeStatusLabel} value={genotypeStatusLabel(viewAnimal.genotypeStatus)} />
-            <DetailRow label={m.strainTypeLabel} value={strainTypeLabel(viewAnimal.strainType)} />          </dl>
+          <div className="space-y-4">
+            <dl>
+              <DetailRow label={m.colId} value={viewAnimal.id} />
+              <DetailRow label={m.colPurpose} value={purposeLabel(viewAnimal.purpose)} />
+              <DetailRow label={m.colStatus} value={currentStatusLabel(viewAnimal)} />
+              <DetailRow label={m.colEphys} value={ephysLabel(viewAnimal.ephysStatus)} />
+              <DetailRow label={m.colCageEntry} value={formatTime(viewAnimal.cageEntryAt)} />
+              <DetailRow label={m.colImplant} value={formatTime(viewAnimal.implantAt)} />
+              <DetailRow
+                label={m.colCollection}
+                value={isSignalMouse(viewAnimal) ? formatTime(viewAnimal.collectionAt) : "—"}
+              />
+              <DetailRow
+                label={m.colLastCollection}
+                value={isSignalMouse(viewAnimal) ? formatTime(viewAnimal.lastCollectionAt) : "—"}
+              />
+              <DetailRow
+                label={m.colTracking}
+                value={
+                  isSignalMouse(viewAnimal)
+                    ? formatTrackingMinutes(
+                        trackingMinutes(viewAnimal.collectionAt, viewAnimal.lastCollectionAt),
+                        m.trackingUnit
+                      )
+                    : "—"
+                }
+              />
+              <DetailRow label={m.colDeathMethod} value={euthanasiaMethodLabel(viewAnimal)} />
+              <DetailRow label={m.colSpecialExperiment} value={viewAnimal.specialExperiment?.trim() || "—"} />
+              <DetailRow label={m.colGender} value={genderLabel(viewAnimal.gender)} />
+              <DetailRow label={m.colStrain} value={viewAnimal.strain} />
+              <DetailRow label={m.colCage} value={viewAnimal.cageLocation} />
+            </dl>
+
+            <div className="rounded-lg border border-[#E0D4E8] bg-[#F7F1FA]/60 px-3 py-3">
+              <FluentRadioGroup
+                label={m.opAction}
+                name="managedOpAction"
+                value={opAction}
+                onChange={(v) => {
+                  setOpAction(v as "" | "record_signal" | "force_euthanasia");
+                  if (v !== "force_euthanasia") {
+                    setOpEuthMethod("");
+                    setOpEuthCustom("");
+                  }
+                }}
+                options={[
+                  { value: "record_signal", label: m.opRecordSignal },
+                  { value: "force_euthanasia", label: m.opForceEuthanasia },
+                ]}
+              />
+              {opAction === "force_euthanasia" && (
+                <div className="mt-3 border-t border-[#E0D4E8] pt-3">
+                  <FluentRadioGroup
+                    label={m.opEuthanasiaMethod}
+                    name="managedOpEuthMethod"
+                    value={opEuthMethod}
+                    onChange={(v) => setOpEuthMethod(v as EuthanasiaMethod)}
+                    options={[
+                      { value: "humane", label: m.opEuthanasiaHumane },
+                      { value: "perfusion", label: m.opEuthanasiaPerfusion },
+                      { value: "cervical", label: m.opEuthanasiaCervical },
+                      { value: "brain_harvest", label: m.opEuthanasiaBrain },
+                      { value: "other", label: m.opEuthanasiaCustom },
+                    ]}
+                  />
+                  {opEuthMethod === "other" && (
+                    <input
+                      className="fluent-input mt-2 w-full rounded-lg px-3 py-2 text-sm"
+                      value={opEuthCustom}
+                      onChange={(e) => setOpEuthCustom(e.target.value)}
+                      placeholder={m.opEuthanasiaCustomPlaceholder}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </FluentModal>
 
@@ -998,6 +1427,6 @@ export function ManagedAnimals() {
           </FluentSelect>
         </div>
       </FluentModal>
-    </>
+    </div>
   );
 }

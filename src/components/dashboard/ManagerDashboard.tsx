@@ -15,7 +15,10 @@ import {
 import { canManageAnimals, canManageInstruments } from "@/lib/roles";
 
 interface ManagerDashboardProps {
-  view: Exclude<DashboardView, "student" | "research_assistant" | "veterinarian">;
+  view: Exclude<
+    DashboardView,
+    "student" | "research_assistant" | "veterinarian" | "animal_facility_supervisor"
+  >;
 }
 
 export function ManagerDashboard({ view }: ManagerDashboardProps) {

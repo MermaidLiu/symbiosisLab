@@ -1,10 +1,11 @@
 import { AuditLog, Animal, Booking, Instrument, Role } from "@/types";
 import { getNotifications } from "@/lib/storage/db";
-import { canManageAnimals, canManageInstruments, canProcessVeterinary, hasRole } from "@/lib/roles";
+import { canManageAnimals, canManageInstruments, canProcessVeterinary, canSuperviseAnimalFacility, hasRole } from "@/lib/roles";
 
 export type DashboardView =
   | "admin"
   | "instrument_manager"
+  | "animal_facility_supervisor"
   | "animal_manager"
   | "veterinarian"
   | "research_assistant"
@@ -13,14 +14,17 @@ export type DashboardView =
 export function getDashboardView(roles: Role[]): DashboardView {
   if (hasRole(roles, "super_admin")) return "admin";
   if (roles.includes("research_assistant")) return "research_assistant";
+  if (canSuperviseAnimalFacility(roles) && !canManageInstruments(roles)) {
+    return "animal_facility_supervisor";
+  }
   if (roles.includes("veterinarian") && !canManageAnimals(roles) && !canManageInstruments(roles)) {
     return "veterinarian";
   }
   const inst = canManageInstruments(roles);
-  const animal = canManageAnimals(roles);
-  if (inst && !animal) return "instrument_manager";
+  const animal = canManageAnimals(roles) && !canSuperviseAnimalFacility(roles);
+  if (inst && !animal && !canSuperviseAnimalFacility(roles)) return "instrument_manager";
   if (animal && !inst) return "animal_manager";
-  if (inst && animal) return "admin";
+  if (inst && (animal || canSuperviseAnimalFacility(roles))) return "admin";
   if (canProcessVeterinary(roles)) return "veterinarian";
   return "student";
 }
@@ -97,7 +101,13 @@ export function filterDashboardLogs(
 
   const view = getDashboardView(roles);
   if (view === "admin") return sorted.slice(0, limit);
-  if (view === "student" || view === "research_assistant" || view === "veterinarian") return [];
+  if (
+    view === "student" ||
+    view === "research_assistant" ||
+    view === "veterinarian" ||
+    view === "animal_facility_supervisor"
+  )
+    return [];
 
   const isInstMgr = canManageInstruments(roles);
   const isAnimalMgr = canManageAnimals(roles);

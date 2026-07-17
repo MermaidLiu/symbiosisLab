@@ -151,6 +151,38 @@ export const api = {
 
   managedAnimals: () => request<{ managedAnimals: ManagedAnimal[] }>("/api/managed-animals"),
 
+  facilityBoard: () =>
+    request<{
+      cages: Cage[];
+      managedAnimals: ManagedAnimal[];
+      cells: import("@/types/animal-management").FacilityCageCell[];
+      activities: import("@/types/animal-management").AnimalDayActivity[];
+      staff: PublicUser[];
+    }>("/api/facility-board"),
+
+  updateManagedAnimal: (id: string, data: Partial<ManagedAnimal> & Record<string, unknown>) =>
+    request<{
+      animal: ManagedAnimal;
+      managedAnimals: ManagedAnimal[];
+      cells: import("@/types/animal-management").FacilityCageCell[];
+      activities: import("@/types/animal-management").AnimalDayActivity[];
+    }>(`/api/managed-animals/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  batchUploadManagedAnimals: (payload: { csv?: string; rows?: Record<string, string>[] }) =>
+    request<{
+      created: number;
+      errors: string[];
+      managedAnimals: ManagedAnimal[];
+      cells: import("@/types/animal-management").FacilityCageCell[];
+      activities: import("@/types/animal-management").AnimalDayActivity[];
+    }>("/api/managed-animals/batch", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   createManagedAnimal: (data: Partial<ManagedAnimal> & { id: string; gender: "male" | "female"; strain: string; cageLocation: string; birthDate: string }) =>
     request<{ animal: ManagedAnimal; managedAnimals: ManagedAnimal[] }>("/api/managed-animals", {
       method: "POST",
@@ -163,6 +195,23 @@ export const api = {
     }),
 
   cages: () => request<{ cages: Cage[] }>("/api/cages"),
+
+  createCage: (data: {
+    number: string;
+    rack?: string;
+    strain?: string;
+    cageType?: string;
+    capacity?: number;
+    id?: string;
+  }) =>
+    request<{
+      cage: Cage;
+      cages: Cage[];
+      cells: import("@/types/animal-management").FacilityCageCell[];
+    }>("/api/cages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   applications: () => request<{ applications: OperationApplication[] }>("/api/applications"),
 

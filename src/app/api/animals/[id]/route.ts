@@ -9,7 +9,7 @@ export async function PATCH(
 ) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!requireRole(user, "animal_manager")) return jsonError("forbidden", 403);
+  if (!requireRole(user, "animal_manager", "animal_facility_supervisor")) return jsonError("forbidden", 403);
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -46,7 +46,7 @@ export async function DELETE(
 ) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!requireRole(user, "animal_manager")) return jsonError("forbidden", 403);
+  if (!requireRole(user, "animal_manager", "animal_facility_supervisor")) return jsonError("forbidden", 403);
 
   const { id } = await params;
   let found = false;

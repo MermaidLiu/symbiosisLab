@@ -66,6 +66,8 @@ export async function POST(req: NextRequest) {
     weaningStatus: body.weaningStatus === "not_weaned" ? "not_weaned" : "weaned",
     genotypeStatus: body.genotypeStatus === "unidentified" ? "unidentified" : "identified",
     purpose,
+    lifecycleStatus: "entered",
+    cageId: body.cageId ? String(body.cageId) : undefined,
   };
 
   await mutateStore((s) => {
