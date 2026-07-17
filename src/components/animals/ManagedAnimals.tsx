@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
@@ -17,6 +18,8 @@ import {
   ManagedAnimal,
   AnimalFilterState,
   GenotypeStatusFilter,
+  AnimalPurpose,
+  ANIMAL_PURPOSES,
 } from "@/types/animal-management";
 
 const EMPTY_FILTER: AnimalFilterState = {
@@ -35,11 +38,7 @@ const COLUMN_KEYS = [
   "id",
   "gender",
   "strain",
-  "genotype",
-  "sireId",
-  "sireGenotype",
-  "damId",
-  "damGenotype",
+  "purpose",
   "birthDate",
   "ageWeeks",
   "cageLocation",
@@ -54,6 +53,7 @@ export function ManagedAnimals() {
   const m = t.animalMgmt.managed;
   const { user } = useAuth();
   const canExport = user ? canManageAnimals(user.roles) : false;
+  const canEditAnimals = canExport;
   const [applying, setApplying] = useState(false);
 
   const [filters, setFilters] = useState<AnimalFilterState>(EMPTY_FILTER);
@@ -67,6 +67,26 @@ export function ManagedAnimals() {
   const [columnModalOpen, setColumnModalOpen] = useState(false);
   const [viewAnimal, setViewAnimal] = useState<ManagedAnimal | null>(null);
   const [animals, setAnimals] = useState<ManagedAnimal[]>([]);
+  const [vetModalOpen, setVetModalOpen] = useState(false);
+  const [vetAction, setVetAction] = useState("");
+  const [vetOtherNote, setVetOtherNote] = useState("");
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [transferDest, setTransferDest] = useState("");
+  const [transferNote, setTransferNote] = useState("");
+  const [addForm, setAddForm] = useState({
+    id: "",
+    gender: "male" as "male" | "female",
+    strain: "",
+    genotype: "",
+    cageLocation: "",
+    birthDate: "",
+    purpose: "blank" as AnimalPurpose,
+  });
+  const [removing, setRemoving] = useState(false);
+  const [batchMenuOpen, setBatchMenuOpen] = useState(false);
+  const [batchMenuPos, setBatchMenuPos] = useState({ top: 0, left: 0 });
+  const batchBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -80,15 +100,39 @@ export function ManagedAnimals() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!batchMenuOpen) return;
+    const onDocClick = () => setBatchMenuOpen(false);
+    const onScroll = () => setBatchMenuOpen(false);
+    const t = window.setTimeout(() => {
+      document.addEventListener("click", onDocClick);
+      window.addEventListener("scroll", onScroll, true);
+    }, 0);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("click", onDocClick);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [batchMenuOpen]);
+
+  function toggleBatchMenu(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (batchMenuOpen) {
+      setBatchMenuOpen(false);
+      return;
+    }
+    const rect = batchBtnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setBatchMenuPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setBatchMenuOpen(true);
+  }
+
   const columnLabels: Record<ColumnKey, string> = {
     id: m.colId,
     gender: m.colGender,
     strain: m.colStrain,
-    genotype: m.colGenotype,
-    sireId: m.colSireId,
-    sireGenotype: m.colSireGeno,
-    damId: m.colDamId,
-    damGenotype: m.colDamGeno,
+    purpose: m.colPurpose,
     birthDate: m.colBirth,
     ageWeeks: m.colAge,
     cageLocation: m.colCage,
@@ -122,8 +166,8 @@ export function ManagedAnimals() {
     if (f.animalId) rows = rows.filter((r) => r.id.toLowerCase().includes(f.animalId.toLowerCase()));
 
     rows.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = a[sortKey] ?? "";
+      const bv = b[sortKey] ?? "";
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
       return sortAsc ? cmp : -cmp;
     });
@@ -185,6 +229,200 @@ export function ManagedAnimals() {
 
   function handleApplyCustody(animal: ManagedAnimal) {
     void submitCustody([animal.id]);
+  }
+
+  function openTransferModal() {
+    if (selected.size === 0) {
+      showToast(m.selectRows);
+      return;
+    }
+    setTransferDest("");
+    setTransferNote("");
+    setTransferModalOpen(true);
+  }
+
+  async function submitTransfer() {
+    const ids = [...selected];
+    if (ids.length === 0) {
+      showToast(m.selectRows);
+      return;
+    }
+    if (!transferDest.trim()) {
+      showToast(m.transferNeedDest);
+      return;
+    }
+    const description = transferNote.trim()
+      ? `转移至 ${transferDest.trim()}：${transferNote.trim()}（${ids.join(", ")}）`
+      : `转移至 ${transferDest.trim()}（${ids.join(", ")}）`;
+    setApplying(true);
+    try {
+      await api.createApplication({
+        type: "transfer",
+        description,
+        animalIds: ids,
+      });
+      setSelected(new Set());
+      setTransferModalOpen(false);
+      setTransferDest("");
+      setTransferNote("");
+      showToast(m.transferSubmitted);
+    } catch {
+      showToast(m.applyError);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  function purposeLabel(p?: AnimalPurpose) {
+    if (p === "signal_processing") return m.purposeSignal;
+    if (p === "immunity") return m.purposeImmunity;
+    return m.purposeBlank;
+  }
+
+  function openVetModal() {
+    if (selected.size === 0) {
+      showToast(m.selectRows);
+      return;
+    }
+    setVetAction("");
+    setVetOtherNote("");
+    setVetModalOpen(true);
+  }
+
+  async function submitVetCare() {
+    const ids = [...selected];
+    if (ids.length === 0) {
+      showToast(m.selectRows);
+      return;
+    }
+    if (!vetAction) {
+      showToast(m.vetNeedAction);
+      return;
+    }
+    if (vetAction === "other" && !vetOtherNote.trim()) {
+      showToast(m.vetNeedInstructions);
+      return;
+    }
+    const actionLabels: Record<string, string> = {
+      euthanasia: m.vetActEuthanasia,
+      perfusion: m.vetActPerfusion,
+      special_care: m.vetActSpecialCare,
+      no_water: m.vetActNoWater,
+      no_food: m.vetActNoFood,
+      other: m.vetActOther,
+    };
+    const instructions =
+      vetAction === "other"
+        ? `${actionLabels.other}: ${vetOtherNote.trim()}`
+        : actionLabels[vetAction] ?? vetAction;
+    setApplying(true);
+    try {
+      await api.createApplication({
+        type: "veterinary",
+        description: instructions,
+        vetInstructions: instructions,
+        animalIds: ids,
+      });
+      setSelected(new Set());
+      setVetModalOpen(false);
+      setVetAction("");
+      setVetOtherNote("");
+      showToast(m.vetSubmitted);
+    } catch {
+      showToast(m.applyError);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  function openAddModal() {
+    const year = new Date().getFullYear();
+    const suffix = String(Math.floor(Math.random() * 90000) + 10000);
+    setAddForm({
+      id: `A-${year}-${suffix}`,
+      gender: "male",
+      strain: "",
+      genotype: "",
+      cageLocation: "",
+      birthDate: new Date().toISOString().slice(0, 10),
+      purpose: "blank",
+    });
+    setAddModalOpen(true);
+  }
+
+  async function submitAddAnimal() {
+    if (!addForm.id.trim() || !addForm.strain.trim() || !addForm.cageLocation.trim() || !addForm.birthDate) {
+      showToast(m.addNeedFields);
+      return;
+    }
+    setApplying(true);
+    try {
+      const { managedAnimals } = await api.createManagedAnimal({
+        id: addForm.id.trim(),
+        gender: addForm.gender,
+        strain: addForm.strain.trim(),
+        genotype: addForm.genotype.trim() || "未知",
+        cageLocation: addForm.cageLocation.trim(),
+        birthDate: addForm.birthDate,
+        purpose: addForm.purpose,
+      });
+      setCachePartial({ managedAnimals });
+      setAnimals(managedAnimals);
+      setAddModalOpen(false);
+      showToast(m.addSuccess);
+    } catch {
+      showToast(m.addError);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  async function removeSelected() {
+    if (!canEditAnimals) return;
+    const ids = [...selected];
+    if (ids.length === 0) {
+      showToast(m.selectRows);
+      return;
+    }
+    if (!window.confirm(m.removeConfirm.replace("{n}", String(ids.length)))) return;
+    setRemoving(true);
+    try {
+      let list = animals;
+      for (const id of ids) {
+        const res = await api.deleteManagedAnimal(id);
+        list = res.managedAnimals;
+      }
+      setCachePartial({ managedAnimals: list });
+      setAnimals(list);
+      setSelected(new Set());
+      showToast(m.removeSuccess);
+    } catch {
+      showToast(m.removeError);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  async function removeOne(id: string) {
+    if (!canEditAnimals) return;
+    if (!window.confirm(m.removeConfirm.replace("{n}", "1"))) return;
+    setRemoving(true);
+    try {
+      const { managedAnimals } = await api.deleteManagedAnimal(id);
+      setCachePartial({ managedAnimals });
+      setAnimals(managedAnimals);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      if (viewAnimal?.id === id) setViewAnimal(null);
+      showToast(m.removeSuccess);
+    } catch {
+      showToast(m.removeError);
+    } finally {
+      setRemoving(false);
+    }
   }
 
   function handleExport() {
@@ -250,7 +488,8 @@ export function ManagedAnimals() {
   function cellValue(row: ManagedAnimal, key: ColumnKey): string {
     if (key === "gender") return genderLabel(row.gender);
     if (key === "status") return statusLabel(row.status);
-    return String(row[key]);
+    if (key === "purpose") return purposeLabel(row.purpose);
+    return String(row[key] ?? "");
   }
 
   const SortTh = ({ col, label }: { col: SortKey; label: string }) => (
@@ -271,7 +510,16 @@ export function ManagedAnimals() {
 
   return (
     <>
-      <PageHeader title={m.title} />
+      <PageHeader
+        title={m.title}
+        action={
+          canEditAnimals ? (
+            <FluentButton size="sm" onClick={openAddModal}>
+              + {m.addAnimal}
+            </FluentButton>
+          ) : undefined
+        }
+      />
       <div className="fluent-mica-bg flex-1 overflow-y-auto p-4 md:p-6">
         <GlassPanel className="mb-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
@@ -339,12 +587,59 @@ export function ManagedAnimals() {
 
         <GlassPanel className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <FluentButton variant="secondary" size="sm">{m.vetCare}</FluentButton>
-              <FluentButton variant="secondary" size="sm" disabled={applying} onClick={handleBatchApply}>
-                {m.batchApply}
+            <div className="flex flex-wrap items-center gap-2">
+              <FluentButton variant="secondary" size="sm" onClick={openVetModal}>
+                {m.vetCare}
               </FluentButton>
-              <FluentButton variant="outline" size="sm">{m.transfer} ▾</FluentButton>
+              <div className="relative">
+                <FluentButton
+                  ref={batchBtnRef}
+                  variant="secondary"
+                  size="sm"
+                  disabled={applying || removing}
+                  onClick={toggleBatchMenu}
+                >
+                  {m.batchOps} ▾
+                </FluentButton>
+                {batchMenuOpen &&
+                  typeof document !== "undefined" &&
+                  createPortal(
+                    <div
+                      className="fluent-glass fixed z-[200] min-w-[148px] overflow-hidden py-1 shadow-fluent-lg"
+                      style={{ top: batchMenuPos.top, left: batchMenuPos.left }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-thu"
+                        disabled={applying}
+                        onClick={() => {
+                          setBatchMenuOpen(false);
+                          handleBatchApply();
+                        }}
+                      >
+                        {m.batchApply}
+                      </button>
+                      {canEditAnimals && (
+                        <button
+                          type="button"
+                          className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-red-600"
+                          disabled={removing}
+                          onClick={() => {
+                            setBatchMenuOpen(false);
+                            void removeSelected();
+                          }}
+                        >
+                          {m.batchDelete}
+                        </button>
+                      )}
+                    </div>,
+                    document.body
+                  )}
+              </div>
+              <FluentButton variant="outline" size="sm" onClick={openTransferModal}>
+                {m.transfer}
+              </FluentButton>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <FluentSelect className="w-auto min-w-[100px]" value="mice">
@@ -400,7 +695,7 @@ export function ManagedAnimals() {
                       <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="accent-thu" />
                     </th>
                     {COLUMN_KEYS.filter((k) => visibleColumns.has(k)).map((key) =>
-                      key === "sireId" || key === "damId" || key === "sireGenotype" || key === "damGenotype" ? (
+                      key === "purpose" ? (
                         <th key={key} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase text-lab-muted">
                           {columnLabels[key]}
                         </th>
@@ -408,7 +703,9 @@ export function ManagedAnimals() {
                         <SortTh key={key} col={key} label={columnLabels[key]} />
                       )
                     )}
-                    <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase text-lab-muted">{m.colActions}</th>
+                    <th className="sticky right-0 bg-white/70 px-3 py-2.5 text-left text-[11px] font-semibold uppercase text-lab-muted backdrop-blur-md">
+                      {m.colActions}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -422,10 +719,7 @@ export function ManagedAnimals() {
                           key={key}
                           className={clsx(
                             "px-3 py-2 text-xs",
-                            (key === "id" || key === "sireId" || key === "damId") && "font-mono",
-                            key === "id" && "text-thu",
-                            (key === "sireId" || key === "damId") && "text-[10px] text-lab-muted",
-                            (key === "sireGenotype" || key === "damGenotype") && "text-[10px]"
+                            key === "id" && "font-mono text-thu"
                           )}
                         >
                           {key === "status" ? (
@@ -435,10 +729,23 @@ export function ManagedAnimals() {
                           )}
                         </td>
                       ))}
-                      <td className="px-3 py-2">
-                        <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
-                          {m.view}
-                        </FluentButton>
+                      <td className="sticky right-0 bg-white/55 px-3 py-2 backdrop-blur-md">
+                        <div className="flex flex-nowrap items-center gap-1">
+                          <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
+                            {m.view}
+                          </FluentButton>
+                          {canEditAnimals && (
+                            <FluentButton
+                              variant="ghost"
+                              size="sm"
+                              className="!text-red-600 hover:!bg-red-50/70"
+                              disabled={removing}
+                              onClick={() => void removeOne(row.id)}
+                            >
+                              {t.common.delete}
+                            </FluentButton>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -460,13 +767,26 @@ export function ManagedAnimals() {
                 <dl className="flex-1 space-y-1 text-xs">
                   <div><span className="text-lab-muted">{m.colGender}: </span>{genderLabel(row.gender)}</div>
                   <div><span className="text-lab-muted">{m.colStrain}: </span>{row.strain}</div>
-                  <div><span className="text-lab-muted">{m.colGenotype}: </span>{row.genotype}</div>
+                  <div><span className="text-lab-muted">{m.colPurpose}: </span>{purposeLabel(row.purpose)}</div>
                   <div><span className="text-lab-muted">{m.colCage}: </span>{row.cageLocation}</div>
                   <div><span className="text-lab-muted">{m.colAge}: </span>{row.ageWeeks}</div>
                 </dl>
-                <FluentButton variant="ghost" size="sm" className="mt-3 self-start" onClick={() => setViewAnimal(row)}>
-                  {m.view}
-                </FluentButton>
+                <div className="mt-3 flex flex-wrap gap-1">
+                  <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
+                    {m.view}
+                  </FluentButton>
+                  {canEditAnimals && (
+                    <FluentButton
+                      variant="ghost"
+                      size="sm"
+                      className="!text-red-600 hover:!bg-red-50/70"
+                      disabled={removing}
+                      onClick={() => void removeOne(row.id)}
+                    >
+                      {t.common.delete}
+                    </FluentButton>
+                  )}
+                </div>
               </GlassPanel>
             ))}
           </div>
@@ -508,7 +828,7 @@ export function ManagedAnimals() {
             <div className="flex justify-end gap-2">
               <FluentButton variant="outline" onClick={() => setViewAnimal(null)}>{t.common.cancel}</FluentButton>
               <FluentButton disabled={applying} onClick={() => handleApplyCustody(viewAnimal)}>
-                {m.applyCustody}
+                {m.claim}
               </FluentButton>
             </div>
           ) : undefined
@@ -519,21 +839,164 @@ export function ManagedAnimals() {
             <DetailRow label={m.colId} value={viewAnimal.id} />
             <DetailRow label={m.colGender} value={genderLabel(viewAnimal.gender)} />
             <DetailRow label={m.colStrain} value={viewAnimal.strain} />
-            <DetailRow label={m.colGenotype} value={viewAnimal.genotype} />
-            <DetailRow label={m.colSireId} value={viewAnimal.sireId} />
-            <DetailRow label={m.colSireGeno} value={viewAnimal.sireGenotype} />
-            <DetailRow label={m.colDamId} value={viewAnimal.damId} />
-            <DetailRow label={m.colDamGeno} value={viewAnimal.damGenotype} />
             <DetailRow label={m.colBirth} value={viewAnimal.birthDate} />
             <DetailRow label={m.colAge} value={viewAnimal.ageWeeks} />
             <DetailRow label={m.colCage} value={viewAnimal.cageLocation} />
             <DetailRow label={m.colStatus} value={statusLabel(viewAnimal.status)} />
+            <DetailRow label={m.colPurpose} value={purposeLabel(viewAnimal.purpose)} />
             <DetailRow label={m.generationLabel} value={viewAnimal.generation} />
             <DetailRow label={m.weaningLabel} value={weaningLabel(viewAnimal.weaningStatus)} />
             <DetailRow label={m.genotypeStatusLabel} value={genotypeStatusLabel(viewAnimal.genotypeStatus)} />
-            <DetailRow label={m.strainTypeLabel} value={strainTypeLabel(viewAnimal.strainType)} />
-          </dl>
+            <DetailRow label={m.strainTypeLabel} value={strainTypeLabel(viewAnimal.strainType)} />          </dl>
         )}
+      </FluentModal>
+
+      <FluentModal
+        open={vetModalOpen}
+        title={m.vetCare}
+        onClose={() => setVetModalOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton variant="outline" onClick={() => setVetModalOpen(false)}>
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton disabled={applying} onClick={() => void submitVetCare()}>
+              {m.vetSubmit}
+            </FluentButton>
+          </div>
+        }
+      >
+        <p className="mb-3 text-xs text-lab-muted">
+          {m.vetSelected.replace("{n}", String(selected.size))}
+        </p>
+        <p className="mb-3 font-mono text-[11px] text-lab-muted">{[...selected].join(", ")}</p>
+        <FluentRadioGroup
+          label={m.vetInstructions}
+          name="vetAction"
+          value={vetAction}
+          onChange={setVetAction}
+          options={[
+            { value: "euthanasia", label: m.vetActEuthanasia },
+            { value: "perfusion", label: m.vetActPerfusion },
+            { value: "special_care", label: m.vetActSpecialCare },
+            { value: "no_water", label: m.vetActNoWater },
+            { value: "no_food", label: m.vetActNoFood },
+            { value: "other", label: m.vetActOther },
+          ]}
+        />
+        {vetAction === "other" && (
+          <div className="mt-3">
+            <label className="mb-1 block text-[11px] font-medium text-lab-muted">{m.vetOtherNote}</label>
+            <textarea
+              className="fluent-input w-full rounded-lg px-3 py-2 text-sm shadow-sm"
+              rows={3}
+              value={vetOtherNote}
+              onChange={(e) => setVetOtherNote(e.target.value)}
+              placeholder={m.vetInstructionsPlaceholder}
+            />
+          </div>
+        )}
+      </FluentModal>
+
+      <FluentModal
+        open={transferModalOpen}
+        title={m.transfer}
+        onClose={() => setTransferModalOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton variant="outline" onClick={() => setTransferModalOpen(false)}>
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton disabled={applying} onClick={() => void submitTransfer()}>
+              {m.transferSubmit}
+            </FluentButton>
+          </div>
+        }
+      >
+        <p className="mb-3 text-xs text-lab-muted">
+          {m.vetSelected.replace("{n}", String(selected.size))}
+        </p>
+        <p className="mb-3 font-mono text-[11px] text-lab-muted">{[...selected].join(", ")}</p>
+        <FluentInput
+          label={m.transferDest}
+          value={transferDest}
+          onChange={(e) => setTransferDest(e.target.value)}
+          placeholder={m.transferDestPlaceholder}
+          className="mb-3"
+        />
+        <label className="mb-1 block text-[11px] font-medium text-lab-muted">{m.transferNote}</label>
+        <textarea
+          className="fluent-input w-full rounded-lg px-3 py-2 text-sm shadow-sm"
+          rows={3}
+          value={transferNote}
+          onChange={(e) => setTransferNote(e.target.value)}
+          placeholder={m.transferNotePlaceholder}
+        />
+      </FluentModal>
+
+      <FluentModal
+        open={addModalOpen}
+        title={m.addAnimal}
+        onClose={() => setAddModalOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton variant="outline" onClick={() => setAddModalOpen(false)}>
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton disabled={applying} onClick={() => void submitAddAnimal()}>
+              {t.common.save}
+            </FluentButton>
+          </div>
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FluentInput
+            label={m.colId}
+            value={addForm.id}
+            onChange={(e) => setAddForm({ ...addForm, id: e.target.value })}
+          />
+          <FluentSelect
+            label={m.gender}
+            value={addForm.gender}
+            onChange={(e) => setAddForm({ ...addForm, gender: e.target.value as "male" | "female" })}
+          >
+            <option value="male">{m.genderMale}</option>
+            <option value="female">{m.genderFemale}</option>
+          </FluentSelect>
+          <FluentInput
+            label={m.colStrain}
+            value={addForm.strain}
+            onChange={(e) => setAddForm({ ...addForm, strain: e.target.value })}
+          />
+          <FluentInput
+            label={m.colGenotype}
+            value={addForm.genotype}
+            onChange={(e) => setAddForm({ ...addForm, genotype: e.target.value })}
+          />
+          <FluentInput
+            label={m.colCage}
+            value={addForm.cageLocation}
+            onChange={(e) => setAddForm({ ...addForm, cageLocation: e.target.value })}
+          />
+          <FluentInput
+            label={m.colBirth}
+            type="date"
+            value={addForm.birthDate}
+            onChange={(e) => setAddForm({ ...addForm, birthDate: e.target.value })}
+          />
+          <FluentSelect
+            label={m.colPurpose}
+            value={addForm.purpose}
+            onChange={(e) => setAddForm({ ...addForm, purpose: e.target.value as AnimalPurpose })}
+            className="sm:col-span-2"
+          >
+            {ANIMAL_PURPOSES.map((p) => (
+              <option key={p} value={p}>
+                {purposeLabel(p)}
+              </option>
+            ))}
+          </FluentSelect>
+        </div>
       </FluentModal>
     </>
   );

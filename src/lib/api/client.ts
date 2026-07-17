@@ -151,6 +151,17 @@ export const api = {
 
   managedAnimals: () => request<{ managedAnimals: ManagedAnimal[] }>("/api/managed-animals"),
 
+  createManagedAnimal: (data: Partial<ManagedAnimal> & { id: string; gender: "male" | "female"; strain: string; cageLocation: string; birthDate: string }) =>
+    request<{ animal: ManagedAnimal; managedAnimals: ManagedAnimal[] }>("/api/managed-animals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  deleteManagedAnimal: (id: string) =>
+    request<{ managedAnimals: ManagedAnimal[] }>(`/api/managed-animals?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+
   cages: () => request<{ cages: Cage[] }>("/api/cages"),
 
   applications: () => request<{ applications: OperationApplication[] }>("/api/applications"),
@@ -160,6 +171,7 @@ export const api = {
     description: string;
     pi?: string;
     animalIds?: string[];
+    vetInstructions?: string;
   }) =>
     request<{ application: OperationApplication; applications: OperationApplication[] }>(
       "/api/applications",
@@ -176,6 +188,19 @@ export const api = {
     request<{ applications: OperationApplication[] }>(`/api/applications?id=${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+
+  raProjects: () => request<{ projects: import("@/types").RaProject[] }>("/api/ra-projects"),
+
+  createRaProject: (data: {
+    name: string;
+    due: string;
+    status?: "active" | "paused" | "done";
+    progress?: number;
+  }) =>
+    request<{ project: import("@/types").RaProject; projects: import("@/types").RaProject[] }>(
+      "/api/ra-projects",
+      { method: "POST", body: JSON.stringify(data) }
+    ),
 
   createUser: (data: {
     email: string;

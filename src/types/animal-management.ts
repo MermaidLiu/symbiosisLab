@@ -4,6 +4,11 @@ export type GenotypeStatusFilter = "all" | "unidentified" | "identified";
 export type WeaningStatus = "weaned" | "not_weaned" | "all";
 export type ManagedAnimalStatus = "active" | "breeding" | "quarantine" | "reserved" | "deceased";
 
+/** Experimental purpose / 用途 */
+export type AnimalPurpose = "blank" | "signal_processing" | "immunity";
+
+export const ANIMAL_PURPOSES: AnimalPurpose[] = ["blank", "signal_processing", "immunity"];
+
 export interface ManagedAnimal {
   id: string;
   gender: "male" | "female";
@@ -21,6 +26,8 @@ export interface ManagedAnimal {
   generation: number;
   weaningStatus: "weaned" | "not_weaned";
   genotypeStatus: "identified" | "unidentified";
+  /** 用途：空白 / 信号处理 / 免疫 */
+  purpose?: AnimalPurpose;
 }
 
 export type CageStatus =
@@ -70,8 +77,10 @@ export interface OperationApplication {
   pi: string;
   type: ApplicationType;
   description: string;
-  /** Managed animal ids when type is custody */
+  /** Managed animal ids when type is custody, veterinary, or transfer */
   animalIds?: string[];
+  /** What the veterinarian should do (veterinary requests) */
+  vetInstructions?: string;
   status: ApplicationWorkflowStatus;
   waitingHours: number;
   processor?: string;

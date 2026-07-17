@@ -41,8 +41,9 @@ export const NAV_ENTRIES: NavEntry[] = [
     show: () => true,
     children: [
       { href: "/animals/managed", labelKey: "managedAnimals" },
-      { href: "/animals/cages", labelKey: "myCages" },
+      // { href: "/animals/cages", labelKey: "myCages" }, // temporarily hidden
       { href: "/animals/applications", labelKey: "applications" },
+      { href: "/animals/vet-care", labelKey: "vetCare" },
     ],
   },
   {
@@ -54,15 +55,13 @@ export const NAV_ENTRIES: NavEntry[] = [
     children: [
       { href: "/ra/projects", labelKey: "raProjects" },
       { href: "/ra/submissions", labelKey: "raSubmissions" },
-      { href: "/ra/review", labelKey: "raReview" },
+      { href: "/ra/images", labelKey: "raImageLibrary" },
       { href: "/ra/achievements", labelKey: "raAchievements" },
+      { href: "/ra/templates", labelKey: "raTemplates" },
       { href: "/ra/analytics", labelKey: "raAnalytics" },
-      { href: "/ra/data", labelKey: "raData" },
-      { href: "/ra/advisor", labelKey: "raAdvisor" },
+      { href: "/ra/ppt", labelKey: "raPptStudio" },
+      { href: "/ra/academics", labelKey: "raAcademicOutput" },
       { href: "/ra/expenses", labelKey: "raExpenses" },
-      { href: "/ra/progress", labelKey: "raProgress" },
-      { href: "/ra/ppt", labelKey: "raPpt" },
-      { href: "/ra/supplies", labelKey: "raSupplies" },
     ],
   },
   { type: "link", href: "/bookings", labelKey: "bookings", icon: "calendar", show: () => true },

@@ -1,9 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
+import { FluentButton } from "@/components/fluent/FluentButton";
+import { FluentInput, FluentSelect } from "@/components/fluent/FluentField";
+import { FluentModal } from "@/components/fluent/FluentModal";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { getRaWorkspace } from "@/lib/ra/workspace";
 import { RaPageShell } from "@/components/ra/RaPageShell";
+import { api } from "@/lib/api/client";
+import { RaProject } from "@/types";
 
 const statusZh: Record<string, string> = {
   active: "进行中",
@@ -19,15 +25,66 @@ const statusZh: Record<string, string> = {
 export function ProjectsPage() {
   const { t, locale } = useLocale();
   const m = t.ra.modules;
-  const ws = getRaWorkspace();
   const label = (s: string) => (locale === "zh" ? statusZh[s] ?? s : s);
+  const [projects, setProjects] = useState<RaProject[]>(() => getRaWorkspace().projects);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [due, setDue] = useState("");
+  const [status, setStatus] = useState<RaProject["status"]>("active");
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { projects: list } = await api.raProjects();
+        setProjects(list);
+      } catch {
+        /* keep workspace fallback */
+      }
+    })();
+  }, []);
+
+  async function submitProject() {
+    if (!name.trim() || !due) {
+      setError(m.projectNeedFields);
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const { projects: list } = await api.createRaProject({
+        name: name.trim(),
+        due,
+        status,
+        progress,
+      });
+      setProjects(list);
+      setModalOpen(false);
+      setName("");
+      setDue("");
+      setStatus("active");
+      setProgress(0);
+    } catch {
+      setError(m.projectSaveError);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <RaPageShell title={t.nav.raProjects}>
+    <RaPageShell
+      title={t.nav.raProjects}
+      action={
+        <FluentButton onClick={() => setModalOpen(true)}>+ {m.addProject}</FluentButton>
+      }
+    >
       <GlassPanel className="mb-4">
         <p className="text-sm text-lab-muted">{m.projectsHint}</p>
       </GlassPanel>
       <div className="grid gap-4 md:grid-cols-2">
-        {ws.projects.map((p) => (
+        {projects.map((p) => (
           <GlassPanel key={p.id}>
             <div className="flex items-start justify-between gap-2">
               <h3 className="font-semibold text-thu">{p.name}</h3>
@@ -45,6 +102,55 @@ export function ProjectsPage() {
           </GlassPanel>
         ))}
       </div>
+
+      <FluentModal
+        open={modalOpen}
+        title={m.addProject}
+        onClose={() => setModalOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton variant="outline" onClick={() => setModalOpen(false)}>
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton disabled={saving} onClick={() => void submitProject()}>
+              {saving ? m.projectSaving : t.common.save}
+            </FluentButton>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <FluentInput
+            label={m.projectName}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={m.projectNamePlaceholder}
+          />
+          <FluentInput
+            label={m.due}
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+          />
+          <FluentSelect
+            label={m.colStatus}
+            value={status}
+            onChange={(e) => setStatus(e.target.value as RaProject["status"])}
+          >
+            <option value="active">{label("active")}</option>
+            <option value="paused">{label("paused")}</option>
+            <option value="done">{label("done")}</option>
+          </FluentSelect>
+          <FluentInput
+            label={m.projectProgress}
+            type="number"
+            min={0}
+            max={100}
+            value={progress}
+            onChange={(e) => setProgress(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+          />
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+      </FluentModal>
     </RaPageShell>
   );
 }

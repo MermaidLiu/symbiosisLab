@@ -11,7 +11,7 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api/client";
 import { getApplications, setCachePartial } from "@/lib/storage/db";
-import { canManageAnimals } from "@/lib/roles";
+import { canManageAnimals, canProcessVeterinary } from "@/lib/roles";
 import { OperationApplication, ApplicationWorkflowStatus, ApplicationType } from "@/types/animal-management";
 
 const TABS: ApplicationWorkflowStatus[] = [
@@ -34,9 +34,11 @@ export function ApplicationCenter() {
   const { t, locale } = useLocale();
   const a = t.animalMgmt.applications;
   const { user } = useAuth();
-  const canReview = user
+  const canReviewAll = user
     ? user.roles.includes("super_admin") || canManageAnimals(user.roles)
     : false;
+  const canReviewVet = user ? canProcessVeterinary(user.roles) : false;
+  const canReview = canReviewAll || canReviewVet;
 
   const [applications, setApplications] = useState<OperationApplication[]>([]);
   const [activeTab, setActiveTab] = useState<ApplicationWorkflowStatus>("pending_receipt");
@@ -125,6 +127,9 @@ export function ApplicationCenter() {
 
   async function reviewApp(id: string, action: "approve" | "reject") {
     if (!user || !canReview) return;
+    const target = applications.find((x) => x.id === id);
+    if (!target) return;
+    if (!canReviewAll && !(canReviewVet && target.type === "veterinary")) return;
     setReviewing(id);
     try {
       const { applications: list } = await api.reviewApplication(id, action);
@@ -225,7 +230,8 @@ export function ApplicationCenter() {
                       <td className="max-w-[120px] truncate px-3 py-2 text-xs">{app.feedback ?? "—"}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-wrap gap-1">
-                          {app.status === "pending_receipt" && canReview && (
+                          {app.status === "pending_receipt" &&
+                            (canReviewAll || (canReviewVet && app.type === "veterinary")) && (
                             <>
                               <FluentButton
                                 variant="secondary"
@@ -246,7 +252,7 @@ export function ApplicationCenter() {
                             </>
                           )}
                           {app.status === "pending_receipt" &&
-                            (!canReview || app.applicantUserId === user?.id) && (
+                            (!canReviewAll || app.applicantUserId === user?.id) && (
                               <FluentButton variant="ghost" size="sm" onClick={() => cancelApp(app.id)}>
                                 {a.cancel}
                               </FluentButton>

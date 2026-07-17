@@ -18,6 +18,7 @@ export const SEED_MANAGED_ANIMALS: ManagedAnimal[] = [
     generation: 3,
     weaningStatus: "weaned",
     genotypeStatus: "identified",
+    purpose: "blank",
   },
   {
     id: "A-2026-00143",
@@ -36,6 +37,7 @@ export const SEED_MANAGED_ANIMALS: ManagedAnimal[] = [
     generation: 3,
     weaningStatus: "weaned",
     genotypeStatus: "identified",
+    purpose: "signal_processing",
   },
   {
     id: "A-2026-00201",
@@ -54,6 +56,7 @@ export const SEED_MANAGED_ANIMALS: ManagedAnimal[] = [
     generation: 1,
     weaningStatus: "weaned",
     genotypeStatus: "unidentified",
+    purpose: "immunity",
   },
   {
     id: "A-2026-00202",
@@ -72,6 +75,7 @@ export const SEED_MANAGED_ANIMALS: ManagedAnimal[] = [
     generation: 1,
     weaningStatus: "not_weaned",
     genotypeStatus: "unidentified",
+    purpose: "blank",
   },
   {
     id: "A-2026-00315",
@@ -90,6 +94,7 @@ export const SEED_MANAGED_ANIMALS: ManagedAnimal[] = [
     generation: 5,
     weaningStatus: "weaned",
     genotypeStatus: "identified",
+    purpose: "signal_processing",
   },
 ];
 
@@ -116,6 +121,8 @@ export const SEED_APPLICATIONS: OperationApplication[] = [
     pi: "陈教授",
     type: "veterinary",
     description: "A-2026-00142 左后腿跛行，请兽医检查",
+    animalIds: ["A-2026-00142"],
+    vetInstructions: "A-2026-00142 左后腿跛行，请兽医检查并评估是否需要给药",
     status: "pending_receipt",
     waitingHours: 72,
   },

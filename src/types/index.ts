@@ -2,6 +2,7 @@ export type Role =
   | "super_admin"
   | "instrument_manager"
   | "animal_manager"
+  | "veterinarian"
   | "research_assistant"
   | "user";
 
@@ -134,12 +135,61 @@ export interface Todo {
   updatedAt: string;
 }
 
+/** PPTX slide metadata (placeholders discovered per slide) */
+export interface PptSlideImageMeta {
+  /** Pixel width of embedded media (0 if unknown) */
+  width: number;
+  /** Pixel height of embedded media (0 if unknown) */
+  height: number;
+}
+
+/** Beautiful.ai-style editable placeholder on a slide (normalized 0–1 coords) */
+export interface PptSlideBlock {
+  key: string;
+  kind: "text" | "image";
+  /** Left edge as fraction of slide width */
+  x: number;
+  /** Top edge as fraction of slide height */
+  y: number;
+  /** Width as fraction of slide width */
+  w: number;
+  /** Height as fraction of slide height */
+  h: number;
+  /** Stacking order — lower draws behind (background images use low z) */
+  z?: number;
+  /** Template default text (text blocks) */
+  defaultText?: string;
+  /** Index into slide media / imageKeys (image blocks) */
+  imageIndex?: number;
+}
+
+export interface PptTemplateSlide {
+  /** 0-based index matching ppt/slides/slide{n}.xml order in presentation */
+  index: number;
+  /** Display label, e.g. Page 1 */
+  label: string;
+  /** All field keys (text + image) */
+  placeholders: string[];
+  /** Text fields to edit on canvas */
+  textKeys: string[];
+  /** Image slot keys (named img_* or auto __img_N from embedded media) */
+  imageKeys: string[];
+  /** Default text parsed from template (for __text_* / __shape_* and initial display) */
+  textDefaults?: Record<string, string>;
+  /** Per imageKeys index: intrinsic pixel size for natural preview */
+  imageMeta?: PptSlideImageMeta[];
+  /** Positioned placeholders for Smart-Slide style canvas */
+  blocks?: PptSlideBlock[];
+}
+
 /** PPTX template metadata (binary stored under data/ppt-templates/{id}.pptx) */
 export interface PptTemplate {
   id: string;
   name: string;
-  /** Placeholder keys discovered in the file, e.g. date, funding_amount */
+  /** Flat unique placeholder keys (legacy + convenience) */
   placeholders: string[];
+  /** Per-slide placeholders; empty if file has no slides parsed yet */
+  slides: PptTemplateSlide[];
   uploadedBy: string;
   createdAt: string;
 }
@@ -179,5 +229,30 @@ export interface RaDataEntry {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Lab photo / equipment image for PPT workbench image library */
+export type RaImageLibraryTag = "lab" | "equipment" | "experiment";
+
+export interface RaImageLibraryItem {
+  id: string;
+  title: string;
+  tag: RaImageLibraryTag;
+  note: string;
+  fileName: string;
+  mimeType: string;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+/** Research Assistant project board item */
+export interface RaProject {
+  id: string;
+  name: string;
+  status: "active" | "paused" | "done";
+  progress: number;
+  due: string;
+  createdAt?: string;
+  createdBy?: string;
 }
 

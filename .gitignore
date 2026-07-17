@@ -39,6 +39,7 @@ yarn-error.log*
 /data/db.json.tmp
 /data/ppt-templates/
 /data/ra-achievements/
+/data/ra-images/
 
 # typescript
 *.tsbuildinfo

@@ -4,6 +4,7 @@ export const ALL_ROLES: Role[] = [
   "super_admin",
   "instrument_manager",
   "animal_manager",
+  "veterinarian",
   "research_assistant",
   "user",
 ];
@@ -18,6 +19,15 @@ export function canManageInstruments(roles: Role[]): boolean {
 
 export function canManageAnimals(roles: Role[]): boolean {
   return hasRole(roles, "animal_manager");
+}
+
+/** Veterinarian or animal manager / admin can process vet care requests */
+export function canProcessVeterinary(roles: Role[]): boolean {
+  return (
+    hasRole(roles, "veterinarian") ||
+    hasRole(roles, "animal_manager") ||
+    hasRole(roles, "super_admin")
+  );
 }
 
 export function canManageUsers(roles: Role[]): boolean {
@@ -35,5 +45,5 @@ export function canAccessResearchAssistant(roles: Role[]): boolean {
 export function canViewResourceLogs(roles: Role[], type: "instrument" | "animal"): boolean {
   if (hasRole(roles, "super_admin")) return true;
   if (type === "instrument") return canManageInstruments(roles);
-  return canManageAnimals(roles);
+  return canManageAnimals(roles) || canProcessVeterinary(roles);
 }

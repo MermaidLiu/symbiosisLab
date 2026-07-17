@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { PptGenerator } from "@/components/ra/PptGenerator";
+import { PptEditor } from "@/components/ra/PptEditor";
 import { useAuth } from "@/context/AuthContext";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { canAccessResearchAssistant } from "@/lib/roles";
@@ -27,12 +26,10 @@ export default function RaPptPage() {
     );
   }
 
+  // Full-bleed Beautiful.ai-style editor (no page header chrome)
   return (
-    <>
-      <PageHeader title={r.pptTitle} />
-      <div className="fluent-mica-bg flex-1 overflow-y-auto p-4 md:p-6">
-        <PptGenerator />
-      </div>
-    </>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <PptEditor />
+    </div>
   );
 }

@@ -4,9 +4,10 @@ import { canAccessResearchAssistant } from "@/lib/roles";
 import { getStore, mutateStore, uid } from "@/server/store";
 import {
   ensureSeedPptTemplates,
-  extractPlaceholders,
+  extractSlides,
   writeTemplateFile,
 } from "@/server/ppt";
+import { PptTemplate } from "@/types";
 
 async function requireRa() {
   const user = await getCurrentUser();
@@ -37,6 +38,13 @@ export async function GET() {
   if ("error" in auth) return auth.error;
 
   const templates = await ensureTemplates();
+  // Persist backfilled slides if store was migrated
+  const store = getStore();
+  if (JSON.stringify(store.pptTemplates) !== JSON.stringify(templates)) {
+    await mutateStore((s) => {
+      s.pptTemplates = templates;
+    });
+  }
   return jsonOk({ templates });
 }
 
@@ -62,9 +70,9 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   if (buffer.length < 100) return jsonError("invalid_file", 400);
 
-  let placeholders: string[];
+  let slides;
   try {
-    placeholders = await extractPlaceholders(buffer);
+    slides = await extractSlides(buffer);
   } catch {
     return jsonError("invalid_pptx", 400);
   }
@@ -72,10 +80,11 @@ export async function POST(req: NextRequest) {
   const id = uid("ppt");
   writeTemplateFile(id, buffer);
 
-  const template = {
+  const template: PptTemplate = {
     id,
     name,
-    placeholders,
+    slides,
+    placeholders: [...new Set(slides.flatMap((s) => s.placeholders))].sort(),
     uploadedBy: auth.user.id,
     createdAt: new Date().toISOString(),
   };

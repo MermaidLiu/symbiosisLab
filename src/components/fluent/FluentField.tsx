@@ -18,7 +18,7 @@ export function FluentSelect({
     <div className={className}>
       {label && <FluentLabel>{label}</FluentLabel>}
       <select
-        className="fluent-input w-full rounded-lg px-3 py-2 text-sm"
+        className="fluent-input w-full rounded-lg px-3 py-2 text-sm shadow-sm"
         {...props}
       >
         {children}
@@ -46,17 +46,19 @@ export function FluentRadioGroup({
   value,
   onChange,
   options,
+  className,
 }: {
   label: string;
   name: string;
   value: string;
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
+  className?: string;
 }) {
   return (
-    <div>
+    <div className={className}>
       <FluentLabel>{label}</FluentLabel>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-x-4 gap-y-2">
         {options.map((opt) => (
           <label key={opt.value} className="flex cursor-pointer items-center gap-1.5 text-xs text-lab-text">
             <input

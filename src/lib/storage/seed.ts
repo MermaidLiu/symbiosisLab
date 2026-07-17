@@ -32,6 +32,16 @@ export const SEED_USERS: User[] = [
     createdAt: "2026-01-15T00:00:00.000Z",
   },
   {
+    id: "u-vet",
+    email: "vet@lab.edu.cn",
+    name: "张兽医",
+    password: "demo123",
+    roles: ["veterinarian", "user"],
+    phone: "13800000008",
+    department: "实验动物中心·兽医室",
+    createdAt: "2026-01-15T00:00:00.000Z",
+  },
+  {
     id: "u-student",
     email: "student@lab.edu.cn",
     name: "王同学",

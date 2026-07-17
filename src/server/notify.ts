@@ -1,13 +1,13 @@
 import { Role, User } from "@/types";
 import { DbStore, uid } from "@/server/store";
-import { canManageAnimals, canManageInstruments } from "@/lib/roles";
+import { canManageAnimals, canManageInstruments, canProcessVeterinary } from "@/lib/roles";
 
 /** Unique recipient user ids for a pending approval notification */
 export function approverRecipientIds(
   store: DbStore,
   opts: {
     contactUserId?: string;
-    resourceType?: "instrument" | "animal" | "custody" | "application";
+    resourceType?: "instrument" | "animal" | "custody" | "application" | "veterinary";
   }
 ): string[] {
   const ids = new Set<string>();
@@ -28,6 +28,9 @@ export function approverRecipientIds(
       ids.add(u.id);
     }
     if (opts.resourceType === "application" && canManageAnimals(u.roles)) {
+      ids.add(u.id);
+    }
+    if (opts.resourceType === "veterinary" && canProcessVeterinary(u.roles)) {
       ids.add(u.id);
     }
   }

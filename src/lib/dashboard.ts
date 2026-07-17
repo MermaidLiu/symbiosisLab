@@ -1,22 +1,27 @@
 import { AuditLog, Animal, Booking, Instrument, Role } from "@/types";
 import { getNotifications } from "@/lib/storage/db";
-import { canManageAnimals, canManageInstruments, hasRole } from "@/lib/roles";
+import { canManageAnimals, canManageInstruments, canProcessVeterinary, hasRole } from "@/lib/roles";
 
 export type DashboardView =
   | "admin"
   | "instrument_manager"
   | "animal_manager"
+  | "veterinarian"
   | "research_assistant"
   | "student";
 
 export function getDashboardView(roles: Role[]): DashboardView {
   if (hasRole(roles, "super_admin")) return "admin";
   if (roles.includes("research_assistant")) return "research_assistant";
+  if (roles.includes("veterinarian") && !canManageAnimals(roles) && !canManageInstruments(roles)) {
+    return "veterinarian";
+  }
   const inst = canManageInstruments(roles);
   const animal = canManageAnimals(roles);
   if (inst && !animal) return "instrument_manager";
   if (animal && !inst) return "animal_manager";
   if (inst && animal) return "admin";
+  if (canProcessVeterinary(roles)) return "veterinarian";
   return "student";
 }
 
@@ -92,7 +97,7 @@ export function filterDashboardLogs(
 
   const view = getDashboardView(roles);
   if (view === "admin") return sorted.slice(0, limit);
-  if (view === "student" || view === "research_assistant") return [];
+  if (view === "student" || view === "research_assistant" || view === "veterinarian") return [];
 
   const isInstMgr = canManageInstruments(roles);
   const isAnimalMgr = canManageAnimals(roles);

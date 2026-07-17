@@ -18,27 +18,27 @@ export function RaDashboard() {
   const d = t.ra.dashboard;
   const ws = getRaWorkspace();
   const [achievementCount, setAchievementCount] = useState(0);
+  const [imageCount, setImageCount] = useState(0);
   const [experimentsWeek, setExperimentsWeek] = useState(ws.analytics.experimentsWeek);
-  const [dataEntryCount, setDataEntryCount] = useState(0);
 
   const refreshMeta = useCallback(async () => {
     try {
-      const [achRes, anRes, dataRes] = await Promise.all([
+      const [achRes, imgRes, anRes] = await Promise.all([
         fetch("/api/ra-achievements", { credentials: "same-origin" }),
+        fetch("/api/ra-image-library", { credentials: "same-origin" }),
         fetch("/api/ra-analytics", { credentials: "same-origin" }),
-        fetch("/api/ra-data-entries", { credentials: "same-origin" }),
       ]);
       if (achRes.ok) {
         const data = await achRes.json();
         setAchievementCount((data.items ?? []).length);
       }
+      if (imgRes.ok) {
+        const data = await imgRes.json();
+        setImageCount((data.items ?? []).length);
+      }
       if (anRes.ok) {
         const data = await anRes.json();
         setExperimentsWeek(data.metrics?.experimentsWeek ?? 0);
-      }
-      if (dataRes.ok) {
-        const data = await dataRes.json();
-        setDataEntryCount((data.entries ?? []).length);
       }
     } catch {
       /* keep fallbacks */
@@ -65,18 +65,11 @@ export function RaDashboard() {
       accent: "text-indigo-700",
     },
     {
-      label: d.cardAdvisor,
-      value: `${ws.advisorNotes.length}`,
-      suffix: d.notesUnit,
-      href: "/ra/advisor",
+      label: t.nav.raImageLibrary,
+      value: `${imageCount}`,
+      suffix: d.unlockedUnit,
+      href: "/ra/images",
       accent: "text-sky-700",
-    },
-    {
-      label: d.cardReview,
-      value: ws.reviewToday ? d.reviewDone : d.reviewPending,
-      href: "/ra/review",
-      accent: ws.reviewToday ? "text-emerald-700" : "text-amber-700",
-      small: true,
     },
     {
       label: d.cardAchievements,
@@ -93,13 +86,6 @@ export function RaDashboard() {
       accent: "text-violet-700",
     },
     {
-      label: d.cardData,
-      value: `${dataEntryCount}`,
-      suffix: d.itemsUnit,
-      href: "/ra/data",
-      accent: "text-slate-700",
-    },
-    {
       label: d.cardPpt,
       value: d.manage,
       href: "/ra/ppt",
@@ -111,13 +97,13 @@ export function RaDashboard() {
   const modules = [
     { href: "/ra/projects", key: "raProjects" as const },
     { href: "/ra/submissions", key: "raSubmissions" as const },
-    { href: "/ra/review", key: "raReview" as const },
+    { href: "/ra/images", key: "raImageLibrary" as const },
     { href: "/ra/achievements", key: "raAchievements" as const },
+    { href: "/ra/templates", key: "raTemplates" as const },
     { href: "/ra/analytics", key: "raAnalytics" as const },
-    { href: "/ra/data", key: "raData" as const },
-    { href: "/ra/advisor", key: "raAdvisor" as const },
+    { href: "/ra/ppt", key: "raPptStudio" as const },
+    { href: "/ra/academics", key: "raAcademicOutput" as const },
     { href: "/ra/expenses", key: "raExpenses" as const },
-    { href: "/ra/ppt", key: "raPpt" as const },
   ];
 
   return (
@@ -128,7 +114,7 @@ export function RaDashboard() {
         <p className="mt-2 text-sm text-lab-text">{d.hint}</p>
       </GlassPanel>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <Link key={card.href + card.label} href={card.href}>
             <GlassPanel className="h-full transition-all hover:-translate-y-0.5 hover:shadow-fluent-lg">
@@ -161,24 +147,6 @@ export function RaDashboard() {
                 >
                   {t.nav[item.key]}
                 </Link>
-              ))}
-            </div>
-          </GlassPanel>
-
-          <GlassPanel>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-semibold text-thu">{d.recentAdvisor}</h3>
-              <Link href="/ra/advisor" className="text-xs text-thu hover:underline">
-                {d.viewAll}
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {ws.advisorNotes.slice(0, 2).map((n) => (
-                <div key={n.id} className="rounded-lg border border-white/40 bg-white/25 px-3 py-2">
-                  <p className="text-xs text-lab-muted">{n.date}</p>
-                  <p className="text-sm font-medium text-thu">{n.topic}</p>
-                  <p className="mt-1 text-xs text-lab-text">{n.summary}</p>
-                </div>
               ))}
             </div>
           </GlassPanel>

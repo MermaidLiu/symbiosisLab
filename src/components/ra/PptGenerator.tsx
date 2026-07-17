@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import clsx from "clsx";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
 import { FluentButton } from "@/components/fluent/FluentButton";
 import { FluentInput, FluentSelect } from "@/components/fluent/FluentField";
@@ -16,7 +17,12 @@ const LONG_FIELDS = new Set([
   "progress",
 ]);
 
-export function PptGenerator() {
+interface PptGeneratorProps {
+  /** Hide template upload — managed in 模版库 */
+  hideUpload?: boolean;
+}
+
+export function PptGenerator({ hideUpload = false }: PptGeneratorProps) {
   const { t } = useLocale();
   const p = t.ra.pptGenerator;
 
@@ -31,10 +37,7 @@ export function PptGenerator() {
   const [uploadName, setUploadName] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
-  const selected = useMemo(
-    () => templates.find((x) => x.id === templateId) ?? null,
-    [templates, templateId]
-  );
+  const selected = templates.find((x) => x.id === templateId) ?? null;
 
   const fieldLabel = useCallback(
     (key: string) => {
@@ -175,14 +178,24 @@ export function PptGenerator() {
       )}
 
       <GlassPanel>
-        <h2 className="text-lg font-semibold text-thu">{p.title}</h2>
-        <p className="mt-1 text-xs text-lab-muted">{p.hint}</p>
+        {!hideUpload && (
+          <>
+            <h2 className="text-lg font-semibold text-thu">{p.title}</h2>
+            <p className="mt-1 text-xs text-lab-muted">{p.hint}</p>
+          </>
+        )}
+        {hideUpload && (
+          <>
+            <h2 className="text-base font-semibold text-thu">{p.fillTitle}</h2>
+            <p className="mt-1 text-xs text-lab-muted">{p.fillHint}</p>
+          </>
+        )}
 
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         {loading ? (
           <p className="mt-4 text-sm text-lab-muted">{t.common.loading}</p>
         ) : (
-          <div className="mt-4 space-y-4">
+          <div className={clsx("space-y-4", hideUpload ? "mt-0" : "mt-4")}>
             <div className="flex flex-wrap items-end gap-3">
               <FluentSelect
                 label={p.selectTemplate}
@@ -197,7 +210,7 @@ export function PptGenerator() {
                   </option>
                 ))}
               </FluentSelect>
-              {selected && selected.uploadedBy !== "system" && (
+              {!hideUpload && selected && selected.uploadedBy !== "system" && (
                 <FluentButton type="button" variant="outline" size="sm" onClick={() => void removeTemplate(selected.id)}>
                   {p.deleteTemplate}
                 </FluentButton>
@@ -260,31 +273,33 @@ export function PptGenerator() {
         </GlassPanel>
       )}
 
-      <GlassPanel>
-        <h3 className="text-base font-semibold text-thu">{p.uploadTitle}</h3>
-        <p className="mt-1 text-xs text-lab-muted">{p.uploadHint}</p>
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <FluentInput
-            label={p.templateName}
-            className="min-w-[180px] flex-1"
-            value={uploadName}
-            onChange={(e) => setUploadName(e.target.value)}
-            placeholder={p.templateNamePlaceholder}
-          />
-          <div className="min-w-[200px] flex-1">
-            <label className="mb-1 block text-[11px] font-medium text-lab-muted">{p.chooseFile}</label>
-            <input
-              type="file"
-              accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-              onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-lab-text file:mr-3 file:rounded-lg file:border-0 file:bg-thu/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-thu"
+      {!hideUpload && (
+        <GlassPanel>
+          <h3 className="text-base font-semibold text-thu">{p.uploadTitle}</h3>
+          <p className="mt-1 text-xs text-lab-muted">{p.uploadHint}</p>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <FluentInput
+              label={p.templateName}
+              className="min-w-[180px] flex-1"
+              value={uploadName}
+              onChange={(e) => setUploadName(e.target.value)}
+              placeholder={p.templateNamePlaceholder}
             />
+            <div className="min-w-[200px] flex-1">
+              <label className="mb-1 block text-[11px] font-medium text-lab-muted">{p.chooseFile}</label>
+              <input
+                type="file"
+                accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-lab-text file:mr-3 file:rounded-lg file:border-0 file:bg-thu/10 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-thu"
+              />
+            </div>
+            <FluentButton type="button" variant="secondary" disabled={uploading} onClick={() => void uploadTemplate()}>
+              {uploading ? p.uploading : p.upload}
+            </FluentButton>
           </div>
-          <FluentButton type="button" variant="secondary" disabled={uploading} onClick={() => void uploadTemplate()}>
-            {uploading ? p.uploading : p.upload}
-          </FluentButton>
-        </div>
-      </GlassPanel>
+        </GlassPanel>
+      )}
     </div>
   );
 }

@@ -10,9 +10,11 @@ import { canAccessResearchAssistant } from "@/lib/roles";
 /** Auth-gated shell for RA module pages */
 export function RaPageShell({
   title,
+  action,
   children,
 }: {
   title: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const { t } = useLocale();
@@ -34,7 +36,7 @@ export function RaPageShell({
 
   return (
     <>
-      <PageHeader title={title} />
+      <PageHeader title={title} action={action} />
       <div className="fluent-mica-bg flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
     </>
   );

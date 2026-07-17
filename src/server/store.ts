@@ -13,6 +13,8 @@ import {
   RaAchievementRecord,
   RaAnalyticsMetrics,
   RaDataEntry,
+  RaImageLibraryItem,
+  RaProject,
 } from "@/types";
 import {
   ManagedAnimal,
@@ -56,6 +58,10 @@ export interface DbStore {
   raAnalytics: RaAnalyticsMetrics | null;
   /** Manual data-management rows */
   raDataEntries: RaDataEntry[];
+  /** PPT workbench image library (files under data/ra-images/) */
+  raImageLibrary: RaImageLibraryItem[];
+  /** RA project board */
+  raProjects: RaProject[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -86,8 +92,17 @@ function emptyStore(): DbStore {
     raAchievements: [],
     raAnalytics: null,
     raDataEntries: [],
+    raImageLibrary: [],
+    raProjects: [],
   };
 }
+
+const DEFAULT_RA_PROJECTS: RaProject[] = [
+  { id: "p1", name: "共生微生物组课题", status: "active", progress: 62, due: "2026-09-30" },
+  { id: "p2", name: "仪器预约智能化", status: "active", progress: 40, due: "2026-08-15" },
+  { id: "p3", name: "横向合作—免疫成像", status: "paused", progress: 25, due: "2026-12-01" },
+  { id: "p4", name: "开题报告修订", status: "done", progress: 100, due: "2026-03-01" },
+];
 
 function seedStore(): DbStore {
   return {
@@ -111,6 +126,8 @@ function seedStore(): DbStore {
     raAchievements: [],
     raAnalytics: null,
     raDataEntries: [],
+    raImageLibrary: [],
+    raProjects: DEFAULT_RA_PROJECTS.map((p) => ({ ...p })),
   };
 }
 
@@ -172,8 +189,23 @@ function readFromDisk(): DbStore {
       parsed.raDataEntries = [];
       dirty = true;
     }
-    // Ensure seed RA + demo students exist for existing databases
-    for (const email of ["ra@lab.edu.cn", "chen@lab.edu.cn", "zhao@lab.edu.cn"]) {
+    if (!Array.isArray(parsed.raImageLibrary)) {
+      parsed.raImageLibrary = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.raProjects)) {
+      parsed.raProjects = DEFAULT_RA_PROJECTS.map((p) => ({ ...p }));
+      dirty = true;
+    }
+    // Default purpose on managed animals
+    for (const a of parsed.managedAnimals ?? []) {
+      if (!a.purpose) {
+        a.purpose = "blank";
+        dirty = true;
+      }
+    }
+    // Ensure seed RA + demo students + vet exist for existing databases
+    for (const email of ["ra@lab.edu.cn", "chen@lab.edu.cn", "zhao@lab.edu.cn", "vet@lab.edu.cn"]) {
       if (!parsed.users.some((u) => u.email === email)) {
         const seed = SEED_USERS.find((u) => u.email === email);
         if (seed) {
@@ -225,6 +257,12 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.raDataEntries)) {
       globalThis.__symbiosisDb.raDataEntries = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raImageLibrary)) {
+      globalThis.__symbiosisDb.raImageLibrary = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raProjects)) {
+      globalThis.__symbiosisDb.raProjects = DEFAULT_RA_PROJECTS.map((p) => ({ ...p }));
     }
   }
   return globalThis.__symbiosisDb;
