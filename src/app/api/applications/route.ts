@@ -5,6 +5,7 @@ import { appendAuditLog } from "@/server/audit";
 import { canManageAnimals, canProcessVeterinary } from "@/lib/roles";
 import { ApplicationType, OperationApplication } from "@/types/animal-management";
 import { approverRecipientIds, pushNotificationToUsers } from "@/server/notify";
+import { normalizePurpose } from "@/lib/animals/facility-board";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -26,6 +27,22 @@ export async function POST(req: NextRequest) {
 
   if (type === "custody") {
     if (!animalIds?.length) return jsonError("invalid_body", 400);
+    const store = getStore();
+    for (const id of animalIds) {
+      const animal = store.managedAnimals.find((m) => m.id === id);
+      if (!animal) return jsonError("animal_not_found", 400);
+      if (normalizePurpose(animal.purpose) === "blank") return jsonError("blank_not_claimable", 400);
+      if (animal.claimantUserId && animal.claimantUserId !== user.id) {
+        return jsonError("already_claimed", 409);
+      }
+      const pending = store.applications.some(
+        (a) =>
+          a.type === "custody" &&
+          a.status === "pending_receipt" &&
+          a.animalIds?.includes(id)
+      );
+      if (pending) return jsonError("claim_pending", 409);
+    }
   } else if (type === "veterinary") {
     if (!animalIds?.length) return jsonError("invalid_body", 400);
     if (!vetInstructions && !description) return jsonError("invalid_body", 400);
@@ -164,6 +181,24 @@ export async function PATCH(req: NextRequest) {
         completionTime: now,
         feedback: String(body.feedback ?? (app.type === "veterinary" ? "兽医处理完成" : "审核通过")),
       };
+
+      // Custody approve → assign claimant on managed animals
+      if (app.type === "custody" && app.animalIds?.length && app.applicantUserId) {
+        const claimantId = app.applicantUserId;
+        const claimantName = app.applicant;
+        for (const animalId of app.animalIds) {
+          const mi = s.managedAnimals.findIndex((m) => m.id === animalId);
+          if (mi < 0) continue;
+          const cur = s.managedAnimals[mi];
+          // Blank mice cannot be claimed
+          if (cur.purpose === "blank") continue;
+          s.managedAnimals[mi] = {
+            ...cur,
+            claimantUserId: claimantId,
+            claimantName,
+          };
+        }
+      }
     } else {
       s.applications[idx] = {
         ...app,

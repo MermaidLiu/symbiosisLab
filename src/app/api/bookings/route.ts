@@ -40,7 +40,14 @@ export async function POST(req: NextRequest) {
   });
 
   if (!result.ok) {
-    const status = result.error === "slot_taken" ? 409 : 404;
+    const status =
+      result.error === "slot_taken"
+        ? 409
+        : result.error === "resource_not_found"
+          ? 404
+          : result.error === "invalid_duration"
+            ? 400
+            : 403;
     return jsonError(result.error, status);
   }
 

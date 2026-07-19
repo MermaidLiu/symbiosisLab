@@ -40,6 +40,7 @@ yarn-error.log*
 /data/ppt-templates/
 /data/ra-achievements/
 /data/ra-images/
+/data/instrument-images/
 
 # typescript
 *.tsbuildinfo

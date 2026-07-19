@@ -10,11 +10,11 @@ import { FluentSelect, FluentInput, FluentRadioGroup } from "@/components/fluent
 import { FluentModal } from "@/components/fluent/FluentModal";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
-import { canManageAnimals } from "@/lib/roles";
+import { canManageAnimals, canSuperviseAnimalFacility, hasRole } from "@/lib/roles";
 import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
-import { getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { formatTrackingMinutes, trackingMinutes } from "@/lib/animals/facility-board";
+import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
+import { formatTrackingMinutes, trackingMinutes, normalizePurpose } from "@/lib/animals/facility-board";
 import {
   ManagedAnimal,
   AnimalFilterState,
@@ -25,6 +25,7 @@ import {
   DeathMethod,
   MouseLifecycleStatus,
   EuthanasiaMethod,
+  OperationApplication,
 } from "@/types/animal-management";
 
 const EMPTY_FILTER: AnimalFilterState = {
@@ -95,13 +96,42 @@ const LIFECYCLE_TIP: Record<MouseLifecycleStatus, string> = {
   euthanasia: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
 };
 
-export function ManagedAnimals() {
+export function ManagedAnimals({
+  embedded = false,
+  technicianScopeId,
+  onAnimalsChange,
+}: {
+  /** 嵌在负责人工作台时隐藏页头与外层滚动壳 */
+  embedded?: boolean;
+  /** 只显示该技术员名下动物 */
+  technicianScopeId?: string;
+  onAnimalsChange?: (animals: ManagedAnimal[]) => void;
+} = {}) {
   const { t } = useLocale();
   const m = t.animalMgmt.managed;
   const { user } = useAuth();
   const canExport = user ? canManageAnimals(user.roles) : false;
   const canEditAnimals = canExport;
+  /** 学生等非管理人员：只看可申领目录 */
+  const isClaimCatalog = !canEditAnimals;
+  const techScope =
+    technicianScopeId ??
+    (user &&
+    canManageAnimals(user.roles) &&
+    !canSuperviseAnimalFacility(user.roles) &&
+    !hasRole(user.roles, "super_admin")
+      ? user.id
+      : undefined);
+
+  function scopeList(list: ManagedAnimal[]) {
+    const scoped = techScope
+      ? list.filter((a) => a.technicianUserId === techScope)
+      : list;
+    onAnimalsChange?.(scoped);
+    return scoped;
+  }
   const [applying, setApplying] = useState(false);
+  const [pendingClaimIds, setPendingClaimIds] = useState<Set<string>>(() => new Set());
 
   const [filters, setFilters] = useState<AnimalFilterState>(EMPTY_FILTER);
   const [applied, setApplied] = useState<AnimalFilterState>(EMPTY_FILTER);
@@ -142,14 +172,36 @@ export function ManagedAnimals() {
   useEffect(() => {
     (async () => {
       try {
-        const { managedAnimals } = await api.managedAnimals();
-        setCachePartial({ managedAnimals });
-        setAnimals(managedAnimals);
+        const [{ managedAnimals }, appsRes] = await Promise.all([
+          api.managedAnimals(),
+          isClaimCatalog ? api.applications() : Promise.resolve(null),
+        ]);
+        setCachePartial({
+          managedAnimals,
+          ...(appsRes ? { applications: appsRes.applications } : {}),
+        });
+        setAnimals(scopeList(managedAnimals));
+        if (appsRes) {
+          setPendingClaimIds(pendingIdsFromApps(appsRes.applications));
+        }
       } catch {
-        setAnimals(getManagedAnimals());
+        setAnimals(scopeList(getManagedAnimals()));
+        if (isClaimCatalog) {
+          setPendingClaimIds(pendingIdsFromApps(getApplications()));
+        }
       }
     })();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [techScope, isClaimCatalog]);
+
+  function pendingIdsFromApps(apps: OperationApplication[]) {
+    const ids = new Set<string>();
+    for (const app of apps) {
+      if (app.type !== "custody" || app.status !== "pending_receipt") continue;
+      for (const id of app.animalIds ?? []) ids.add(id);
+    }
+    return ids;
+  }
 
   useEffect(() => {
     if (!batchMenuOpen) return;
@@ -209,6 +261,15 @@ export function ManagedAnimals() {
 
   const filtered = useMemo(() => {
     let rows = [...animals];
+    if (isClaimCatalog) {
+      rows = rows.filter((r) => {
+        if (normalizePurpose(r.purpose) === "blank") return false;
+        if (r.status === "deceased") return false;
+        if (r.claimantUserId) return false;
+        if (pendingClaimIds.has(r.id)) return false;
+        return true;
+      });
+    }
     const f = applied;
     if (f.strain) rows = rows.filter((r) => r.strain === f.strain);
     if (f.genotype) rows = rows.filter((r) => r.genotype === f.genotype);
@@ -237,7 +298,7 @@ export function ManagedAnimals() {
       return sortAsc ? cmp : -cmp;
     });
     return rows;
-  }, [animals, applied, sortKey, sortAsc]);
+  }, [animals, applied, sortKey, sortAsc, isClaimCatalog, pendingClaimIds]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -295,16 +356,22 @@ export function ManagedAnimals() {
     }
     setApplying(true);
     try {
-      await api.createApplication({
+      const { applications: list } = await api.createApplication({
         type: "custody",
         description: `申请代管动物: ${ids.join(", ")}`,
         animalIds: ids,
       });
+      setCachePartial({ applications: list });
+      setPendingClaimIds(pendingIdsFromApps(list));
       setSelected(new Set());
       setViewAnimal(null);
       showToast(m.applyPending);
-    } catch {
-      showToast(m.applyError);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "";
+      if (code === "blank_not_claimable") showToast(m.blankNotClaimable);
+      else if (code === "already_claimed") showToast(m.alreadyClaimed);
+      else if (code === "claim_pending") showToast(m.claimPendingError);
+      else showToast(m.applyError);
     } finally {
       setApplying(false);
     }
@@ -367,7 +434,7 @@ export function ManagedAnimals() {
 
       const res = await api.updateManagedAnimal(viewAnimal.id, patch);
       setCachePartial({ managedAnimals: res.managedAnimals });
-      setAnimals(res.managedAnimals);
+      setAnimals(scopeList(res.managedAnimals));
       setViewAnimal(null);
       setOpAction("");
       setOpEuthMethod("");
@@ -565,7 +632,7 @@ export function ManagedAnimals() {
         purpose: addForm.purpose,
       });
       setCachePartial({ managedAnimals });
-      setAnimals(managedAnimals);
+      setAnimals(scopeList(managedAnimals));
       setAddModalOpen(false);
       showToast(m.addSuccess);
     } catch {
@@ -591,7 +658,7 @@ export function ManagedAnimals() {
         list = res.managedAnimals;
       }
       setCachePartial({ managedAnimals: list });
-      setAnimals(list);
+      setAnimals(scopeList(list));
       setSelected(new Set());
       showToast(m.removeSuccess);
     } catch {
@@ -608,7 +675,7 @@ export function ManagedAnimals() {
     try {
       const { managedAnimals } = await api.deleteManagedAnimal(id);
       setCachePartial({ managedAnimals });
-      setAnimals(managedAnimals);
+      setAnimals(scopeList(managedAnimals));
       setSelected((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -778,18 +845,28 @@ export function ManagedAnimals() {
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <PageHeader
-        title={m.title}
-        action={
-          canEditAnimals ? (
-            <FluentButton size="sm" onClick={openAddModal}>
-              + {m.addAnimal}
-            </FluentButton>
-          ) : undefined
-        }
-      />
-      <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
+    <div className={clsx(!embedded && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
+      {!embedded && (
+        <PageHeader
+          title={isClaimCatalog ? m.claimTitle : m.title}
+          subtitle={isClaimCatalog ? m.claimSubtitle : undefined}
+          action={
+            canEditAnimals ? (
+              <FluentButton size="sm" onClick={openAddModal}>
+                + {m.addAnimal}
+              </FluentButton>
+            ) : undefined
+          }
+        />
+      )}
+      <div
+        className={clsx(
+          embedded
+            ? "space-y-4"
+            : "fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6"
+        )}
+      >
+        {!embedded && (
         <GlassPanel className="mb-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
             <FluentSelect label={m.strain} value={filters.strain} onChange={(e) => setFilters({ ...filters, strain: e.target.value })}>
@@ -867,62 +944,113 @@ export function ManagedAnimals() {
             </FluentButton>
           </div>
         </GlassPanel>
+        )}
+
+        {embedded && (
+          <GlassPanel className="mb-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <FluentInput
+                label={m.animalId}
+                value={filters.animalId}
+                onChange={(e) => setFilters({ ...filters, animalId: e.target.value })}
+                className="min-w-[160px] flex-1"
+              />
+              <FluentButton
+                onClick={() => {
+                  setApplied({ ...filters });
+                  setPage(1);
+                }}
+              >
+                {m.query}
+              </FluentButton>
+              <FluentButton
+                variant="outline"
+                onClick={() => {
+                  setFilters(EMPTY_FILTER);
+                  setApplied(EMPTY_FILTER);
+                  setPage(1);
+                }}
+              >
+                {m.reset}
+              </FluentButton>
+            </div>
+          </GlassPanel>
+        )}
+
+        {isClaimCatalog && !embedded && (
+          <GlassPanel className="mb-4 bg-[#F7F1FA]/80">
+            <p className="text-sm text-lab-text">{m.claimHint}</p>
+          </GlassPanel>
+        )}
 
         <GlassPanel className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <FluentButton variant="secondary" size="sm" onClick={openVetModal}>
-                {m.vetCare}
-              </FluentButton>
-              <div className="relative">
+              {isClaimCatalog ? (
                 <FluentButton
-                  ref={batchBtnRef}
-                  variant="secondary"
                   size="sm"
-                  disabled={applying || removing}
-                  onClick={toggleBatchMenu}
+                  disabled={applying || selected.size === 0}
+                  onClick={handleBatchApply}
                 >
-                  {m.batchOps} ▾
+                  {m.claimSelected}
+                  {selected.size > 0 ? ` (${selected.size})` : ""}
                 </FluentButton>
-                {batchMenuOpen &&
-                  typeof document !== "undefined" &&
-                  createPortal(
-                    <div
-                      className="fluent-glass fixed z-[200] min-w-[148px] overflow-hidden py-1 shadow-fluent-lg"
-                      style={{ top: batchMenuPos.top, left: batchMenuPos.left }}
-                      onClick={(e) => e.stopPropagation()}
+              ) : (
+                <>
+                  <FluentButton variant="secondary" size="sm" onClick={openVetModal}>
+                    {m.vetCare}
+                  </FluentButton>
+                  <div className="relative">
+                    <FluentButton
+                      ref={batchBtnRef}
+                      variant="secondary"
+                      size="sm"
+                      disabled={applying || removing}
+                      onClick={toggleBatchMenu}
                     >
-                      <button
-                        type="button"
-                        className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-thu"
-                        disabled={applying}
-                        onClick={() => {
-                          setBatchMenuOpen(false);
-                          handleBatchApply();
-                        }}
-                      >
-                        {m.batchApply}
-                      </button>
-                      {canEditAnimals && (
-                        <button
-                          type="button"
-                          className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-red-600"
-                          disabled={removing}
-                          onClick={() => {
-                            setBatchMenuOpen(false);
-                            void removeSelected();
-                          }}
+                      {m.batchOps} ▾
+                    </FluentButton>
+                    {batchMenuOpen &&
+                      typeof document !== "undefined" &&
+                      createPortal(
+                        <div
+                          className="fluent-glass fixed z-[200] min-w-[148px] overflow-hidden py-1 shadow-fluent-lg"
+                          style={{ top: batchMenuPos.top, left: batchMenuPos.left }}
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          {m.batchDelete}
-                        </button>
+                          <button
+                            type="button"
+                            className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-thu"
+                            disabled={applying}
+                            onClick={() => {
+                              setBatchMenuOpen(false);
+                              handleBatchApply();
+                            }}
+                          >
+                            {m.batchApply}
+                          </button>
+                          {canEditAnimals && (
+                            <button
+                              type="button"
+                              className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-red-600"
+                              disabled={removing}
+                              onClick={() => {
+                                setBatchMenuOpen(false);
+                                void removeSelected();
+                              }}
+                            >
+                              {m.batchDelete}
+                            </button>
+                          )}
+                        </div>,
+                        document.body
                       )}
-                    </div>,
-                    document.body
-                  )}
-              </div>
-              <FluentButton variant="outline" size="sm" onClick={openTransferModal}>
-                {m.transfer}
-              </FluentButton>
+                  </div>
+                  <FluentButton variant="outline" size="sm" onClick={openTransferModal}>
+                    {m.transfer}
+                  </FluentButton>
+                </>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <FluentSelect className="w-auto min-w-[100px]" value="mice">
@@ -1191,9 +1319,18 @@ export function ManagedAnimals() {
               >
                 {t.common.cancel}
               </FluentButton>
-              <FluentButton disabled={applying} onClick={() => void submitViewOperation()}>
-                {m.opConfirm}
-              </FluentButton>
+              {isClaimCatalog ? (
+                <FluentButton
+                  disabled={applying}
+                  onClick={() => void submitCustody([viewAnimal.id])}
+                >
+                  {m.claim}
+                </FluentButton>
+              ) : canEditAnimals ? (
+                <FluentButton disabled={applying} onClick={() => void submitViewOperation()}>
+                  {m.opConfirm}
+                </FluentButton>
+              ) : null}
             </div>
           ) : undefined
         }
@@ -1233,6 +1370,7 @@ export function ManagedAnimals() {
               <DetailRow label={m.colCage} value={viewAnimal.cageLocation} />
             </dl>
 
+            {!isClaimCatalog && canEditAnimals && (
             <div className="rounded-lg border border-[#E0D4E8] bg-[#F7F1FA]/60 px-3 py-3">
               <FluentRadioGroup
                 label={m.opAction}
@@ -1276,6 +1414,7 @@ export function ManagedAnimals() {
                 </div>
               )}
             </div>
+            )}
           </div>
         )}
       </FluentModal>

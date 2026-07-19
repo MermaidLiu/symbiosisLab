@@ -1,6 +1,11 @@
-import { Booking } from "@/types";
+import { Booking, Instrument, User } from "@/types";
 import { DbStore, mutateStore, uid } from "@/server/store";
 import { approverRecipientIds, pushNotificationToUsers } from "@/server/notify";
+import {
+  canBookInstrument,
+  durationHoursValid,
+  normalizeInstrument,
+} from "@/lib/instruments";
 
 export function bookingOverlaps(
   aStart: string,
@@ -34,9 +39,17 @@ export function findConflictingBookings(
   );
 }
 
+export type CreateBookingError =
+  | "slot_taken"
+  | "resource_not_found"
+  | "maintenance"
+  | "retired"
+  | "training_required"
+  | "invalid_duration";
+
 export type CreateBookingResult =
   | { ok: true; booking: Booking }
-  | { ok: false; error: "slot_taken" | "resource_not_found" };
+  | { ok: false; error: CreateBookingError };
 
 /**
  * Atomically check conflict + insert booking + queue manager notification.
@@ -70,6 +83,24 @@ export async function createBookingAtomic(input: {
 
     if (!resource) {
       return { ok: false, error: "resource_not_found" };
+    }
+
+    if (input.resourceType === "instrument") {
+      const inst = normalizeInstrument(resource as Instrument);
+      const user = s.users.find((u) => u.id === input.userId) as User | undefined;
+      const gate = canBookInstrument({
+        instrument: inst,
+        userId: input.userId,
+        roles: user?.roles ?? [],
+        trainedInstrumentIds: user?.trainedInstrumentIds,
+      });
+      if (!gate.ok) return { ok: false, error: gate.reason };
+
+      const hours =
+        (new Date(input.endTime).getTime() - new Date(input.startTime).getTime()) / 3600000;
+      if (!durationHoursValid(hours, inst.minBookingHours, inst.maxBookingHours)) {
+        return { ok: false, error: "invalid_duration" };
+      }
     }
 
     const booking: Booking = {

@@ -1,190 +1,336 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import clsx from "clsx";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
+import { FluentButton } from "@/components/fluent/FluentButton";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
-import { getCages, getManagedAnimals } from "@/lib/storage/db";
+import { api } from "@/lib/api/client";
+import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
+import { normalizePurpose } from "@/lib/animals/facility-board";
+import {
+  ApplicationWorkflowStatus,
+  ManagedAnimal,
+  OperationApplication,
+} from "@/types/animal-management";
+
+const APP_STATUS_TIP: Record<ApplicationWorkflowStatus, string> = {
+  pending_receipt: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
+  received: "bg-[#E3F2FD] text-[#1565C0] ring-[#90CAF9]",
+  awaiting_conditions: "bg-[#F3E5F5] text-[#7B1FA2] ring-[#CE93D8]",
+  completed: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
+  rejected: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
+};
 
 export function StudentDashboard() {
   const { t, isZh, locale } = useLocale();
   const d = t.dashboard;
+  const s = t.dashboard.student;
+  const m = t.animalMgmt.managed;
+  const a = t.animalMgmt.applications;
   const { user } = useAuth();
-  const { instruments, animals, bookings } = useData();
+  const { instruments, bookings } = useData();
   const localeStr = locale === "zh" ? "zh-CN" : "en-US";
-  const managedAnimals = getManagedAnimals();
-  const cages = getCages();
 
-  const availableInstruments = instruments.filter((i) => i.status === "available");
-  const maintenanceInstruments = instruments.filter((i) => i.status === "maintenance");
-  const trainingRequired = availableInstruments.filter((i) => i.trainingRequired);
-  const myBookings = bookings.filter((b) => b.userId === user?.id);
-  const myPending = myBookings.filter((b) => b.status === "pending");
-  const myApproved = myBookings.filter((b) => b.status === "approved");
-  const vacantCages = cages.filter((c) => c.status === "vacant").length;
-  const activeManaged = managedAnimals.filter((a) => a.status === "active").length;
+  const [applications, setApplications] = useState<OperationApplication[]>([]);
+  const [managed, setManaged] = useState<ManagedAnimal[]>([]);
 
-  const speciesMap = animals.reduce<Record<string, number>>((acc, a) => {
-    const key = isZh ? a.species : a.speciesEn;
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
+  useEffect(() => {
+    (async () => {
+      try {
+        const [appsRes, animalsRes] = await Promise.all([
+          api.applications(),
+          api.managedAnimals(),
+        ]);
+        setCachePartial({
+          applications: appsRes.applications,
+          managedAnimals: animalsRes.managedAnimals,
+        });
+        setApplications(appsRes.applications);
+        setManaged(animalsRes.managedAnimals);
+      } catch {
+        setApplications(getApplications());
+        setManaged(getManagedAnimals());
+      }
+    })();
+  }, []);
 
-  const upcoming = myBookings
-    .filter((b) => b.status === "approved" || b.status === "pending")
-    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-    .slice(0, 5);
+  const myBookings = useMemo(
+    () => bookings.filter((b) => b.userId === user?.id),
+    [bookings, user?.id]
+  );
+  const myPendingBookings = myBookings.filter((b) => b.status === "pending");
+  const myApprovedBookings = myBookings.filter((b) => b.status === "approved");
+
+  const myApps = useMemo(
+    () => applications.filter((app) => app.applicantUserId === user?.id),
+    [applications, user?.id]
+  );
+  const myCustody = useMemo(
+    () => myApps.filter((app) => app.type === "custody"),
+    [myApps]
+  );
+  const myPendingClaims = myCustody.filter((app) => app.status === "pending_receipt");
+  const myCompletedClaims = myCustody.filter((app) => app.status === "completed");
+
+  const myAnimals = useMemo(
+    () => managed.filter((x) => x.claimantUserId === user?.id),
+    [managed, user?.id]
+  );
+
+  const claimableCount = useMemo(
+    () =>
+      managed.filter((x) => {
+        const purpose = normalizePurpose(x.purpose);
+        if (purpose === "blank") return false;
+        if (x.claimantUserId && x.claimantUserId !== user?.id) return false;
+        if (x.status === "deceased") return false;
+        const pending = applications.some(
+          (app) =>
+            app.type === "custody" &&
+            app.status === "pending_receipt" &&
+            app.animalIds?.includes(x.id)
+        );
+        return !pending;
+      }).length,
+    [managed, applications, user?.id]
+  );
+
+  const upcoming = useMemo(
+    () =>
+      myBookings
+        .filter((b) => b.status === "approved" || b.status === "pending")
+        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+        .slice(0, 6),
+    [myBookings]
+  );
+
+  const recentClaims = useMemo(
+    () =>
+      [...myCustody]
+        .sort((a, b) => b.applicationTime.localeCompare(a.applicationTime))
+        .slice(0, 6),
+    [myCustody]
+  );
+
+  function purposeLabel(p?: ManagedAnimal["purpose"]) {
+    const purpose = normalizePurpose(p);
+    if (purpose === "signal_processing") return m.purposeSignal;
+    if (purpose === "immunity") return m.purposeImmunity;
+    if (purpose === "breeding") return m.purposeBreeding;
+    return m.purposeBlank;
+  }
+
+  function appStatusLabel(status: ApplicationWorkflowStatus) {
+    const map: Record<ApplicationWorkflowStatus, string> = {
+      pending_receipt: a.tabPending,
+      received: a.tabReceived,
+      awaiting_conditions: a.tabAwaiting,
+      completed: a.tabCompleted,
+      rejected: a.tabRejected,
+    };
+    return map[status];
+  }
+
+  function resourceName(booking: (typeof bookings)[0]) {
+    const inst = instruments.find((i) => i.id === booking.resourceId);
+    if (inst) return isZh ? inst.name : inst.nameEn;
+    return booking.resourceId;
+  }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6">
-      <GlassPanel className="mb-6 bg-gradient-to-r from-thu/10 via-white/50 to-tsinghua-yellow/10">
-        <p className="text-sm text-lab-muted">{d.welcome}</p>
-        <h2 className="mt-1 text-2xl font-bold text-thu">{user?.name}</h2>
-        <p className="mt-2 text-sm text-lab-text">{d.studentHint}</p>
-      </GlassPanel>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <PageHeader title={d.title} subtitle={s.subtitle} />
+      <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
+        <GlassPanel className="mb-5 bg-gradient-to-r from-thu/10 via-white/50 to-tsinghua-yellow/10">
+          <p className="text-sm text-lab-muted">{d.welcome}</p>
+          <h2 className="mt-1 text-2xl font-bold text-thu">{user?.name}</h2>
+          <p className="mt-2 text-sm text-lab-text">{s.hint}</p>
+        </GlassPanel>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: d.availableInstruments, value: availableInstruments.length, href: "/instruments", accent: "text-thu" },
-          { label: d.managedAnimals, value: activeManaged, href: "/animals/managed", accent: "text-indigo-700" },
-          { label: d.vacantCages, value: vacantCages, href: "/animals/cages", accent: "text-emerald-700" },
-          { label: d.myBookings, value: myBookings.length, href: "/bookings", accent: "text-amber-700" },
-        ].map((stat) => (
-          <Link key={stat.label} href={stat.href}>
-            <GlassPanel className="transition-all hover:-translate-y-0.5 hover:shadow-fluent-lg">
-              <p className="text-xs text-lab-muted">{stat.label}</p>
-              <p className={`mt-1 text-3xl font-bold ${stat.accent}`}>{stat.value}</p>
-            </GlassPanel>
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <GlassPanel>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-thu">{d.availableInstrumentsTitle}</h3>
-            <Link href="/instruments" className="text-xs text-thu hover:underline">{d.viewAll}</Link>
-          </div>
-          <div className="mb-3 flex flex-wrap gap-2 text-xs">
-            <span className="fluent-badge rounded-full px-2 py-0.5">{d.noTraining}: {availableInstruments.length - trainingRequired.length}</span>
-            <span className="fluent-badge rounded-full px-2 py-0.5">{d.needsTraining}: {trainingRequired.length}</span>
-            <span className="fluent-badge rounded-full px-2 py-0.5">{d.maintenance}: {maintenanceInstruments.length}</span>
-          </div>
-          <div className="space-y-2">
-            {availableInstruments.length === 0 ? (
-              <p className="text-sm text-lab-muted">{t.common.noResults}</p>
-            ) : (
-              availableInstruments.slice(0, 6).map((inst) => (
-                <Link
-                  key={inst.id}
-                  href={`/instruments/${inst.id}`}
-                  className="flex items-center justify-between rounded-lg border border-white/40 bg-white/30 px-3 py-2.5 text-sm transition-colors hover:bg-white/50"
-                >
-                  <div>
-                    <p className="font-medium text-lab-text">{isZh ? inst.name : inst.nameEn}</p>
-                    <p className="text-xs text-lab-muted">{inst.location}</p>
-                  </div>
-                  {inst.trainingRequired && (
-                    <span className="text-[10px] text-thu">{t.instruments.trainingRequired}</span>
-                  )}
-                </Link>
-              ))
-            )}
+        <GlassPanel padding={false} className="mb-5 overflow-hidden">
+          <div className="grid grid-cols-2 gap-px bg-white/30 sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label={s.statPendingBookings} value={myPendingBookings.length} accent="text-amber-700" />
+            <Stat label={s.statApprovedBookings} value={myApprovedBookings.length} accent="text-emerald-700" />
+            <Stat label={s.statPendingClaims} value={myPendingClaims.length} accent="text-[#F57F17]" />
+            <Stat label={s.statMyAnimals} value={myAnimals.length} accent="text-[#82318E]" />
+            <Stat label={s.statClaimable} value={claimableCount} accent="text-[#5BA4E8]" />
+            <Stat label={s.statDoneClaims} value={myCompletedClaims.length} accent="text-thu" />
           </div>
         </GlassPanel>
 
-        <GlassPanel>
-          <h3 className="mb-4 font-semibold text-thu">{d.animalOverview}</h3>
-          <div className="mb-4 grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-white/35 p-3">
-              <p className="text-xs text-lab-muted">{d.animalColonies}</p>
-              <p className="text-2xl font-bold text-thu">{animals.length}</p>
-            </div>
-            <div className="rounded-lg bg-white/35 p-3">
-              <p className="text-xs text-lab-muted">{d.managedAnimals}</p>
-              <p className="text-2xl font-bold text-indigo-700">{managedAnimals.length}</p>
-            </div>
-          </div>
-          <p className="mb-2 text-xs font-medium text-lab-muted">{d.speciesBreakdown}</p>
-          <div className="space-y-2">
-            {Object.entries(speciesMap).map(([species, count]) => (
-              <div key={species} className="flex items-center justify-between rounded-lg bg-white/30 px-3 py-2 text-sm">
-                <span>{species}</span>
-                <span className="font-semibold text-thu">{count}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/animals/managed" className="fluent-badge rounded-full px-3 py-1 text-xs hover:bg-white/70">{d.browseManaged}</Link>
-            <Link href="/animals/cages" className="fluent-badge rounded-full px-3 py-1 text-xs hover:bg-white/70">{d.browseCages}</Link>
-            <Link href="/animals/applications" className="fluent-badge rounded-full px-3 py-1 text-xs hover:bg-white/70">{d.newApplication}</Link>
-          </div>
-        </GlassPanel>
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { href: "/instruments", label: d.bookInstrument, desc: d.bookInstrumentDesc },
+            { href: "/animals/managed", label: s.claimAnimals, desc: s.claimAnimalsDesc },
+            { href: "/bookings", label: d.viewAllBookings, desc: d.viewBookingsDesc },
+            { href: "/animals/applications", label: s.myApplications, desc: s.myApplicationsDesc },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
+            >
+              <p className="text-sm font-semibold text-thu">{item.label}</p>
+              <p className="mt-1 text-xs text-lab-muted">{item.desc}</p>
+            </Link>
+          ))}
+        </div>
 
-        <GlassPanel>
-          <h3 className="mb-4 font-semibold text-thu">{d.myBookingStatus}</h3>
-          <div className="mb-4 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg bg-amber-50/60 p-2">
-              <p className="text-lg font-bold text-amber-700">{myPending.length}</p>
-              <p className="text-[10px] text-lab-muted">{t.status.pending}</p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <GlassPanel>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-thu">{s.myBookingsTitle}</h3>
+              <Link href="/bookings" className="text-xs text-thu hover:underline">
+                {d.viewAll}
+              </Link>
             </div>
-            <div className="rounded-lg bg-emerald-50/60 p-2">
-              <p className="text-lg font-bold text-emerald-700">{myApproved.length}</p>
-              <p className="text-[10px] text-lab-muted">{t.status.approved}</p>
-            </div>
-            <div className="rounded-lg bg-white/40 p-2">
-              <p className="text-lg font-bold text-thu">{myBookings.length}</p>
-              <p className="text-[10px] text-lab-muted">{d.total}</p>
-            </div>
-          </div>
-          <div className="space-y-2">
             {upcoming.length === 0 ? (
               <p className="text-sm text-lab-muted">{d.noUpcoming}</p>
             ) : (
-              upcoming.map((b) => {
-                const inst = instruments.find((i) => i.id === b.resourceId);
-                const ani = animals.find((a) => a.id === b.resourceId);
-                const name = inst ? (isZh ? inst.name : inst.nameEn) : ani ? (isZh ? ani.name : ani.nameEn) : b.resourceId;
-                return (
-                  <div key={b.id} className="flex items-center justify-between rounded-lg border border-white/40 bg-white/30 px-3 py-2 text-xs">
-                    <div>
-                      <p className="font-medium text-lab-text">{name}</p>
-                      <p className="text-lab-muted">
-                        {new Date(b.startTime).toLocaleString(localeStr)} — {new Date(b.endTime).toLocaleString(localeStr)}
+              <ul className="space-y-2">
+                {upcoming.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-white/40 bg-white/40 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-lab-text">{resourceName(b)}</p>
+                      <p className="text-[11px] text-lab-muted">
+                        {new Date(b.startTime).toLocaleString(localeStr, {
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        –{" "}
+                        {new Date(b.endTime).toLocaleString(localeStr, {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                     <StatusBadge status={b.status} label={t.status[b.status]} />
-                  </div>
-                );
-              })
+                  </li>
+                ))}
+              </ul>
             )}
-          </div>
-          <Link href="/bookings" className="mt-3 inline-block text-xs text-thu hover:underline">{d.viewAllBookings}</Link>
-        </GlassPanel>
+          </GlassPanel>
 
-        <GlassPanel>
-          <h3 className="mb-4 font-semibold text-thu">{d.quickStart}</h3>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              { href: "/instruments", label: d.bookInstrument, desc: d.bookInstrumentDesc },
-              { href: "/animals/managed", label: d.applyCustody, desc: d.applyCustodyDesc },
-              { href: "/animals/applications", label: d.newApplication, desc: d.newApplicationDesc },
-              { href: "/bookings", label: d.viewAllBookings, desc: d.viewBookingsDesc },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-lg border border-white/40 bg-white/30 p-3 transition-all hover:bg-white/55 hover:shadow-sm"
-              >
-                <p className="text-sm font-medium text-thu">{item.label}</p>
-                <p className="mt-1 text-xs text-lab-muted">{item.desc}</p>
+          <GlassPanel>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-thu">{s.myClaimsTitle}</h3>
+              <Link href="/animals/applications" className="text-xs text-thu hover:underline">
+                {d.viewAll}
               </Link>
-            ))}
-          </div>
-        </GlassPanel>
+            </div>
+            {recentClaims.length === 0 ? (
+              <p className="text-sm text-lab-muted">{s.noClaims}</p>
+            ) : (
+              <ul className="space-y-2">
+                {recentClaims.map((app) => (
+                  <li
+                    key={app.id}
+                    className="rounded-lg border border-white/40 bg-white/40 px-3 py-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs font-semibold text-thu">{app.id}</p>
+                        <p className="mt-0.5 truncate text-xs text-lab-text">{app.description}</p>
+                        <p className="mt-0.5 text-[11px] text-lab-muted">
+                          {new Date(app.applicationTime).toLocaleString(localeStr)}
+                          {app.animalIds?.length
+                            ? ` · ${app.animalIds.length} ${s.animalsUnit}`
+                            : ""}
+                        </p>
+                      </div>
+                      <span
+                        className={clsx(
+                          "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+                          APP_STATUS_TIP[app.status]
+                        )}
+                      >
+                        {appStatusLabel(app.status)}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </GlassPanel>
+
+          <GlassPanel className="lg:col-span-2">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-thu">{s.myAnimalsTitle}</h3>
+              <Link href="/animals/managed" className="text-xs text-thu hover:underline">
+                {s.goClaim}
+              </Link>
+            </div>
+            {myAnimals.length === 0 ? (
+              <p className="text-sm text-lab-muted">{s.noMyAnimals}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-[#E0D4E8] text-[11px] text-lab-muted">
+                      <th className="px-2 py-2 font-semibold">{m.colId}</th>
+                      <th className="px-2 py-2 font-semibold">{m.colPurpose}</th>
+                      <th className="px-2 py-2 font-semibold">{m.colCage}</th>
+                      <th className="px-2 py-2 font-semibold">{m.colStatus}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myAnimals.slice(0, 8).map((row, idx) => (
+                      <tr
+                        key={row.id}
+                        className={clsx(
+                          "border-b border-[#EDE4F2]",
+                          idx % 2 === 0 ? "bg-white" : "bg-[#F7F1FA]"
+                        )}
+                      >
+                        <td className="px-2 py-2 font-mono text-xs text-thu">{row.id}</td>
+                        <td className="px-2 py-2 text-xs">{purposeLabel(row.purpose)}</td>
+                        <td className="px-2 py-2 text-xs">{row.cageLocation}</td>
+                        <td className="px-2 py-2 text-xs">
+                          {row.status === "active"
+                            ? m.statusActive
+                            : row.status === "deceased"
+                              ? m.statusDeceased
+                              : row.status}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </GlassPanel>
+        </div>
       </div>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: string;
+}) {
+  return (
+    <div className="bg-white/55 px-3 py-3 text-center sm:text-left">
+      <p className="text-[10px] text-lab-muted">{label}</p>
+      <p className={clsx("mt-0.5 text-xl font-semibold tabular-nums", accent ?? "text-thu")}>
+        {value}
+      </p>
     </div>
   );
 }

@@ -19,6 +19,8 @@ export interface User {
   roles: Role[];
   phone?: string;
   department?: string;
+  /** Instrument IDs the user has completed training for */
+  trainedInstrumentIds?: string[];
   createdAt: string;
 }
 
@@ -26,6 +28,16 @@ export interface InstrumentAccessory {
   name: string;
   nameEn: string;
   quantity: number;
+}
+
+/** Booking / ops workflow contact steps for an instrument */
+export type InstrumentContactStep = "approval" | "training" | "operations" | "repair";
+
+export interface InstrumentStepContact {
+  step: InstrumentContactStep;
+  name: string;
+  phone: string;
+  userId?: string;
 }
 
 export interface Instrument {
@@ -37,14 +49,23 @@ export interface Instrument {
   description: string;
   descriptionEn: string;
   status: "available" | "maintenance" | "retired";
+  /** Legacy primary contact — kept in sync with contacts.approval */
   contactUserId: string;
   contactPhone: string;
+  /** Step contacts: approval / training / operations / repair */
+  contacts: InstrumentStepContact[];
   tags: string[];
   specs: { key: string; value: string }[];
   accessories: InstrumentAccessory[];
   trainingRequired: boolean;
+  /** Allowed booking window; clamped to 0.5–24 hours */
   minBookingHours: number;
   maxBookingHours: number;
+  /** Stored image id under data/instrument-images/ */
+  imageId?: string;
+  /** Expected repair completion (ISO) when status is maintenance */
+  maintenanceUntil?: string;
+  maintenanceNote?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -255,5 +276,35 @@ export interface RaProject {
   due: string;
   createdAt?: string;
   createdBy?: string;
+}
+
+/** RA project-management workflow modules (7 core duties) */
+export type RaWorkKind =
+  | "proposal"
+  | "process"
+  | "closure"
+  | "funding"
+  | "sysinfo"
+  | "liaison"
+  | "policy";
+
+export interface RaWorkChecklistItem {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
+export interface RaWorkItem {
+  id: string;
+  kind: RaWorkKind;
+  title: string;
+  status: string;
+  owner: string;
+  due: string;
+  notes: string;
+  checklist: RaWorkChecklistItem[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 

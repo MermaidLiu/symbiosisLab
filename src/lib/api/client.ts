@@ -102,6 +102,34 @@ export const api = {
   deleteInstrument: (id: string) =>
     request<{ ok: boolean }>(`/api/instruments/${id}`, { method: "DELETE" }),
 
+  importInstruments: (csv: string) =>
+    request<{ created: number; errors: string[]; instruments: Instrument[] }>(
+      "/api/instruments/import",
+      { method: "POST", body: JSON.stringify({ csv }) }
+    ),
+
+  uploadInstrumentImage: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/instruments/${encodeURIComponent(id)}/image`, {
+      method: "POST",
+      body: form,
+      credentials: "same-origin",
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const error = (data as { error?: string }).error ?? `http_${res.status}`;
+      throw Object.assign(new Error(error), { status: res.status, code: error });
+    }
+    return data as { instrument: Instrument };
+  },
+
+  setInstrumentTraining: (instrumentId: string, userId: string, action: "grant" | "revoke" = "grant") =>
+    request<{ user: PublicUser }>(`/api/instruments/${encodeURIComponent(instrumentId)}/training`, {
+      method: "POST",
+      body: JSON.stringify({ userId, action }),
+    }),
+
   animals: () => request<{ animals: Animal[] }>("/api/animals"),
 
   createAnimal: (data: Omit<Animal, "id" | "createdAt" | "updatedAt">) =>

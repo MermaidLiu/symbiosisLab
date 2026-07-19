@@ -6,6 +6,7 @@ import { ManagerDashboard } from "@/components/dashboard/ManagerDashboard";
 import { RaDashboard } from "@/components/dashboard/RaDashboard";
 import { VetDashboard } from "@/components/dashboard/VetDashboard";
 import { FacilityCageBoard } from "@/components/animals/FacilityCageBoard";
+import { TechnicianWorkbench } from "@/components/animals/TechnicianWorkbench";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { getDashboardView } from "@/lib/dashboard";
@@ -17,6 +18,14 @@ export default function DashboardPage() {
 
   if (view === "animal_facility_supervisor") {
     return <FacilityCageBoard mode="workbench" />;
+  }
+
+  if (view === "animal_manager") {
+    return <TechnicianWorkbench />;
+  }
+
+  if (view === "student") {
+    return <StudentDashboard />;
   }
 
   const title =
@@ -33,8 +42,6 @@ export default function DashboardPage() {
         <RaDashboard />
       ) : view === "veterinarian" ? (
         <VetDashboard />
-      ) : view === "student" ? (
-        <StudentDashboard />
       ) : (
         <ManagerDashboard view={view} />
       )}

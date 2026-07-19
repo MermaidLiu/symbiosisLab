@@ -17,7 +17,11 @@ import { canManageAnimals, canManageInstruments } from "@/lib/roles";
 interface ManagerDashboardProps {
   view: Exclude<
     DashboardView,
-    "student" | "research_assistant" | "veterinarian" | "animal_facility_supervisor"
+    | "student"
+    | "research_assistant"
+    | "veterinarian"
+    | "animal_facility_supervisor"
+    | "animal_manager"
   >;
 }
 
@@ -56,7 +60,15 @@ export function ManagerDashboard({ view }: ManagerDashboardProps) {
 
   const stats = [
     ...(isInst
-      ? [{ label: d.myInstruments, value: myInstruments.length, href: "/instruments", accent: "text-thu" }]
+      ? [
+          { label: d.myInstruments, value: myInstruments.length, href: "/instruments", accent: "text-thu" },
+          {
+            label: d.maintenance,
+            value: myInstruments.filter((i) => i.status === "maintenance").length,
+            href: "/instruments",
+            accent: "text-amber-700",
+          },
+        ]
       : []),
     ...(isAnimal
       ? [{ label: d.myAnimals, value: myAnimals.length, href: "/animals/managed", accent: "text-indigo-700" }]
@@ -160,7 +172,12 @@ export function ManagerDashboard({ view }: ManagerDashboardProps) {
 
         {isInst && myInstruments.length > 0 && (
           <GlassPanel className="lg:col-span-2">
-            <h3 className="mb-4 font-semibold text-thu">{d.myInstrumentsTitle}</h3>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold text-thu">{d.myInstrumentsTitle}</h3>
+              <Link href="/instruments" className="text-xs text-thu hover:underline">
+                {t.instruments.add} / {t.instruments.importCsv}
+              </Link>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {myInstruments.slice(0, 6).map((inst) => (
                 <Link

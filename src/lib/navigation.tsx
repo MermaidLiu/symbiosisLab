@@ -5,6 +5,7 @@ import {
   canManageInstruments,
   canManageAnimals,
   canAccessResearchAssistant,
+  canSuperviseAnimalFacility,
 } from "@/lib/roles";
 
 export interface NavLink {
@@ -25,6 +26,7 @@ export interface NavGroup {
   children: {
     href: string;
     labelKey: keyof typeof import("@/i18n/locales/zh").default.nav;
+    show?: (roles: Role[]) => boolean;
   }[];
 }
 
@@ -40,7 +42,11 @@ export const NAV_ENTRIES: NavEntry[] = [
     pathPrefix: "/animals",
     show: () => true,
     children: [
-      { href: "/animals/facility-board", labelKey: "facilityBoard" },
+      {
+        href: "/animals/facility-board",
+        labelKey: "facilityBoard",
+        show: canSuperviseAnimalFacility,
+      },
       { href: "/animals/managed", labelKey: "managedAnimals" },
       // { href: "/animals/cages", labelKey: "myCages" }, // temporarily hidden
       { href: "/animals/applications", labelKey: "applications" },
@@ -54,15 +60,16 @@ export const NAV_ENTRIES: NavEntry[] = [
     pathPrefix: "/ra",
     show: canAccessResearchAssistant,
     children: [
-      { href: "/ra/projects", labelKey: "raProjects" },
-      { href: "/ra/submissions", labelKey: "raSubmissions" },
-      { href: "/ra/images", labelKey: "raImageLibrary" },
+      { href: "/ra/proposals", labelKey: "raProposals" },
+      { href: "/ra/process", labelKey: "raProcess" },
+      { href: "/ra/closure", labelKey: "raClosure" },
+      { href: "/ra/funding", labelKey: "raFunding" },
+      { href: "/ra/sys-info", labelKey: "raSysInfo" },
+      { href: "/ra/liaison", labelKey: "raLiaison" },
+      { href: "/ra/policies", labelKey: "raPolicies" },
       { href: "/ra/achievements", labelKey: "raAchievements" },
-      { href: "/ra/templates", labelKey: "raTemplates" },
-      { href: "/ra/analytics", labelKey: "raAnalytics" },
+      { href: "/ra/images", labelKey: "raImageLibrary" },
       { href: "/ra/ppt", labelKey: "raPptStudio" },
-      { href: "/ra/academics", labelKey: "raAcademicOutput" },
-      { href: "/ra/expenses", labelKey: "raExpenses" },
     ],
   },
   { type: "link", href: "/bookings", labelKey: "bookings", icon: "calendar", show: () => true },

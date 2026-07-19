@@ -92,6 +92,7 @@ export function Sidebar() {
               {groupOpen && (
                 <div className="ml-4 mt-0.5 space-y-0.5 border-l border-white/35 pl-2">
                   {item.children.map((child) => {
+                    if (child.show && user && !child.show(user.roles)) return null;
                     const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
                     return (
                       <Link

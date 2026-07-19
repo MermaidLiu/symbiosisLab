@@ -2,6 +2,13 @@ import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk, requireRole } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
+import { Instrument, InstrumentStepContact } from "@/types";
+import {
+  clampBookingHours,
+  normalizeInstrument,
+  normalizeInstrumentContacts,
+} from "@/lib/instruments";
+import { deleteInstrumentImageFile } from "@/server/instrument-images";
 
 export async function PATCH(
   req: NextRequest,
@@ -13,19 +20,53 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  let updated = null as ReturnType<typeof getStore>["instruments"][number] | null;
+  let updated: Instrument | null = null;
 
   await mutateStore((s) => {
     const idx = s.instruments.findIndex((i) => i.id === id);
     if (idx < 0) return;
-    s.instruments[idx] = {
-      ...s.instruments[idx],
+    const prev = normalizeInstrument(s.instruments[idx]);
+    const merged: Instrument = {
+      ...prev,
       ...body,
       id,
-      createdAt: s.instruments[idx].createdAt,
+      createdAt: prev.createdAt,
       updatedAt: new Date().toISOString(),
     };
-    updated = s.instruments[idx];
+    if (body.minBookingHours != null || body.maxBookingHours != null) {
+      const hours = clampBookingHours(
+        Number(body.minBookingHours ?? merged.minBookingHours),
+        Number(body.maxBookingHours ?? merged.maxBookingHours)
+      );
+      merged.minBookingHours = hours.min;
+      merged.maxBookingHours = hours.max;
+    }
+    if (Array.isArray(body.contacts)) {
+      merged.contacts = normalizeInstrumentContacts(
+        body.contacts as InstrumentStepContact[],
+        user.name,
+        String(body.contactPhone ?? merged.contactPhone),
+        String(body.contactUserId ?? merged.contactUserId)
+      );
+    } else {
+      merged.contacts = normalizeInstrumentContacts(
+        merged.contacts,
+        user.name,
+        merged.contactPhone,
+        merged.contactUserId
+      );
+    }
+    const approval = merged.contacts.find((c) => c.step === "approval");
+    if (approval) {
+      merged.contactPhone = approval.phone || merged.contactPhone;
+      if (approval.userId) merged.contactUserId = approval.userId;
+    }
+    if (merged.status !== "maintenance") {
+      merged.maintenanceUntil = undefined;
+      merged.maintenanceNote = undefined;
+    }
+    updated = normalizeInstrument(merged);
+    s.instruments[idx] = updated;
   });
 
   if (!updated) return jsonError("not_found", 404);
@@ -50,12 +91,16 @@ export async function DELETE(
 
   const { id } = await params;
   let found = false;
+  let imageId: string | undefined;
   await mutateStore((s) => {
+    const target = s.instruments.find((i) => i.id === id);
+    imageId = target?.imageId;
     const before = s.instruments.length;
     s.instruments = s.instruments.filter((i) => i.id !== id);
     found = s.instruments.length < before;
   });
   if (!found) return jsonError("not_found", 404);
+  if (imageId) deleteInstrumentImageFile(imageId);
   await appendAuditLog({
     userId: user.id,
     userName: user.name,

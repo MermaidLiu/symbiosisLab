@@ -15,6 +15,7 @@ import {
   RaDataEntry,
   RaImageLibraryItem,
   RaProject,
+  RaWorkItem,
 } from "@/types";
 import {
   ManagedAnimal,
@@ -23,12 +24,14 @@ import {
   AnimalDayActivity,
 } from "@/types/animal-management";
 import { SEED_USERS, SEED_INSTRUMENTS, SEED_ANIMALS } from "@/lib/storage/seed";
+import { normalizeInstrument } from "@/lib/instruments";
 import {
   SEED_MANAGED_ANIMALS,
   SEED_CAGES,
   SEED_APPLICATIONS,
   buildSeedAnimalDayActivities,
 } from "@/lib/mock/animalManagement";
+import { buildSeedRaWorkItems } from "@/server/ra-work-seed";
 import { hashPassword, uid } from "@/server/crypto";
 
 export interface SessionRecord {
@@ -64,6 +67,8 @@ export interface DbStore {
   raImageLibrary: RaImageLibraryItem[];
   /** RA project board */
   raProjects: RaProject[];
+  /** RA project-management work items (7 duty modules) */
+  raWorkItems: RaWorkItem[];
   /** Daily animal-facility activity feed for calendar */
   animalDayActivities: AnimalDayActivity[];
 }
@@ -98,6 +103,7 @@ function emptyStore(): DbStore {
     raDataEntries: [],
     raImageLibrary: [],
     raProjects: [],
+    raWorkItems: [],
     animalDayActivities: [],
   };
 }
@@ -113,11 +119,7 @@ function seedStore(): DbStore {
   return {
     users: SEED_USERS.map((u) => ({ ...u, password: hashPassword(u.password) })),
     sessions: [],
-    instruments: SEED_INSTRUMENTS.map((i) => ({
-      ...i,
-      accessories: i.accessories ?? [],
-      trainingRequired: i.trainingRequired ?? false,
-    })),
+    instruments: SEED_INSTRUMENTS.map((i) => normalizeInstrument(i)),
     animals: [...SEED_ANIMALS],
     bookings: [],
     logs: [],
@@ -133,6 +135,7 @@ function seedStore(): DbStore {
     raDataEntries: [],
     raImageLibrary: [],
     raProjects: DEFAULT_RA_PROJECTS.map((p) => ({ ...p })),
+    raWorkItems: buildSeedRaWorkItems(),
     animalDayActivities: buildSeedAnimalDayActivities(),
   };
 }
@@ -162,11 +165,23 @@ function readFromDisk(): DbStore {
       }
       return u;
     });
-    parsed.instruments = (parsed.instruments ?? []).map((i) => ({
-      ...i,
-      accessories: i.accessories ?? [],
-      trainingRequired: i.trainingRequired ?? false,
-    }));
+    parsed.instruments = (parsed.instruments ?? []).map((i) => {
+      const raw = i as Instrument;
+      if (!raw.contacts?.length || Number(raw.maxBookingHours) > 24 || Number(raw.minBookingHours) < 0.5) {
+        dirty = true;
+      }
+      return normalizeInstrument(raw);
+    });
+    parsed.users = (parsed.users ?? []).map((u) => {
+      let trained = u.trainedInstrumentIds ?? [];
+      if (u.id === "u-student" && trained.length === 0) {
+        trained = ["inst-001"];
+        dirty = true;
+      } else if (!u.trainedInstrumentIds) {
+        dirty = true;
+      }
+      return { ...u, trainedInstrumentIds: trained };
+    });
     parsed.sessions = parsed.sessions ?? [];
     parsed.managedAnimals = parsed.managedAnimals ?? [...SEED_MANAGED_ANIMALS];
     parsed.cages = parsed.cages ?? [...SEED_CAGES];
@@ -201,6 +216,10 @@ function readFromDisk(): DbStore {
     }
     if (!Array.isArray(parsed.raProjects)) {
       parsed.raProjects = DEFAULT_RA_PROJECTS.map((p) => ({ ...p }));
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.raWorkItems) || parsed.raWorkItems.length === 0) {
+      parsed.raWorkItems = buildSeedRaWorkItems();
       dirty = true;
     }
     if (!Array.isArray(parsed.animalDayActivities) || parsed.animalDayActivities.length === 0) {

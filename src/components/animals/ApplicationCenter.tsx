@@ -88,21 +88,26 @@ export function ApplicationCenter() {
     return map[tab];
   };
 
+  const scopedApps = useMemo(() => {
+    if (canReview) return applications;
+    return applications.filter((app) => app.applicantUserId === user?.id);
+  }, [applications, canReview, user?.id]);
+
   const filtered = useMemo(() => {
-    let rows = applications.filter((app) => app.status === activeTab);
+    let rows = scopedApps.filter((app) => app.status === activeTab);
     if (typeFilter) rows = rows.filter((app) => app.type === typeFilter);
     if (dateFrom) rows = rows.filter((app) => app.applicationTime >= dateFrom);
     if (dateTo) rows = rows.filter((app) => app.applicationTime <= dateTo + "T23:59:59");
     return rows;
-  }, [applications, activeTab, typeFilter, dateFrom, dateTo]);
+  }, [scopedApps, activeTab, typeFilter, dateFrom, dateTo]);
 
   const tabCounts = useMemo(() => {
     const counts = {} as Record<ApplicationWorkflowStatus, number>;
     TABS.forEach((tab) => {
-      counts[tab] = applications.filter((app) => app.status === tab).length;
+      counts[tab] = scopedApps.filter((app) => app.status === tab).length;
     });
     return counts;
-  }, [applications]);
+  }, [scopedApps]);
 
   async function submitNew() {
     if (!user || !newDesc.trim()) return;
@@ -143,14 +148,14 @@ export function ApplicationCenter() {
   }
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
-        title={a.title}
+        title={canReview ? a.title : a.myTitle}
         action={
           <FluentButton onClick={() => setModalOpen(true)}>+ {a.newApp}</FluentButton>
         }
       />
-      <div className="fluent-mica-bg flex-1 overflow-y-auto p-4 pb-24 md:p-6">
+      <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
         <GlassPanel className="mb-4">
           <div className="flex flex-wrap items-end gap-4">
             <FluentInput label={a.dateFrom} type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="min-w-[140px]" />
@@ -252,7 +257,7 @@ export function ApplicationCenter() {
                             </>
                           )}
                           {app.status === "pending_receipt" &&
-                            (!canReviewAll || app.applicantUserId === user?.id) && (
+                            app.applicantUserId === user?.id && (
                               <FluentButton variant="ghost" size="sm" onClick={() => cancelApp(app.id)}>
                                 {a.cancel}
                               </FluentButton>
@@ -292,6 +297,6 @@ export function ApplicationCenter() {
           onChange={(e) => setNewDesc(e.target.value)}
         />
       </FluentModal>
-    </>
+    </div>
   );
 }
