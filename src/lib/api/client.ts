@@ -267,6 +267,58 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ id, action, feedback }) }
     ),
 
+  animalOpTasks: (opts?: { mine?: boolean; assigneeId?: string }) => {
+    const q = new URLSearchParams();
+    if (opts?.mine) q.set("mine", "1");
+    if (opts?.assigneeId) q.set("assigneeId", opts.assigneeId);
+    const qs = q.toString();
+    return request<{ tasks: import("@/types/animal-ops").AnimalOpTask[] }>(
+      `/api/animal-op-tasks${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  createAnimalOpTask: (data: {
+    animalIds: string[];
+    opType: import("@/types/animal-ops").AnimalOpType;
+    note?: string;
+    assigneeUserId: string;
+    necessary: boolean;
+    urgent: boolean;
+    startTime: string;
+    endTime: string;
+  }) =>
+    request<{ task: import("@/types/animal-ops").AnimalOpTask; tasks: import("@/types/animal-ops").AnimalOpTask[] }>(
+      "/api/animal-op-tasks",
+      { method: "POST", body: JSON.stringify(data) }
+    ),
+
+  updateAnimalOpTask: (data: {
+    id: string;
+    startTime?: string;
+    endTime?: string;
+    status?: import("@/types/animal-ops").AnimalOpTaskStatus;
+    note?: string;
+    sortOrder?: number;
+    receiptNote?: string;
+  }) =>
+    request<{ task: import("@/types/animal-ops").AnimalOpTask; tasks: import("@/types/animal-ops").AnimalOpTask[] }>(
+      "/api/animal-op-tasks",
+      { method: "PATCH", body: JSON.stringify(data) }
+    ),
+
+  forceHandleAnimals: (data: {
+    animalIds: string[];
+    note: string;
+    completeRelatedTasks?: boolean;
+  }) =>
+    request<{
+      ok: boolean;
+      animalIds: string[];
+      closedTaskIds: string[];
+      activities: import("@/types/animal-management").AnimalDayActivity[];
+      tasks: import("@/types/animal-ops").AnimalOpTask[];
+    }>("/api/animal-force-handle", { method: "POST", body: JSON.stringify(data) }),
+
   cancelApplication: (id: string) =>
     request<{ applications: OperationApplication[] }>(`/api/applications?id=${encodeURIComponent(id)}`, {
       method: "DELETE",

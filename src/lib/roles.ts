@@ -5,6 +5,8 @@ export const ALL_ROLES: Role[] = [
   "instrument_manager",
   "animal_facility_supervisor",
   "animal_manager",
+  "animal_caretaker",
+  "animal_collector",
   "veterinarian",
   "research_assistant",
   "user",
@@ -23,9 +25,35 @@ export function canManageInstruments(roles: Role[]): boolean {
   return hasRole(roles, "instrument_manager");
 }
 
-/** 动物负责人 / 技术员（主管也具备管理能力） */
+/** 动物技术员 / 主管 */
 export function canManageAnimals(roles: Role[]): boolean {
   return hasRole(roles, "animal_manager") || canSuperviseAnimalFacility(roles);
+}
+
+/** 可接收小动物操作任务：技术员、饲养员、采集员、主管 */
+export function canReceiveAnimalOps(roles: Role[]): boolean {
+  return (
+    canManageAnimals(roles) ||
+    hasRole(roles, "animal_caretaker") ||
+    hasRole(roles, "animal_collector")
+  );
+}
+
+/**
+ * 一线动物人员（饲养员 / 技术员 / 采集员）：查看动物列表、处理学生派发任务、强制处理。
+ * 不含动物房主管与总管理员（他们保留完整代管编辑）。
+ */
+export function isAnimalOpsStaff(roles: Role[]): boolean {
+  return (
+    canReceiveAnimalOps(roles) &&
+    !canSuperviseAnimalFacility(roles) &&
+    !hasRole(roles, "super_admin")
+  );
+}
+
+/** 动物一线人员工作台（排班） */
+export function canUseAnimalStaffWorkbench(roles: Role[]): boolean {
+  return canReceiveAnimalOps(roles);
 }
 
 /** Veterinarian or animal managers / supervisor / admin */

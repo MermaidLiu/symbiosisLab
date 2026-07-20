@@ -43,6 +43,12 @@
 | `ra@lab.edu.cn` | `demo123` | 科研助理 |
 | `student@lab.edu.cn` | `demo123` | 普通用户（王同学） |
 | `student1@lab.edu.cn` … `student5@lab.edu.cn` | `demo123` | 学生演示账号 ×5（同学一～五） |
+| `wushuying@lab.edu.cn` | `demo123` | 吴淑颖 · 学生（已导入 Surgery & Recording 小鼠） |
+| `liqintong@lab.edu.cn` | `demo123` | 李沁潼 · 动物采集员 |
+| `laihongfang@lab.edu.cn` | `demo123` | 赖红芳 · 动物饲养员 |
+| `chensisi@lab.edu.cn` | `demo123` | 陈思思 · 动物技术员 |
+| `chenhongzhen@lab.edu.cn` | `demo123` | 陈泓桢 · 动物技术员 |
+| `lvxinwei@lab.edu.cn` | `demo123` | 吕新伟 · 动物技术员 |
 
 ## 快速开始
 

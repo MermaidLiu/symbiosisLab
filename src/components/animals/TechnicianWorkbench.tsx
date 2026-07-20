@@ -1,35 +1,62 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
 import { FluentButton } from "@/components/fluent/FluentButton";
 import { FluentModal } from "@/components/fluent/FluentModal";
-import { TodoList } from "@/components/ra/TodoList";
-import { ManagedAnimals } from "@/components/animals/ManagedAnimals";
+import { AnimalOpSchedule } from "@/components/animals/AnimalOpSchedule";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
-import { canManageAnimals } from "@/lib/roles";
+import { canUseAnimalStaffWorkbench } from "@/lib/roles";
 import { api } from "@/lib/api/client";
-import { normalizePurpose } from "@/lib/animals/facility-board";
-import {
-  AnimalDayActivity,
-  AnimalPurpose,
-  ManagedAnimal,
-} from "@/types/animal-management";
+import { AnimalOpTask, URGENCY_COLORS } from "@/types/animal-ops";
+import { ManagedAnimal } from "@/types/animal-management";
 
-/** 小动物负责人工作台：统计 + 待办 + 日历 + 名下动物列表（无笼位） */
+function buildMonthGrid(monthStart: Date): (string | null)[] {
+  const year = monthStart.getFullYear();
+  const month = monthStart.getMonth();
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startPad = (first.getDay() + 6) % 7;
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function dayKeyFromIso(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const RECORDING_STATUS_TIP: Record<
+  NonNullable<ManagedAnimal["recordingStatus"]>,
+  string
+> = {
+  living: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
+  dead: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
+  waiting: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
+  optotagging: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
+};
+
+/** 饲养员 / 技术员 / 采集员工作台：待处理 · 代管 · 已分配 + 日历 + 排班 */
 export function TechnicianWorkbench() {
-  const { t } = useLocale();
+  const { t, isZh } = useLocale();
   const tw = t.animalMgmt.technicianWorkbench;
   const f = t.animalMgmt.facilityBoard;
+  const o = t.animalMgmt.animalOps;
   const m = t.animalMgmt.managed;
   const { user } = useAuth();
-  const allowed = user ? canManageAnimals(user.roles) : false;
+  const allowed = user ? canUseAnimalStaffWorkbench(user.roles) : false;
 
-  const [animals, setAnimals] = useState<ManagedAnimal[]>([]);
-  const [activities, setActivities] = useState<AnimalDayActivity[]>([]);
+  const [allAnimals, setAllAnimals] = useState<ManagedAnimal[]>([]);
+  const [tasks, setTasks] = useState<AnimalOpTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [calMonth, setCalMonth] = useState(() => {
@@ -37,12 +64,23 @@ export function TechnicianWorkbench() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [calDay, setCalDay] = useState<string | null>(null);
-  const [dayLogOpen, setDayLogOpen] = useState(false);
+  const [dayOpen, setDayOpen] = useState(false);
 
   const todayStr = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
+
+  const loadAnimals = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await api.facilityBoard();
+      setAllAnimals(data.managedAnimals ?? []);
+      setError("");
+    } catch {
+      setError(tw.loadError);
+    }
+  }, [user, tw.loadError]);
 
   useEffect(() => {
     if (!allowed || !user) {
@@ -50,57 +88,103 @@ export function TechnicianWorkbench() {
       return;
     }
     (async () => {
+      setLoading(true);
+      await loadAnimals();
       try {
-        const data = await api.facilityBoard();
-        const mine = (data.managedAnimals ?? []).filter(
-          (a) => a.technicianUserId === user.id
-        );
-        setAnimals(mine);
-        const ids = new Set(mine.map((a) => a.id));
-        setActivities(
-          (data.activities ?? []).filter(
-            (ev) =>
-              (ev.animalId && ids.has(ev.animalId)) || ev.userId === user.id
-          )
-        );
-        setError("");
+        const { tasks: list } = await api.animalOpTasks({ mine: true });
+        setTasks(list.filter((x) => x.assigneeUserId === user.id));
       } catch {
-        setError(tw.loadError);
+        setTasks([]);
       } finally {
         setLoading(false);
       }
     })();
-  }, [allowed, user, tw.loadError]);
+  }, [allowed, user, loadAnimals]);
 
-  const summary = useMemo(() => {
-    const purposes: Record<AnimalPurpose, number> = {
-      blank: 0,
-      signal_processing: 0,
-      immunity: 0,
-      breeding: 0,
-    };
-    let claimed = 0;
-    for (const a of animals) {
-      const p = normalizePurpose(a.purpose);
-      purposes[p] += 1;
-      if (p !== "blank" && (a.claimantUserId || a.claimantName)) claimed += 1;
-    }
-    return { total: animals.length, claimed, purposes };
-  }, [animals]);
-
-  const activityDates = useMemo(
-    () => new Set(activities.map((a) => a.date)),
-    [activities]
+  const scheduled = useMemo(
+    () => tasks.filter((x) => x.status === "scheduled"),
+    [tasks]
   );
 
-  const dayEvents = useMemo(() => {
+  const pendingCount = scheduled.length;
+
+  const assignedAnimalIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const task of tasks) {
+      for (const id of task.animalIds) ids.add(id);
+    }
+    return ids;
+  }, [tasks]);
+
+  /** 带领动物：名下技术员负责 + 任务涉及的小鼠 */
+  const ledAnimals = useMemo(() => {
+    if (!user) return [];
+    const map = new Map<string, ManagedAnimal>();
+    for (const a of allAnimals) {
+      if (a.technicianUserId === user.id || assignedAnimalIds.has(a.id)) {
+        map.set(a.id, a);
+      }
+    }
+    // Task animals not yet in roster still show as stubs via id only — skip if missing
+    return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
+  }, [allAnimals, assignedAnimalIds, user]);
+
+  const managedCount = ledAnimals.length;
+
+  const assignedCount = useMemo(() => {
+    const ids = new Set<string>();
+    for (const task of scheduled) {
+      for (const id of task.animalIds) ids.add(id);
+    }
+    return ids.size;
+  }, [scheduled]);
+
+  function recordingLabel(rs?: ManagedAnimal["recordingStatus"]) {
+    if (!rs) return "—";
+    return m.recordingStatus[rs] ?? rs;
+  }
+
+  function ownerName(row: ManagedAnimal) {
+    return row.claimantName?.trim() || tw.noOwner;
+  }
+
+  const taskDates = useMemo(() => {
+    const set = new Set<string>();
+    for (const task of scheduled) {
+      set.add(dayKeyFromIso(task.startTime));
+    }
+    return set;
+  }, [scheduled]);
+
+  const dayTasks = useMemo(() => {
     if (!calDay) return [];
-    return activities
-      .filter((a) => a.date === calDay)
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [activities, calDay]);
+    return scheduled
+      .filter((task) => dayKeyFromIso(task.startTime) === calDay)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [scheduled, calDay]);
 
   const calCells = useMemo(() => buildMonthGrid(calMonth), [calMonth]);
+
+  const summaryCards = [
+    {
+      label: tw.statPending,
+      count: pendingCount,
+      unit: tw.unitPending,
+      desc: tw.statPendingDesc,
+    },
+    {
+      label: tw.statManaged,
+      count: managedCount,
+      unit: tw.unitAnimals,
+      desc: tw.statManagedDesc,
+    },
+    {
+      label: tw.statAssigned,
+      count: assignedCount,
+      unit: tw.unitAnimals,
+      desc: tw.statAssignedDesc,
+    },
+  ];
 
   if (!allowed) {
     return (
@@ -115,124 +199,6 @@ export function TechnicianWorkbench() {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader title={t.dashboard.title} subtitle={tw.subtitle} />
       <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
-        <div className="mb-5 space-y-4">
-          <GlassPanel padding={false} className="overflow-hidden">
-            <div className="border-b border-white/40 bg-white/35 px-4 py-2.5">
-              <p className="text-xs text-lab-muted">{tw.hint}</p>
-            </div>
-            <div className="grid grid-cols-2 gap-px bg-white/30 sm:grid-cols-3 lg:grid-cols-6">
-              <Stat label={tw.statMine} value={summary.total} />
-              <Stat label={f.statClaimed} value={summary.claimed} />
-              <Stat label={m.purposeBlank} value={summary.purposes.blank} accent="text-[#9B8EAE]" />
-              <Stat
-                label={m.purposeSignal}
-                value={summary.purposes.signal_processing}
-                accent="text-[#5BA4E8]"
-              />
-              <Stat
-                label={m.purposeImmunity}
-                value={summary.purposes.immunity}
-                accent="text-[#82318E]"
-              />
-              <Stat
-                label={m.purposeBreeding}
-                value={summary.purposes.breeding}
-                accent="text-[#F5A623]"
-              />
-            </div>
-          </GlassPanel>
-
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <TodoList compact />
-
-            <GlassPanel>
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-thu">{f.calendar}</p>
-                <div className="flex items-center gap-1">
-                  <FluentButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const d = new Date();
-                      setCalMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-                    }}
-                  >
-                    {f.calendarToday}
-                  </FluentButton>
-                  <FluentButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))
-                    }
-                  >
-                    ‹
-                  </FluentButton>
-                  <FluentButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))
-                    }
-                  >
-                    ›
-                  </FluentButton>
-                </div>
-              </div>
-              <p className="mb-2 text-center text-xs font-medium text-lab-text">
-                {calMonth.getFullYear()}-{String(calMonth.getMonth() + 1).padStart(2, "0")}
-              </p>
-              <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-lab-muted">
-                {["一", "二", "三", "四", "五", "六", "日"].map((d) => (
-                  <div key={d} className="py-1 font-medium">
-                    {d}
-                  </div>
-                ))}
-                {calCells.map((cell, i) =>
-                  cell ? (
-                    <button
-                      key={cell}
-                      type="button"
-                      onClick={() => {
-                        setCalDay(cell);
-                        setDayLogOpen(true);
-                      }}
-                      className={clsx(
-                        "relative flex flex-col items-center rounded-md px-0.5 pb-1 pt-0.5 text-[11px] transition hover:bg-thu/10",
-                        cell === todayStr && "font-semibold text-thu"
-                      )}
-                    >
-                      <span
-                        className={clsx(
-                          "flex h-7 w-7 items-center justify-center rounded-full",
-                          cell === todayStr && "bg-thu/10 ring-2 ring-thu"
-                        )}
-                      >
-                        {Number(cell.slice(-2))}
-                      </span>
-                      <span
-                        className={clsx(
-                          "mt-0.5 h-1.5 w-1.5 rounded-full",
-                          activityDates.has(cell) ? "bg-thu" : "bg-transparent"
-                        )}
-                        aria-hidden
-                      />
-                    </button>
-                  ) : (
-                    <div key={`e-${i}`} className="h-9" />
-                  )
-                )}
-              </div>
-              <p className="mt-2 text-[10px] leading-relaxed text-lab-muted">{f.calendarHint}</p>
-            </GlassPanel>
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <h2 className="text-sm font-semibold text-thu">{tw.listTitle}</h2>
-          <p className="mt-0.5 text-xs text-lab-muted">{tw.listHint}</p>
-        </div>
-
         {loading ? (
           <GlassPanel>
             <p className="text-sm text-lab-muted">{t.common.loading}</p>
@@ -242,100 +208,234 @@ export function TechnicianWorkbench() {
             <p className="text-sm text-red-600">{error}</p>
           </GlassPanel>
         ) : (
-          <ManagedAnimals
-            embedded
-            technicianScopeId={user!.id}
-            onAnimalsChange={(list) => {
-              setAnimals(list.filter((a) => a.technicianUserId === user!.id));
-            }}
-          />
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {summaryCards.map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-xl border border-[#E0D4E8] bg-white/55 p-3"
+                  >
+                    <p className="text-sm font-semibold text-thu">{item.label}</p>
+                    <p className="mt-2 text-2xl font-bold tabular-nums text-thu">
+                      {item.count}
+                      <span className="ml-1 text-sm font-medium text-lab-muted">{item.unit}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-lab-muted">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              {user && (
+                <AnimalOpSchedule
+                  userId={user.id}
+                  onTasksChange={(list) => setTasks(list)}
+                />
+              )}
+
+              <GlassPanel>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-thu">{tw.ledAnimalsTitle}</h3>
+                    <p className="mt-0.5 text-[11px] text-lab-muted">{tw.ledAnimalsHint}</p>
+                  </div>
+                  <Link href="/animals/managed" className="text-xs text-thu hover:underline">
+                    {tw.goManaged}
+                  </Link>
+                </div>
+                {ledAnimals.length === 0 ? (
+                  <p className="text-sm text-lab-muted">{tw.noLedAnimals}</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-[#E0D4E8] text-[11px] text-lab-muted">
+                          <th className="px-2 py-2 font-semibold">{m.colId}</th>
+                          <th className="px-2 py-2 font-semibold">{tw.colOwner}</th>
+                          <th className="px-2 py-2 font-semibold">{tw.colStatusNow}</th>
+                          <th className="px-2 py-2 font-semibold">{tw.colStage}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ledAnimals.map((row, idx) => (
+                          <tr
+                            key={row.id}
+                            className={clsx(
+                              "border-b border-[#EDE4F2]",
+                              idx % 2 === 0 ? "bg-white" : "bg-[#F7F1FA]"
+                            )}
+                          >
+                            <td className="px-2 py-2 font-mono text-xs text-thu">{row.id}</td>
+                            <td className="px-2 py-2 text-xs text-lab-text">{ownerName(row)}</td>
+                            <td className="px-2 py-2">
+                              <span
+                                className={clsx(
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+                                  row.recordingStatus
+                                    ? RECORDING_STATUS_TIP[row.recordingStatus]
+                                    : "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]"
+                                )}
+                              >
+                                {recordingLabel(row.recordingStatus)}
+                              </span>
+                            </td>
+                            <td className="px-2 py-2 text-xs">{row.trackingStage?.trim() || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </GlassPanel>
+            </div>
+
+            <div className="space-y-4">
+              <GlassPanel>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-thu">{f.calendar}</p>
+                  <div className="flex items-center gap-1">
+                    <FluentButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const d = new Date();
+                        setCalMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+                      }}
+                    >
+                      {f.calendarToday}
+                    </FluentButton>
+                    <FluentButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setCalMonth(
+                          new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1)
+                        )
+                      }
+                    >
+                      ‹
+                    </FluentButton>
+                    <FluentButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setCalMonth(
+                          new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1)
+                        )
+                      }
+                    >
+                      ›
+                    </FluentButton>
+                  </div>
+                </div>
+                <p className="mb-2 text-center text-xs font-medium text-lab-text">
+                  {calMonth.getFullYear()}-{String(calMonth.getMonth() + 1).padStart(2, "0")}
+                </p>
+                <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-lab-muted">
+                  {(isZh
+                    ? ["一", "二", "三", "四", "五", "六", "日"]
+                    : ["M", "T", "W", "T", "F", "S", "S"]
+                  ).map((label, i) => (
+                    <div key={`${label}-${i}`} className="py-1 font-medium">
+                      {label}
+                    </div>
+                  ))}
+                  {calCells.map((cell, i) =>
+                    cell ? (
+                      <button
+                        key={cell}
+                        type="button"
+                        onClick={() => {
+                          setCalDay(cell);
+                          setDayOpen(true);
+                        }}
+                        className={clsx(
+                          "relative flex flex-col items-center rounded-md px-0.5 pb-1 pt-0.5 text-[11px] transition hover:bg-thu/10",
+                          cell === todayStr && "font-semibold text-thu"
+                        )}
+                      >
+                        <span
+                          className={clsx(
+                            "flex h-7 w-7 items-center justify-center rounded-full",
+                            cell === todayStr && "bg-thu/10 ring-2 ring-thu"
+                          )}
+                        >
+                          {Number(cell.slice(-2))}
+                        </span>
+                        <span
+                          className={clsx(
+                            "mt-0.5 h-1.5 w-1.5 rounded-full",
+                            taskDates.has(cell) ? "bg-thu" : "bg-transparent"
+                          )}
+                          aria-hidden
+                        />
+                      </button>
+                    ) : (
+                      <div key={`e-${i}`} className="h-9" />
+                    )
+                  )}
+                </div>
+                <p className="mt-2 text-[10px] leading-relaxed text-lab-muted">{tw.calendarHint}</p>
+              </GlassPanel>
+
+              <Link
+                href="/animals/managed"
+                className="block rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
+              >
+                <p className="text-sm font-semibold text-thu">{tw.goManaged}</p>
+                <p className="mt-1 text-xs text-lab-muted">{tw.goManagedDesc}</p>
+              </Link>
+            </div>
+          </div>
         )}
       </div>
 
       <FluentModal
-        open={dayLogOpen && !!calDay}
-        title={calDay ? f.dayLogTitle.replace("{d}", calDay) : f.calendar}
+        open={dayOpen && !!calDay}
+        title={calDay ? tw.dayTasksTitle.replace("{d}", calDay) : f.calendar}
         size="lg"
-        onClose={() => setDayLogOpen(false)}
+        onClose={() => setDayOpen(false)}
         footer={
           <div className="flex justify-end">
-            <FluentButton variant="outline" onClick={() => setDayLogOpen(false)}>
-              {f.dayLogClose}
+            <FluentButton variant="outline" onClick={() => setDayOpen(false)}>
+              {t.common.close}
             </FluentButton>
           </div>
         }
       >
-        {dayEvents.length === 0 ? (
-          <p className="text-sm text-lab-muted">{f.noDayEvents}</p>
+        {dayTasks.length === 0 ? (
+          <p className="text-sm text-lab-muted">{tw.noDayTasks}</p>
         ) : (
-          <ol className="relative space-y-0 border-l-2 border-thu/25 pl-4">
-            {dayEvents.map((ev) => (
-              <li key={ev.id} className="relative pb-4 last:pb-0">
-                <span className="absolute -left-[1.35rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-thu" />
-                <div className="rounded-lg border border-white/50 bg-white/50 px-3 py-2.5">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <time className="text-xs font-semibold text-thu">
-                      {new Date(ev.timestamp).toLocaleTimeString("zh-CN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </time>
-                    <span className="text-[11px] text-lab-muted">
-                      {f.dayLogActor} · {ev.userName}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-sm text-lab-text">{ev.details}</p>
-                  <div className="mt-1.5 flex flex-wrap gap-2 text-[11px] text-lab-muted">
-                    {ev.animalId && (
-                      <span className="rounded bg-thu/10 px-1.5 py-0.5 text-thu">
-                        {f.dayLogAnimal} {ev.animalId}
-                      </span>
-                    )}
-                    {ev.action && (
-                      <span className="rounded bg-black/5 px-1.5 py-0.5">{ev.action}</span>
-                    )}
-                  </div>
+          <ul className="space-y-2">
+            {dayTasks.map((task) => (
+              <li
+                key={task.id}
+                className="rounded-lg border border-white/50 bg-white/50 px-3 py-2.5"
+                style={{ borderLeft: `4px solid ${URGENCY_COLORS[task.urgency]}` }}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-semibold text-thu">{o.types[task.opType]}</p>
+                  <time className="text-xs text-lab-muted">
+                    {new Date(task.startTime).toLocaleTimeString(isZh ? "zh-CN" : "en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    –{" "}
+                    {new Date(task.endTime).toLocaleTimeString(isZh ? "zh-CN" : "en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </time>
                 </div>
+                <p className="mt-1 text-xs text-lab-muted">
+                  {task.createdByName} · {task.animalIds.length} {isZh ? "只" : "mice"}
+                  {task.note ? ` · ${task.note}` : ""}
+                </p>
               </li>
             ))}
-          </ol>
+          </ul>
         )}
       </FluentModal>
-    </div>
-  );
-}
-
-function buildMonthGrid(monthStart: Date): (string | null)[] {
-  const year = monthStart.getFullYear();
-  const month = monthStart.getMonth();
-  const first = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  let startPad = (first.getDay() + 6) % 7;
-  const cells: (string | null)[] = [];
-  for (let i = 0; i < startPad; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    cells.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
-  }
-  while (cells.length % 7 !== 0) cells.push(null);
-  return cells;
-}
-
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: string;
-}) {
-  return (
-    <div className="bg-white/55 px-3 py-3 text-center sm:text-left">
-      <p className="text-[10px] text-lab-muted">{label}</p>
-      <p className={clsx("mt-0.5 text-xl font-semibold tabular-nums", accent ?? "text-thu")}>
-        {value}
-      </p>
     </div>
   );
 }

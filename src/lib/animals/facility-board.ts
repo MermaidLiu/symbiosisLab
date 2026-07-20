@@ -115,33 +115,58 @@ export function cageFillStyle(purpose: FacilityCageCell["dominantPurpose"]): {
   };
 }
 
+/** Calendar-day difference. Prefer WSY convention: Previous date − Implantation Day. */
+export function trackingDays(
+  collectionAt?: string,
+  lastCollectionAt?: string,
+  implantAt?: string
+): number | null {
+  // Surgery & Recording: Tracking Days ≈ Previous date − Implantation Day
+  if (implantAt && lastCollectionAt) {
+    return calendarDayDiff(lastCollectionAt, implantAt);
+  }
+  if (collectionAt && lastCollectionAt) {
+    return calendarDayDiff(collectionAt, lastCollectionAt);
+  }
+  return null;
+}
+
+function calendarDayDiff(aIso: string, bIso: string): number | null {
+  const a = new Date(aIso);
+  const b = new Date(bIso);
+  if (!Number.isFinite(a.getTime()) || !Number.isFinite(b.getTime())) return null;
+  const aDay = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const bDay = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((aDay - bDay) / 86_400_000);
+}
+
+/** @deprecated Prefer trackingDays — kept for any legacy callers */
 export function trackingMinutes(
   collectionAt?: string,
   lastCollectionAt?: string
 ): number | null {
-  if (!collectionAt || !lastCollectionAt) return null;
-  const a = new Date(collectionAt).getTime();
-  const b = new Date(lastCollectionAt).getTime();
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.round((a - b) / 60000);
+  const days = trackingDays(collectionAt, lastCollectionAt);
+  return days === null ? null : days * 24 * 60;
 }
 
 export function formatTracking(minutes: number | null): string {
   if (minutes === null) return "—";
-  const abs = Math.abs(minutes);
-  const d = Math.floor(abs / (60 * 24));
-  const h = Math.floor((abs % (60 * 24)) / 60);
-  const m = abs % 60;
-  const sign = minutes < 0 ? "-" : "";
-  if (d > 0) return `${sign}${d}d ${h}h ${m}m`;
-  if (h > 0) return `${sign}${h}h ${m}m`;
-  return `${sign}${m}m`;
+  const days = Math.round(minutes / (60 * 24));
+  const sign = days < 0 ? "-" : "";
+  return `${sign}${Math.abs(days)}d`;
 }
 
-/** Display tracking interval in minutes (facility table) */
+/** Display tracking interval in whole days */
+export function formatTrackingDays(days: number | null, unit = "d"): string {
+  if (days === null) return "—";
+  return `${days} ${unit}`;
+}
+
+/** @deprecated Prefer formatTrackingDays */
 export function formatTrackingMinutes(minutes: number | null, unit = "min"): string {
   if (minutes === null) return "—";
-  return `${minutes} ${unit}`;
+  const days = Math.round(minutes / (60 * 24));
+  return `${days} ${unit}`;
 }
 
 export function euthanasiaLabelKey(method?: EuthanasiaMethod): string {

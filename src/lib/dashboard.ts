@@ -7,6 +7,7 @@ export type DashboardView =
   | "instrument_manager"
   | "animal_facility_supervisor"
   | "animal_manager"
+  | "animal_staff"
   | "veterinarian"
   | "research_assistant"
   | "student";
@@ -24,6 +25,12 @@ export function getDashboardView(roles: Role[]): DashboardView {
   const animal = canManageAnimals(roles) && !canSuperviseAnimalFacility(roles);
   if (inst && !animal && !canSuperviseAnimalFacility(roles)) return "instrument_manager";
   if (animal && !inst) return "animal_manager";
+  if (
+    (roles.includes("animal_caretaker") || roles.includes("animal_collector")) &&
+    !inst
+  ) {
+    return "animal_staff";
+  }
   if (inst && (animal || canSuperviseAnimalFacility(roles))) return "admin";
   if (canProcessVeterinary(roles)) return "veterinarian";
   return "student";

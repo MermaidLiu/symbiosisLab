@@ -6,39 +6,73 @@ import clsx from "clsx";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
 import { FluentButton } from "@/components/fluent/FluentButton";
+import { FluentModal } from "@/components/fluent/FluentModal";
+import { FluentSelect, FluentInput } from "@/components/fluent/FluentField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { normalizePurpose } from "@/lib/animals/facility-board";
+import { formatTrackingDays, trackingDays } from "@/lib/animals/facility-board";
 import {
-  ApplicationWorkflowStatus,
   ManagedAnimal,
   OperationApplication,
 } from "@/types/animal-management";
 
-const APP_STATUS_TIP: Record<ApplicationWorkflowStatus, string> = {
-  pending_receipt: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
-  received: "bg-[#E3F2FD] text-[#1565C0] ring-[#90CAF9]",
-  awaiting_conditions: "bg-[#F3E5F5] text-[#7B1FA2] ring-[#CE93D8]",
-  completed: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
-  rejected: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
+const RECORDING_STATUS_TIP: Record<
+  NonNullable<ManagedAnimal["recordingStatus"]>,
+  string
+> = {
+  living: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
+  dead: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
+  waiting: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
+  optotagging: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
 };
+
+function buildMonthGrid(monthStart: Date): (string | null)[] {
+  const year = monthStart.getFullYear();
+  const month = monthStart.getMonth();
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startPad = (first.getDay() + 6) % 7;
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function formatDateOnly(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function StudentDashboard() {
   const { t, isZh, locale } = useLocale();
   const d = t.dashboard;
   const s = t.dashboard.student;
   const m = t.animalMgmt.managed;
-  const a = t.animalMgmt.applications;
+  const f = t.animalMgmt.facilityBoard;
   const { user } = useAuth();
   const { instruments, bookings } = useData();
   const localeStr = locale === "zh" ? "zh-CN" : "en-US";
 
   const [applications, setApplications] = useState<OperationApplication[]>([]);
   const [managed, setManaged] = useState<ManagedAnimal[]>([]);
+  const [bookingsOpen, setBookingsOpen] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [idFilter, setIdFilter] = useState("");
+  const [calMonth, setCalMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [calDay, setCalDay] = useState<string | null>(null);
+  const [dayOpen, setDayOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -64,78 +98,81 @@ export function StudentDashboard() {
     () => bookings.filter((b) => b.userId === user?.id),
     [bookings, user?.id]
   );
-  const myPendingBookings = myBookings.filter((b) => b.status === "pending");
-  const myApprovedBookings = myBookings.filter((b) => b.status === "approved");
+
+  const activeBookings = useMemo(
+    () =>
+      myBookings
+        .filter((b) => b.status === "approved" || b.status === "pending")
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [myBookings]
+  );
+
+  const bookedInstrumentCount = useMemo(() => {
+    const ids = new Set(
+      activeBookings
+        .filter((b) => b.resourceType === "instrument")
+        .map((b) => b.resourceId)
+    );
+    return ids.size;
+  }, [activeBookings]);
 
   const myApps = useMemo(
     () => applications.filter((app) => app.applicantUserId === user?.id),
     [applications, user?.id]
   );
-  const myCustody = useMemo(
-    () => myApps.filter((app) => app.type === "custody"),
-    [myApps]
-  );
-  const myPendingClaims = myCustody.filter((app) => app.status === "pending_receipt");
-  const myCompletedClaims = myCustody.filter((app) => app.status === "completed");
 
   const myAnimals = useMemo(
     () => managed.filter((x) => x.claimantUserId === user?.id),
     [managed, user?.id]
   );
 
-  const claimableCount = useMemo(
-    () =>
-      managed.filter((x) => {
-        const purpose = normalizePurpose(x.purpose);
-        if (purpose === "blank") return false;
-        if (x.claimantUserId && x.claimantUserId !== user?.id) return false;
-        if (x.status === "deceased") return false;
-        const pending = applications.some(
-          (app) =>
-            app.type === "custody" &&
-            app.status === "pending_receipt" &&
-            app.animalIds?.includes(x.id)
-        );
-        return !pending;
-      }).length,
-    [managed, applications, user?.id]
-  );
+  const filteredAnimals = useMemo(() => {
+    let rows = [...myAnimals];
+    if (statusFilter !== "all") {
+      rows = rows.filter((r) => r.recordingStatus === statusFilter);
+    }
+    const q = idFilter.trim().toLowerCase();
+    if (q) rows = rows.filter((r) => r.id.toLowerCase().includes(q));
+    // Most recent first (next collection / implant / id)
+    rows.sort((a, b) => {
+      const ta = new Date(a.nextCollectionAt || a.lastCollectionAt || a.implantAt || 0).getTime();
+      const tb = new Date(b.nextCollectionAt || b.lastCollectionAt || b.implantAt || 0).getTime();
+      return tb - ta;
+    });
+    return rows;
+  }, [myAnimals, statusFilter, idFilter]);
 
-  const upcoming = useMemo(
-    () =>
-      myBookings
-        .filter((b) => b.status === "approved" || b.status === "pending")
-        .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-        .slice(0, 6),
-    [myBookings]
-  );
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }, []);
 
-  const recentClaims = useMemo(
-    () =>
-      [...myCustody]
-        .sort((a, b) => b.applicationTime.localeCompare(a.applicationTime))
-        .slice(0, 6),
-    [myCustody]
-  );
+  const bookingDates = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of myBookings) {
+      if (b.status === "cancelled" || b.status === "rejected") continue;
+      const start = new Date(b.startTime);
+      if (Number.isNaN(start.getTime())) continue;
+      set.add(
+        `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`
+      );
+    }
+    return set;
+  }, [myBookings]);
 
-  function purposeLabel(p?: ManagedAnimal["purpose"]) {
-    const purpose = normalizePurpose(p);
-    if (purpose === "signal_processing") return m.purposeSignal;
-    if (purpose === "immunity") return m.purposeImmunity;
-    if (purpose === "breeding") return m.purposeBreeding;
-    return m.purposeBlank;
-  }
+  const calCells = useMemo(() => buildMonthGrid(calMonth), [calMonth]);
 
-  function appStatusLabel(status: ApplicationWorkflowStatus) {
-    const map: Record<ApplicationWorkflowStatus, string> = {
-      pending_receipt: a.tabPending,
-      received: a.tabReceived,
-      awaiting_conditions: a.tabAwaiting,
-      completed: a.tabCompleted,
-      rejected: a.tabRejected,
-    };
-    return map[status];
-  }
+  const dayBookings = useMemo(() => {
+    if (!calDay) return [];
+    return myBookings
+      .filter((b) => {
+        if (b.status === "cancelled" || b.status === "rejected") return false;
+        const start = new Date(b.startTime);
+        const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+        return key === calDay;
+      })
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [myBookings, calDay]);
 
   function resourceName(booking: (typeof bookings)[0]) {
     const inst = instruments.find((i) => i.id === booking.resourceId);
@@ -143,194 +180,346 @@ export function StudentDashboard() {
     return booking.resourceId;
   }
 
+  function recordingLabel(rs?: ManagedAnimal["recordingStatus"]) {
+    if (!rs) return "—";
+    return m.recordingStatus[rs] ?? rs;
+  }
+
+  const summaryCards = [
+    {
+      href: "/instruments",
+      label: s.bookInstruments,
+      desc: s.bookInstrumentsDesc,
+      count: bookedInstrumentCount,
+      unit: s.unitInstruments,
+    },
+    {
+      href: "/animals/managed",
+      label: s.managedAnimals,
+      desc: s.managedAnimalsDesc,
+      count: myAnimals.length,
+      unit: s.unitAnimals,
+    },
+    {
+      href: "/animals/applications",
+      label: s.myApplications,
+      desc: s.myApplicationsDesc,
+      count: myApps.length,
+      unit: s.unitApps,
+    },
+  ];
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader title={d.title} subtitle={s.subtitle} />
       <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
-        <GlassPanel className="mb-5 bg-gradient-to-r from-thu/10 via-white/50 to-tsinghua-yellow/10">
-          <p className="text-sm text-lab-muted">{d.welcome}</p>
-          <h2 className="mt-1 text-2xl font-bold text-thu">{user?.name}</h2>
-          <p className="mt-2 text-sm text-lab-text">{s.hint}</p>
-        </GlassPanel>
-
-        <GlassPanel padding={false} className="mb-5 overflow-hidden">
-          <div className="grid grid-cols-2 gap-px bg-white/30 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label={s.statPendingBookings} value={myPendingBookings.length} accent="text-amber-700" />
-            <Stat label={s.statApprovedBookings} value={myApprovedBookings.length} accent="text-emerald-700" />
-            <Stat label={s.statPendingClaims} value={myPendingClaims.length} accent="text-[#F57F17]" />
-            <Stat label={s.statMyAnimals} value={myAnimals.length} accent="text-[#82318E]" />
-            <Stat label={s.statClaimable} value={claimableCount} accent="text-[#5BA4E8]" />
-            <Stat label={s.statDoneClaims} value={myCompletedClaims.length} accent="text-thu" />
-          </div>
-        </GlassPanel>
-
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { href: "/instruments", label: d.bookInstrument, desc: d.bookInstrumentDesc },
-            { href: "/animals/managed", label: s.claimAnimals, desc: s.claimAnimalsDesc },
-            { href: "/bookings", label: d.viewAllBookings, desc: d.viewBookingsDesc },
-            { href: "/animals/applications", label: s.myApplications, desc: s.myApplicationsDesc },
-          ].map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
-            >
-              <p className="text-sm font-semibold text-thu">{item.label}</p>
-              <p className="mt-1 text-xs text-lab-muted">{item.desc}</p>
-            </Link>
-          ))}
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <GlassPanel>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-thu">{s.myBookingsTitle}</h3>
-              <Link href="/bookings" className="text-xs text-thu hover:underline">
-                {d.viewAll}
-              </Link>
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="space-y-4">
+            {/* Top counts */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              {summaryCards.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
+                >
+                  <p className="text-sm font-semibold text-thu">{item.label}</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums text-thu">
+                    {item.count}
+                    <span className="ml-1 text-sm font-medium text-lab-muted">{item.unit}</span>
+                  </p>
+                  <p className="mt-1 text-xs text-lab-muted">{item.desc}</p>
+                </Link>
+              ))}
             </div>
-            {upcoming.length === 0 ? (
-              <p className="text-sm text-lab-muted">{d.noUpcoming}</p>
-            ) : (
-              <ul className="space-y-2">
-                {upcoming.map((b) => (
-                  <li
-                    key={b.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-white/40 bg-white/40 px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-lab-text">{resourceName(b)}</p>
-                      <p className="text-[11px] text-lab-muted">
-                        {new Date(b.startTime).toLocaleString(localeStr, {
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
-                        –{" "}
-                        {new Date(b.endTime).toLocaleString(localeStr, {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
+
+            {/* Collapsible booked instrument cards */}
+            <GlassPanel>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 text-left"
+                onClick={() => setBookingsOpen((v) => !v)}
+              >
+                <div>
+                  <h3 className="text-sm font-semibold text-thu">{s.myBookingsTitle}</h3>
+                  <p className="mt-0.5 text-[11px] text-lab-muted">
+                    {s.bookingsCollapseHint.replace("{n}", String(activeBookings.length))}
+                  </p>
+                </div>
+                <span className="text-lab-muted">{bookingsOpen ? "▾" : "▸"}</span>
+              </button>
+
+              {bookingsOpen && (
+                <div className="mt-3">
+                  {activeBookings.length === 0 ? (
+                    <p className="text-sm text-lab-muted">{d.noUpcoming}</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {activeBookings.map((b) => (
+                        <Link
+                          key={b.id}
+                          href={`/instruments/${encodeURIComponent(b.resourceId)}`}
+                          className="rounded-lg border border-[#E0D4E8] bg-white/60 p-3 transition hover:bg-white/90"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate text-sm font-semibold text-thu">
+                              {resourceName(b)}
+                            </p>
+                            <StatusBadge status={b.status} label={t.status[b.status]} />
+                          </div>
+                          <p className="mt-2 text-[11px] text-lab-muted">
+                            {new Date(b.startTime).toLocaleString(localeStr, {
+                              month: "2-digit",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}{" "}
+                            –{" "}
+                            {new Date(b.endTime).toLocaleString(localeStr, {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          {b.purpose ? (
+                            <p className="mt-1 truncate text-[11px] text-lab-text">{b.purpose}</p>
+                          ) : null}
+                        </Link>
+                      ))}
                     </div>
-                    <StatusBadge status={b.status} label={t.status[b.status]} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </GlassPanel>
+                  )}
+                  <div className="mt-3 text-right">
+                    <Link href="/bookings" className="text-xs text-thu hover:underline">
+                      {d.viewAllBookings}
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </GlassPanel>
 
-          <GlassPanel>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-thu">{s.myClaimsTitle}</h3>
-              <Link href="/animals/applications" className="text-xs text-thu hover:underline">
-                {d.viewAll}
-              </Link>
-            </div>
-            {recentClaims.length === 0 ? (
-              <p className="text-sm text-lab-muted">{s.noClaims}</p>
-            ) : (
-              <ul className="space-y-2">
-                {recentClaims.map((app) => (
-                  <li
-                    key={app.id}
-                    className="rounded-lg border border-white/40 bg-white/40 px-3 py-2.5"
+            {/* Managed animals list + simple filters */}
+            <GlassPanel>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-thu">{s.myAnimalsTitle}</h3>
+                <Link href="/animals/managed" className="text-xs text-thu hover:underline">
+                  {s.goManaged}
+                </Link>
+              </div>
+              <div className="mb-3 flex flex-wrap items-end gap-2">
+                <FluentSelect
+                  className="min-w-[140px]"
+                  label={m.colRecordingStatus}
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">{s.filterAllStatus}</option>
+                  <option value="living">{m.recordingStatus.living}</option>
+                  <option value="waiting">{m.recordingStatus.waiting}</option>
+                  <option value="optotagging">{m.recordingStatus.optotagging}</option>
+                  <option value="dead">{m.recordingStatus.dead}</option>
+                </FluentSelect>
+                <FluentInput
+                  className="min-w-[160px] flex-1"
+                  label={m.colId}
+                  value={idFilter}
+                  onChange={(e) => setIdFilter(e.target.value)}
+                  placeholder={s.filterIdPlaceholder}
+                />
+              </div>
+
+              {filteredAnimals.length === 0 ? (
+                <p className="text-sm text-lab-muted">{s.noMyAnimals}</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-[#E0D4E8] text-[11px] text-lab-muted">
+                        <th className="px-2 py-2 font-semibold">{m.colRecordingStatus}</th>
+                        <th className="px-2 py-2 font-semibold">{m.colId}</th>
+                        <th className="px-2 py-2 font-semibold">{m.colImplant}</th>
+                        <th className="px-2 py-2 font-semibold">{m.colTracking}</th>
+                        <th className="px-2 py-2 font-semibold">{m.colTrackingStage}</th>
+                        <th className="px-2 py-2 font-semibold">{m.colNextDate}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAnimals.slice(0, 10).map((row, idx) => (
+                        <tr
+                          key={row.id}
+                          className={clsx(
+                            "border-b border-[#EDE4F2]",
+                            idx % 2 === 0 ? "bg-white" : "bg-[#F7F1FA]"
+                          )}
+                        >
+                          <td className="px-2 py-2">
+                            <span
+                              className={clsx(
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+                                row.recordingStatus
+                                  ? RECORDING_STATUS_TIP[row.recordingStatus]
+                                  : "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]"
+                              )}
+                            >
+                              {recordingLabel(row.recordingStatus)}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 font-mono text-xs text-thu">{row.id}</td>
+                          <td className="px-2 py-2 text-xs">{formatDateOnly(row.implantAt)}</td>
+                          <td className="px-2 py-2 text-xs">
+                            {formatTrackingDays(
+                              trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                              m.trackingUnit
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-xs">{row.trackingStage ?? "—"}</td>
+                          <td className="px-2 py-2 text-xs">{formatDateOnly(row.nextCollectionAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredAnimals.length > 10 ? (
+                    <p className="mt-2 text-[11px] text-lab-muted">
+                      {s.animalsListMore.replace("{n}", String(filteredAnimals.length - 10))}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            </GlassPanel>
+          </div>
+
+          {/* Right calendar */}
+          <div className="space-y-4">
+            <GlassPanel>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-thu">{s.calendar}</p>
+                <div className="flex items-center gap-1">
+                  <FluentButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const now = new Date();
+                      setCalMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+                    }}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-mono text-xs font-semibold text-thu">{app.id}</p>
-                        <p className="mt-0.5 truncate text-xs text-lab-text">{app.description}</p>
-                        <p className="mt-0.5 text-[11px] text-lab-muted">
-                          {new Date(app.applicationTime).toLocaleString(localeStr)}
-                          {app.animalIds?.length
-                            ? ` · ${app.animalIds.length} ${s.animalsUnit}`
-                            : ""}
-                        </p>
-                      </div>
+                    {f.calendarToday}
+                  </FluentButton>
+                  <FluentButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))
+                    }
+                  >
+                    ‹
+                  </FluentButton>
+                  <FluentButton
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))
+                    }
+                  >
+                    ›
+                  </FluentButton>
+                </div>
+              </div>
+              <p className="mb-2 text-center text-xs font-medium text-lab-text">
+                {calMonth.getFullYear()}-{String(calMonth.getMonth() + 1).padStart(2, "0")}
+              </p>
+              <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] text-lab-muted">
+                {(isZh
+                  ? ["一", "二", "三", "四", "五", "六", "日"]
+                  : ["M", "T", "W", "T", "F", "S", "S"]
+                ).map((label, i) => (
+                  <div key={`${label}-${i}`} className="py-1 font-medium">
+                    {label}
+                  </div>
+                ))}
+                {calCells.map((cell, i) =>
+                  cell ? (
+                    <button
+                      key={cell}
+                      type="button"
+                      onClick={() => {
+                        setCalDay(cell);
+                        setDayOpen(true);
+                      }}
+                      className={clsx(
+                        "relative flex flex-col items-center rounded-md px-0.5 pb-1 pt-0.5 text-[11px] transition hover:bg-thu/10",
+                        cell === todayStr && "font-semibold text-thu"
+                      )}
+                    >
                       <span
                         className={clsx(
-                          "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                          APP_STATUS_TIP[app.status]
+                          "flex h-7 w-7 items-center justify-center rounded-full",
+                          cell === todayStr && "bg-thu/10 ring-2 ring-thu"
                         )}
                       >
-                        {appStatusLabel(app.status)}
+                        {Number(cell.slice(-2))}
                       </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </GlassPanel>
-
-          <GlassPanel className="lg:col-span-2">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-thu">{s.myAnimalsTitle}</h3>
-              <Link href="/animals/managed" className="text-xs text-thu hover:underline">
-                {s.goClaim}
-              </Link>
-            </div>
-            {myAnimals.length === 0 ? (
-              <p className="text-sm text-lab-muted">{s.noMyAnimals}</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-[#E0D4E8] text-[11px] text-lab-muted">
-                      <th className="px-2 py-2 font-semibold">{m.colId}</th>
-                      <th className="px-2 py-2 font-semibold">{m.colPurpose}</th>
-                      <th className="px-2 py-2 font-semibold">{m.colCage}</th>
-                      <th className="px-2 py-2 font-semibold">{m.colStatus}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {myAnimals.slice(0, 8).map((row, idx) => (
-                      <tr
-                        key={row.id}
+                      <span
                         className={clsx(
-                          "border-b border-[#EDE4F2]",
-                          idx % 2 === 0 ? "bg-white" : "bg-[#F7F1FA]"
+                          "mt-0.5 h-1.5 w-1.5 rounded-full",
+                          bookingDates.has(cell) ? "bg-thu" : "bg-transparent"
                         )}
-                      >
-                        <td className="px-2 py-2 font-mono text-xs text-thu">{row.id}</td>
-                        <td className="px-2 py-2 text-xs">{purposeLabel(row.purpose)}</td>
-                        <td className="px-2 py-2 text-xs">{row.cageLocation}</td>
-                        <td className="px-2 py-2 text-xs">
-                          {row.status === "active"
-                            ? m.statusActive
-                            : row.status === "deceased"
-                              ? m.statusDeceased
-                              : row.status}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        aria-hidden
+                      />
+                    </button>
+                  ) : (
+                    <div key={`e-${i}`} />
+                  )
+                )}
               </div>
-            )}
-          </GlassPanel>
+              <p className="mt-2 text-[10px] text-lab-muted">{s.calendarHint}</p>
+            </GlassPanel>
+
+            <Link
+              href="/bookings"
+              className="block rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
+            >
+              <p className="text-sm font-semibold text-thu">{d.viewAllBookings}</p>
+              <p className="mt-1 text-xs text-lab-muted">{s.viewBookingsDesc}</p>
+            </Link>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent?: string;
-}) {
-  return (
-    <div className="bg-white/55 px-3 py-3 text-center sm:text-left">
-      <p className="text-[10px] text-lab-muted">{label}</p>
-      <p className={clsx("mt-0.5 text-xl font-semibold tabular-nums", accent ?? "text-thu")}>
-        {value}
-      </p>
+      <FluentModal
+        open={dayOpen}
+        title={calDay ? s.dayBookingsTitle.replace("{d}", calDay) : s.calendar}
+        onClose={() => setDayOpen(false)}
+        footer={
+          <FluentButton variant="outline" onClick={() => setDayOpen(false)}>
+            {t.common.close}
+          </FluentButton>
+        }
+      >
+        {dayBookings.length === 0 ? (
+          <p className="text-sm text-lab-muted">{s.noDayBookings}</p>
+        ) : (
+          <ul className="space-y-2">
+            {dayBookings.map((b) => (
+              <li
+                key={b.id}
+                className="rounded-lg border border-white/40 bg-white/50 px-3 py-2 text-sm"
+              >
+                <p className="font-medium text-thu">{resourceName(b)}</p>
+                <p className="text-xs text-lab-muted">
+                  {new Date(b.startTime).toLocaleTimeString(localeStr, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  –{" "}
+                  {new Date(b.endTime).toLocaleTimeString(localeStr, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+                <StatusBadge status={b.status} label={t.status[b.status]} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </FluentModal>
     </div>
   );
 }

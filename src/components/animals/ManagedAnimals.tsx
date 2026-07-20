@@ -10,11 +10,17 @@ import { FluentSelect, FluentInput, FluentRadioGroup } from "@/components/fluent
 import { FluentModal } from "@/components/fluent/FluentModal";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
-import { canManageAnimals, canSuperviseAnimalFacility, hasRole } from "@/lib/roles";
+import { AssignAnimalOpModal } from "@/components/animals/AssignAnimalOpModal";
+import {
+  canManageAnimals,
+  canSuperviseAnimalFacility,
+  hasRole,
+  isAnimalOpsStaff,
+} from "@/lib/roles";
 import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { formatTrackingMinutes, trackingMinutes, normalizePurpose } from "@/lib/animals/facility-board";
+import { formatTrackingDays, trackingDays, normalizePurpose } from "@/lib/animals/facility-board";
 import {
   ManagedAnimal,
   AnimalFilterState,
@@ -26,7 +32,9 @@ import {
   MouseLifecycleStatus,
   EuthanasiaMethod,
   OperationApplication,
+  AnimalDayActivity,
 } from "@/types/animal-management";
+import { AnimalOpTask } from "@/types/animal-ops";
 
 const EMPTY_FILTER: AnimalFilterState = {
   strain: "",
@@ -40,24 +48,20 @@ const EMPTY_FILTER: AnimalFilterState = {
   animalId: "",
 };
 
-/** All columns available in column settings */
+/** All columns available in column settings — aligned with Surgery & Recording CSV */
 const COLUMN_KEYS = [
+  "recordingStatus",
   "id",
-  "purpose",
-  "ephysStatus",
-  "cageEntryAt",
   "implantAt",
-  "collectionAt",
-  "lastCollectionAt",
   "tracking",
-  "deathMethod",
-  "specialExperiment",
+  "trackingStage",
+  "lastCollectionAt",
+  "repeatDays",
+  "nextCollectionAt",
+  "purpose",
   "status",
-  "gender",
-  "strain",
-  "birthDate",
-  "ageWeeks",
   "cageLocation",
+  "claimantName",
 ] as const;
 
 type ColumnKey = (typeof COLUMN_KEYS)[number];
@@ -65,19 +69,28 @@ type SortKey = ColumnKey;
 
 const PAGE_SIZE = 10;
 
-/** Default visible columns for the Excel-style list */
+/** Default visible columns = 吴淑颖表字段 */
 const DEFAULT_COLUMNS: ColumnKey[] = [
+  "recordingStatus",
   "id",
-  "purpose",
-  "ephysStatus",
-  "cageEntryAt",
   "implantAt",
-  "collectionAt",
-  "lastCollectionAt",
   "tracking",
-  "deathMethod",
-  "specialExperiment",
-  "status",
+  "trackingStage",
+  "lastCollectionAt",
+  "repeatDays",
+  "nextCollectionAt",
+];
+
+/** 饲养员/技术员/采集员：动物信息 + 归属者 / 状态 / 阶段 */
+const OPS_STAFF_COLUMNS: ColumnKey[] = [
+  "id",
+  "claimantName",
+  "recordingStatus",
+  "trackingStage",
+  "implantAt",
+  "tracking",
+  "nextCollectionAt",
+  "cageLocation",
 ];
 
 const STATUS_TIP: Record<ManagedAnimal["status"], string> = {
@@ -86,6 +99,16 @@ const STATUS_TIP: Record<ManagedAnimal["status"], string> = {
   quarantine: "bg-[#FFF3E0] text-[#E65100] ring-[#FFCC80]",
   reserved: "bg-[#E3F2FD] text-[#1565C0] ring-[#90CAF9]",
   deceased: "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]",
+};
+
+const RECORDING_STATUS_TIP: Record<
+  NonNullable<ManagedAnimal["recordingStatus"]>,
+  string
+> = {
+  living: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
+  dead: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
+  waiting: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
+  optotagging: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
 };
 
 const LIFECYCLE_TIP: Record<MouseLifecycleStatus, string> = {
@@ -111,18 +134,24 @@ export function ManagedAnimals({
   const m = t.animalMgmt.managed;
   const f = t.animalMgmt.facilityBoard;
   const { user } = useAuth();
-  const canExport = user ? canManageAnimals(user.roles) : false;
-  const canEditAnimals = canExport;
-  /** 学生等非管理人员：只看可申领目录 */
-  const isClaimCatalog = !canEditAnimals;
+  const isOpsStaff = user ? isAnimalOpsStaff(user.roles) : false;
+  /** 动物房主管 / 总管理员保留完整代管编辑；一线人员只读列表 */
+  const canEditAnimals = user
+    ? canManageAnimals(user.roles) && !isOpsStaff
+    : false;
+  const canExport = canEditAnimals || isOpsStaff;
+  /** 学生等：名下小鼠 + 派发 */
+  const isClaimCatalog = !canEditAnimals && !isOpsStaff;
   const techScope =
-    technicianScopeId ??
-    (user &&
-    canManageAnimals(user.roles) &&
-    !canSuperviseAnimalFacility(user.roles) &&
-    !hasRole(user.roles, "super_admin")
-      ? user.id
-      : undefined);
+    isOpsStaff
+      ? undefined
+      : technicianScopeId ??
+        (user &&
+        canManageAnimals(user.roles) &&
+        !canSuperviseAnimalFacility(user.roles) &&
+        !hasRole(user.roles, "super_admin")
+          ? user.id
+          : undefined);
 
   function scopeList(list: ManagedAnimal[]) {
     const scoped = techScope
@@ -173,6 +202,19 @@ export function ManagedAnimals({
   const [csvText, setCsvText] = useState<string>(f.uploadTemplate);
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [opAssignOpen, setOpAssignOpen] = useState(false);
+  const [opTargetIds, setOpTargetIds] = useState<string[]>([]);
+  const [forceOpen, setForceOpen] = useState(false);
+  const [forceIds, setForceIds] = useState<string[]>([]);
+  const [forceNote, setForceNote] = useState("");
+  const [forceCloseTasks, setForceCloseTasks] = useState(true);
+  const [forceSaving, setForceSaving] = useState(false);
+
+  useEffect(() => {
+    if (isOpsStaff) {
+      setVisibleColumns(new Set(OPS_STAFF_COLUMNS));
+    }
+  }, [isOpsStaff]);
 
   useEffect(() => {
     (async () => {
@@ -197,7 +239,7 @@ export function ManagedAnimals({
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [techScope, isClaimCatalog]);
+  }, [techScope, isClaimCatalog, isOpsStaff]);
 
   function pendingIdsFromApps(apps: OperationApplication[]) {
     const ids = new Set<string>();
@@ -237,22 +279,18 @@ export function ManagedAnimals({
   }
 
   const columnLabels: Record<ColumnKey, string> = {
+    recordingStatus: isOpsStaff ? m.colStatusNow : m.colRecordingStatus,
     id: m.colId,
-    purpose: m.colPurpose,
-    ephysStatus: m.colEphys,
-    cageEntryAt: m.colCageEntry,
     implantAt: m.colImplant,
-    collectionAt: m.colCollection,
-    lastCollectionAt: m.colLastCollection,
     tracking: m.colTracking,
-    deathMethod: m.colDeathMethod,
-    specialExperiment: m.colSpecialExperiment,
+    trackingStage: isOpsStaff ? m.colStage : m.colTrackingStage,
+    lastCollectionAt: m.colLastCollection,
+    repeatDays: m.colRepeat,
+    nextCollectionAt: m.colNextDate,
+    purpose: m.colPurpose,
     status: m.colStatus,
-    gender: m.colGender,
-    strain: m.colStrain,
-    birthDate: m.colBirth,
-    ageWeeks: m.colAge,
     cageLocation: m.colCage,
+    claimantName: isOpsStaff ? m.colOwner : m.colClaimant,
   };
 
   const strains = useMemo(
@@ -267,13 +305,8 @@ export function ManagedAnimals({
   const filtered = useMemo(() => {
     let rows = [...animals];
     if (isClaimCatalog) {
-      rows = rows.filter((r) => {
-        if (normalizePurpose(r.purpose) === "blank") return false;
-        if (r.status === "deceased") return false;
-        if (r.claimantUserId) return false;
-        if (pendingClaimIds.has(r.id)) return false;
-        return true;
-      });
+      // Students: only their own mice (including dead / waiting)
+      rows = rows.filter((r) => Boolean(user && r.claimantUserId === user.id));
     }
     const f = applied;
     if (f.strain) rows = rows.filter((r) => r.strain === f.strain);
@@ -292,8 +325,10 @@ export function ManagedAnimals({
 
     rows.sort((a, b) => {
       if (sortKey === "tracking") {
-        const av = trackingMinutes(a.collectionAt, a.lastCollectionAt) ?? -Infinity;
-        const bv = trackingMinutes(b.collectionAt, b.lastCollectionAt) ?? -Infinity;
+        const av =
+          trackingDays(a.collectionAt, a.lastCollectionAt, a.implantAt) ?? -Infinity;
+        const bv =
+          trackingDays(b.collectionAt, b.lastCollectionAt, b.implantAt) ?? -Infinity;
         const cmp = av < bv ? -1 : av > bv ? 1 : 0;
         return sortAsc ? cmp : -cmp;
       }
@@ -303,7 +338,7 @@ export function ManagedAnimals({
       return sortAsc ? cmp : -cmp;
     });
     return rows;
-  }, [animals, applied, sortKey, sortAsc, isClaimCatalog, pendingClaimIds]);
+  }, [animals, applied, sortKey, sortAsc, isClaimCatalog, pendingClaimIds, user]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -670,9 +705,25 @@ export function ManagedAnimals({
     }
   }
 
+  function openAssignFor(ids: string[]) {
+    if (!ids.length) {
+      showToast(m.selectRows);
+      return;
+    }
+    setOpTargetIds(ids);
+    setOpAssignOpen(true);
+  }
+
+  function canDeleteRow(row: ManagedAnimal) {
+    if (canEditAnimals) return true;
+    return Boolean(user && row.claimantUserId === user.id);
+  }
+
   async function removeSelected() {
-    if (!canEditAnimals) return;
-    const ids = [...selected];
+    const ids = [...selected].filter((id) => {
+      const row = animals.find((a) => a.id === id);
+      return row ? canDeleteRow(row) : false;
+    });
     if (ids.length === 0) {
       showToast(m.selectRows);
       return;
@@ -697,7 +748,8 @@ export function ManagedAnimals({
   }
 
   async function removeOne(id: string) {
-    if (!canEditAnimals) return;
+    const row = animals.find((a) => a.id === id);
+    if (!row || !canDeleteRow(row)) return;
     if (!window.confirm(m.removeConfirm.replace("{n}", "1"))) return;
     setRemoving(true);
     try {
@@ -718,53 +770,147 @@ export function ManagedAnimals({
     }
   }
 
+  function openForceFor(ids: string[]) {
+    if (!ids.length) {
+      showToast(m.selectRows);
+      return;
+    }
+    setForceIds(ids);
+    setForceNote("");
+    setForceCloseTasks(true);
+    setForceOpen(true);
+  }
+
+  async function submitForceHandle() {
+    if (!forceNote.trim()) {
+      showToast(m.forceHandleNote);
+      return;
+    }
+    setForceSaving(true);
+    try {
+      await api.forceHandleAnimals({
+        animalIds: forceIds,
+        note: forceNote.trim(),
+        completeRelatedTasks: forceCloseTasks,
+      });
+      setForceOpen(false);
+      setForceIds([]);
+      setSelected(new Set());
+      showToast(m.forceHandleOk);
+    } catch {
+      showToast(m.forceHandleFail);
+    } finally {
+      setForceSaving(false);
+    }
+  }
+
   function handleExport() {
-    const headers = [
-      m.colId,
-      m.colPurpose,
-      m.colEphys,
-      m.colCageEntry,
-      m.colImplant,
-      m.colCollection,
-      m.colLastCollection,
-      m.colTracking,
-      m.colDeathMethod,
-      m.colSpecialExperiment,
-      m.colStatus,
-      m.colGender,
-      m.colStrain,
-      m.colCage,
-      m.colClaimant,
-      m.colTech,
-    ];
+    const headers = isOpsStaff
+      ? [
+          m.colId,
+          m.colOwner,
+          m.colStatusNow,
+          m.colStage,
+          m.colImplant,
+          m.colTracking,
+          m.colNextDate,
+          m.colCage,
+        ]
+      : [
+          m.colRecordingStatus,
+          m.colId,
+          m.colImplant,
+          m.colTracking,
+          m.colTrackingStage,
+          m.colLastCollection,
+          m.colRepeat,
+          m.colNextDate,
+        ];
     exportToCsv(
       `managed-animals-${Date.now()}.csv`,
       headers,
-      filtered.map((row) => {
-        const isSignal = row.purpose === "signal_processing";
-        return [
-          row.id,
-          purposeLabel(row.purpose),
-          ephysLabel(row.ephysStatus),
-          formatTime(row.cageEntryAt),
-          formatTime(row.implantAt),
-          isSignal ? formatTime(row.collectionAt) : "—",
-          isSignal ? formatTime(row.lastCollectionAt) : "—",
-          isSignal
-            ? formatTrackingMinutes(trackingMinutes(row.collectionAt, row.lastCollectionAt), m.trackingUnit)
-            : "—",
-          euthanasiaMethodLabel(row),
-          row.specialExperiment?.trim() || "—",
-          currentStatusLabel(row),
-          genderLabel(row.gender),
-          row.strain,
-          row.cageLocation,
-          row.claimantName ?? "未分配",
-          row.technicianName ?? "未分配",
-        ];
-      })
+      filtered.map((row) =>
+        isOpsStaff
+          ? [
+              row.id,
+              row.claimantName ?? "",
+              recordingStatusLabel(row.recordingStatus),
+              row.trackingStage ?? "",
+              formatDateOnly(row.implantAt),
+              formatTrackingDays(
+                trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                m.trackingUnit
+              ),
+              formatDateOnly(row.nextCollectionAt),
+              row.cageLocation ?? "",
+            ]
+          : [
+              recordingStatusLabel(row.recordingStatus),
+              row.id,
+              formatDateOnly(row.implantAt),
+              formatTrackingDays(
+                trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                m.trackingUnit
+              ),
+              row.trackingStage ?? "",
+              formatDateOnly(row.lastCollectionAt),
+              row.repeatDays != null ? String(row.repeatDays) : "",
+              formatDateOnly(row.nextCollectionAt),
+            ]
+      )
     );
     showToast(m.exportDone);
+  }
+
+  async function handleExportOps() {
+    if (!user) return;
+    try {
+      const [{ tasks }, board] = await Promise.all([
+        api.animalOpTasks({ mine: true }),
+        api.facilityBoard(),
+      ]);
+      const myTasks = (tasks as AnimalOpTask[]).filter((x) => x.assigneeUserId === user.id);
+      const acts = ((board.activities ?? []) as AnimalDayActivity[]).filter(
+        (a) => a.userId === user.id
+      );
+      const headers = [
+        "时间",
+        "类型",
+        "小鼠",
+        "操作/任务",
+        "状态/紧急度",
+        "说明",
+        "派发人",
+      ];
+      const rows: string[][] = [];
+      for (const task of myTasks) {
+        rows.push([
+          task.completedAt || task.createdAt,
+          "派发任务",
+          task.animalIds.join(" "),
+          t.animalMgmt.animalOps.types[task.opType],
+          `${task.status}/${task.urgency}`,
+          task.receiptNote || task.note || "",
+          task.createdByName,
+        ]);
+      }
+      for (const act of acts) {
+        rows.push([
+          act.timestamp,
+          act.action === "force_handle" ? "强制处理" : act.action,
+          act.animalId ?? "",
+          act.action,
+          "",
+          act.details,
+          "",
+        ]);
+      }
+      rows.sort((a, b) => b[0].localeCompare(a[0]));
+      exportToCsv(`animal-ops-${Date.now()}.csv`, headers, rows);
+      showToast(m.exportOpsDone);
+    } catch {
+      showToast(m.forceHandleFail);
+    }
   }
 
   function handleRefresh() {
@@ -837,22 +983,54 @@ export function ManagedAnimals({
     return s === "public" ? m.containsPublic : m.excludesPublic;
   }
 
+  function recordingStatusLabel(rs?: ManagedAnimal["recordingStatus"]) {
+    if (!rs) return "—";
+    return m.recordingStatus[rs] ?? rs;
+  }
+
+  function recordingStatusTipClass(rs?: ManagedAnimal["recordingStatus"]) {
+    if (!rs) return "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]";
+    return RECORDING_STATUS_TIP[rs];
+  }
+
+  function RecordingStatusTip({ rs }: { rs?: ManagedAnimal["recordingStatus"] }) {
+    return (
+      <span
+        className={clsx(
+          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
+          recordingStatusTipClass(rs)
+        )}
+      >
+        {recordingStatusLabel(rs)}
+      </span>
+    );
+  }
+
+  function formatDateOnly(iso?: string) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   function cellValue(row: ManagedAnimal, key: ColumnKey): string {
-    const signal = isSignalMouse(row);
-    if (key === "gender") return genderLabel(row.gender);
+    if (key === "recordingStatus") return recordingStatusLabel(row.recordingStatus);
     if (key === "status") return currentStatusLabel(row);
     if (key === "purpose") return purposeLabel(row.purpose);
-    if (key === "ephysStatus") return ephysLabel(row.ephysStatus);
-    if (key === "deathMethod") return euthanasiaMethodLabel(row);
-    if (key === "cageEntryAt") return formatTime(row.cageEntryAt);
-    if (key === "implantAt") return formatTime(row.implantAt);
-    if (key === "collectionAt") return signal ? formatTime(row.collectionAt) : "—";
-    if (key === "lastCollectionAt") return signal ? formatTime(row.lastCollectionAt) : "—";
+    if (key === "implantAt") return formatDateOnly(row.implantAt);
+    if (key === "lastCollectionAt") return formatDateOnly(row.lastCollectionAt);
+    if (key === "nextCollectionAt") return formatDateOnly(row.nextCollectionAt);
     if (key === "tracking") {
-      if (!signal) return "—";
-      return formatTrackingMinutes(trackingMinutes(row.collectionAt, row.lastCollectionAt), m.trackingUnit);
+      return formatTrackingDays(
+        trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+        m.trackingUnit
+      );
     }
-    if (key === "specialExperiment") return row.specialExperiment?.trim() || "—";
+    if (key === "trackingStage") return row.trackingStage?.trim() || "—";
+    if (key === "repeatDays") return row.repeatDays != null ? String(row.repeatDays) : "—";
+    if (key === "cageLocation") return row.cageLocation || "—";
+    if (key === "claimantName") return row.claimantName ?? "—";
+    if (key === "id") return row.id;
     return String(row[key as keyof ManagedAnimal] ?? "");
   }
 
@@ -876,19 +1054,35 @@ export function ManagedAnimals({
     <div className={clsx(!embedded && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
       {!embedded && (
         <PageHeader
-          title={isClaimCatalog ? m.claimTitle : m.title}
-          subtitle={isClaimCatalog ? m.claimSubtitle : undefined}
+          title={
+            isOpsStaff ? m.opsListTitle : isClaimCatalog ? m.claimTitle : m.title
+          }
+          subtitle={
+            isOpsStaff
+              ? m.opsListSubtitle
+              : isClaimCatalog
+                ? m.claimSubtitle
+                : undefined
+          }
           action={
-            <div className="flex flex-wrap gap-2">
-              <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
-                {f.batchUpload}
-              </FluentButton>
-              {canEditAnimals && (
-                <FluentButton size="sm" onClick={openAddModal}>
-                  + {m.addAnimal}
+            isOpsStaff ? (
+              <div className="flex flex-wrap gap-2">
+                <FluentButton size="sm" variant="outline" onClick={() => void handleExportOps()}>
+                  {m.exportOpsExcel}
                 </FluentButton>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+                  {f.batchUpload}
+                </FluentButton>
+                {canEditAnimals && (
+                  <FluentButton size="sm" onClick={openAddModal}>
+                    + {m.addAnimal}
+                  </FluentButton>
+                )}
+              </div>
+            )
           }
         />
       )}
@@ -1016,17 +1210,47 @@ export function ManagedAnimals({
           </GlassPanel>
         )}
 
+        {isOpsStaff && !embedded && (
+          <GlassPanel className="mb-4 bg-[#F7F1FA]/80">
+            <p className="text-sm text-lab-text">{m.opsListHint}</p>
+          </GlassPanel>
+        )}
+
         <GlassPanel className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              {isClaimCatalog ? (
+              {isOpsStaff ? (
                 <>
                   <FluentButton
                     size="sm"
-                    disabled={applying || selected.size === 0}
-                    onClick={handleBatchApply}
+                    disabled={selected.size === 0}
+                    onClick={() => openForceFor([...selected])}
                   >
-                    {m.claimSelected}
+                    {m.forceHandle}
+                    {selected.size > 0 ? ` (${selected.size})` : ""}
+                  </FluentButton>
+                  <FluentButton size="sm" variant="outline" onClick={() => void handleExportOps()}>
+                    {m.exportOpsExcel}
+                  </FluentButton>
+                </>
+              ) : isClaimCatalog ? (
+                <>
+                  <FluentButton
+                    size="sm"
+                    disabled={selected.size === 0}
+                    onClick={() => openAssignFor([...selected])}
+                  >
+                    {t.animalMgmt.animalOps.assignAction}
+                    {selected.size > 0 ? ` (${selected.size})` : ""}
+                  </FluentButton>
+                  <FluentButton
+                    size="sm"
+                    variant="outline"
+                    className="!text-red-600"
+                    disabled={removing || selected.size === 0}
+                    onClick={() => void removeSelected()}
+                  >
+                    {m.batchDelete}
                     {selected.size > 0 ? ` (${selected.size})` : ""}
                   </FluentButton>
                   <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
@@ -1037,6 +1261,24 @@ export function ManagedAnimals({
                 <>
                   <FluentButton variant="secondary" size="sm" onClick={openVetModal}>
                     {m.vetCare}
+                  </FluentButton>
+                  <FluentButton
+                    size="sm"
+                    disabled={selected.size === 0}
+                    onClick={() => openAssignFor([...selected])}
+                  >
+                    {t.animalMgmt.animalOps.assignAction}
+                    {selected.size > 0 ? ` (${selected.size})` : ""}
+                  </FluentButton>
+                  <FluentButton
+                    size="sm"
+                    variant="outline"
+                    className="!text-red-600"
+                    disabled={removing || selected.size === 0}
+                    onClick={() => void removeSelected()}
+                  >
+                    {m.batchDelete}
+                    {selected.size > 0 ? ` (${selected.size})` : ""}
                   </FluentButton>
                   <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                     {f.batchUpload}
@@ -1070,19 +1312,17 @@ export function ManagedAnimals({
                           >
                             {m.batchApply}
                           </button>
-                          {canEditAnimals && (
-                            <button
-                              type="button"
-                              className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-red-600"
-                              disabled={removing}
-                              onClick={() => {
-                                setBatchMenuOpen(false);
-                                void removeSelected();
-                              }}
-                            >
-                              {m.batchDelete}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-red-600"
+                            disabled={removing}
+                            onClick={() => {
+                              setBatchMenuOpen(false);
+                              void removeSelected();
+                            }}
+                          >
+                            {m.batchDelete}
+                          </button>
                         </div>,
                         document.body
                       )}
@@ -1152,7 +1392,7 @@ export function ManagedAnimals({
                       />
                     </th>
                     {COLUMN_KEYS.filter((k) => visibleColumns.has(k)).map((key) =>
-                      key === "purpose" || key === "specialExperiment" ? (
+                      key === "purpose" || key === "claimantName" ? (
                         <th
                           key={key}
                           className="whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold text-thu"
@@ -1190,7 +1430,9 @@ export function ManagedAnimals({
                               key === "id" && "font-mono font-medium text-thu"
                             )}
                           >
-                            {key === "status" ? (
+                            {key === "recordingStatus" ? (
+                              <RecordingStatusTip rs={row.recordingStatus} />
+                            ) : key === "status" ? (
                               <span
                                 className={clsx(
                                   "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
@@ -1208,19 +1450,45 @@ export function ManagedAnimals({
                         ))}
                         <td className={clsx("sticky right-0 px-3 py-2", zebra)}>
                           <div className="flex flex-nowrap items-center gap-1">
-                            <FluentButton variant="ghost" size="sm" onClick={() => openViewAnimal(row)}>
-                              {m.view}
-                            </FluentButton>
-                            {canEditAnimals && (
-                              <FluentButton
-                                variant="ghost"
-                                size="sm"
-                                className="!text-red-600 hover:!bg-red-50/70"
-                                disabled={removing}
-                                onClick={() => void removeOne(row.id)}
-                              >
-                                {t.common.delete}
-                              </FluentButton>
+                            {isOpsStaff ? (
+                              <>
+                                <FluentButton
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setViewAnimal(row)}
+                                >
+                                  {m.view}
+                                </FluentButton>
+                                <FluentButton
+                                  variant="ghost"
+                                  size="sm"
+                                  className="!text-amber-700"
+                                  onClick={() => openForceFor([row.id])}
+                                >
+                                  {m.forceHandle}
+                                </FluentButton>
+                              </>
+                            ) : (
+                              <>
+                                <FluentButton
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openAssignFor([row.id])}
+                                >
+                                  {t.animalMgmt.animalOps.assignShort}
+                                </FluentButton>
+                                {canDeleteRow(row) && (
+                                  <FluentButton
+                                    variant="ghost"
+                                    size="sm"
+                                    className="!text-red-600 hover:!bg-red-50/70"
+                                    disabled={removing}
+                                    onClick={() => void removeOne(row.id)}
+                                  >
+                                    {t.common.delete}
+                                  </FluentButton>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>
@@ -1243,33 +1511,77 @@ export function ManagedAnimals({
                   <span
                     className={clsx(
                       "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                      statusTipClass(row)
+                      row.recordingStatus
+                        ? recordingStatusTipClass(row.recordingStatus)
+                        : statusTipClass(row)
                     )}
                   >
-                    {currentStatusLabel(row)}
+                    {row.recordingStatus
+                      ? recordingStatusLabel(row.recordingStatus)
+                      : currentStatusLabel(row)}
                   </span>
                 </div>
                 <dl className="flex-1 space-y-1 text-xs">
-                  <div><span className="text-lab-muted">{m.colPurpose}: </span>{purposeLabel(row.purpose)}</div>
-                  <div><span className="text-lab-muted">{m.colEphys}: </span>{ephysLabel(row.ephysStatus)}</div>
-                  <div><span className="text-lab-muted">{m.colCageEntry}: </span>{formatTime(row.cageEntryAt)}</div>
-                  <div><span className="text-lab-muted">{m.colImplant}: </span>{formatTime(row.implantAt)}</div>
-                  <div><span className="text-lab-muted">{m.colCage}: </span>{row.cageLocation}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-lab-muted">
+                      {isOpsStaff ? m.colOwner : m.colClaimant}:{" "}
+                    </span>
+                    <span>{row.claimantName?.trim() || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-lab-muted">
+                      {isOpsStaff ? m.colStatusNow : m.colRecordingStatus}:{" "}
+                    </span>
+                    <RecordingStatusTip rs={row.recordingStatus} />
+                  </div>
+                  <div><span className="text-lab-muted">{m.colImplant}: </span>{formatDateOnly(row.implantAt)}</div>
+                  <div>
+                    <span className="text-lab-muted">{m.colTracking}: </span>
+                    {formatTrackingDays(
+                      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                      m.trackingUnit
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-lab-muted">
+                      {isOpsStaff ? m.colStage : m.colTrackingStage}:{" "}
+                    </span>
+                    {row.trackingStage ?? "—"}
+                  </div>
+                  <div><span className="text-lab-muted">{m.colNextDate}: </span>{formatDateOnly(row.nextCollectionAt)}</div>
                 </dl>
                 <div className="mt-3 flex flex-wrap gap-1">
-                  <FluentButton variant="ghost" size="sm" onClick={() => openViewAnimal(row)}>
-                    {m.view}
-                  </FluentButton>
-                  {canEditAnimals && (
-                    <FluentButton
-                      variant="ghost"
-                      size="sm"
-                      className="!text-red-600 hover:!bg-red-50/70"
-                      disabled={removing}
-                      onClick={() => void removeOne(row.id)}
-                    >
-                      {t.common.delete}
-                    </FluentButton>
+                  {isOpsStaff ? (
+                    <>
+                      <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
+                        {m.view}
+                      </FluentButton>
+                      <FluentButton
+                        variant="ghost"
+                        size="sm"
+                        className="!text-amber-700"
+                        onClick={() => openForceFor([row.id])}
+                      >
+                        {m.forceHandle}
+                      </FluentButton>
+                    </>
+                  ) : (
+                    <>
+                      <FluentButton variant="ghost" size="sm" onClick={() => openAssignFor([row.id])}>
+                        {t.animalMgmt.animalOps.assignShort}
+                      </FluentButton>
+                      {canDeleteRow(row) && (
+                        <FluentButton
+                          variant="ghost"
+                          size="sm"
+                          className="!text-red-600 hover:!bg-red-50/70"
+                          disabled={removing}
+                          onClick={() => void removeOne(row.id)}
+                        >
+                          {t.common.delete}
+                        </FluentButton>
+                      )}
+                    </>
                   )}
                 </div>
               </GlassPanel>
@@ -1360,14 +1672,7 @@ export function ManagedAnimals({
               >
                 {t.common.cancel}
               </FluentButton>
-              {isClaimCatalog ? (
-                <FluentButton
-                  disabled={applying}
-                  onClick={() => void submitCustody([viewAnimal.id])}
-                >
-                  {m.claim}
-                </FluentButton>
-              ) : canEditAnimals ? (
+              {isClaimCatalog ? null : canEditAnimals ? (
                 <FluentButton disabled={applying} onClick={() => void submitViewOperation()}>
                   {m.opConfirm}
                 </FluentButton>
@@ -1379,36 +1684,34 @@ export function ManagedAnimals({
         {viewAnimal && (
           <div className="space-y-4">
             <dl>
+              <div className="flex gap-2 border-b border-white/30 py-2 text-sm">
+                <dt className="w-28 shrink-0 text-lab-muted">{m.colRecordingStatus}</dt>
+                <dd>
+                  <RecordingStatusTip rs={viewAnimal.recordingStatus} />
+                </dd>
+              </div>
               <DetailRow label={m.colId} value={viewAnimal.id} />
-              <DetailRow label={m.colPurpose} value={purposeLabel(viewAnimal.purpose)} />
-              <DetailRow label={m.colStatus} value={currentStatusLabel(viewAnimal)} />
-              <DetailRow label={m.colEphys} value={ephysLabel(viewAnimal.ephysStatus)} />
-              <DetailRow label={m.colCageEntry} value={formatTime(viewAnimal.cageEntryAt)} />
-              <DetailRow label={m.colImplant} value={formatTime(viewAnimal.implantAt)} />
-              <DetailRow
-                label={m.colCollection}
-                value={isSignalMouse(viewAnimal) ? formatTime(viewAnimal.collectionAt) : "—"}
-              />
-              <DetailRow
-                label={m.colLastCollection}
-                value={isSignalMouse(viewAnimal) ? formatTime(viewAnimal.lastCollectionAt) : "—"}
-              />
+              <DetailRow label={m.colImplant} value={formatDateOnly(viewAnimal.implantAt)} />
               <DetailRow
                 label={m.colTracking}
-                value={
-                  isSignalMouse(viewAnimal)
-                    ? formatTrackingMinutes(
-                        trackingMinutes(viewAnimal.collectionAt, viewAnimal.lastCollectionAt),
-                        m.trackingUnit
-                      )
-                    : "—"
-                }
+                value={formatTrackingDays(
+                  trackingDays(
+                    viewAnimal.collectionAt,
+                    viewAnimal.lastCollectionAt,
+                    viewAnimal.implantAt
+                  ),
+                  m.trackingUnit
+                )}
               />
-              <DetailRow label={m.colDeathMethod} value={euthanasiaMethodLabel(viewAnimal)} />
-              <DetailRow label={m.colSpecialExperiment} value={viewAnimal.specialExperiment?.trim() || "—"} />
-              <DetailRow label={m.colGender} value={genderLabel(viewAnimal.gender)} />
-              <DetailRow label={m.colStrain} value={viewAnimal.strain} />
+              <DetailRow label={m.colTrackingStage} value={viewAnimal.trackingStage ?? "—"} />
+              <DetailRow label={m.colLastCollection} value={formatDateOnly(viewAnimal.lastCollectionAt)} />
+              <DetailRow
+                label={m.colRepeat}
+                value={viewAnimal.repeatDays != null ? String(viewAnimal.repeatDays) : "—"}
+              />
+              <DetailRow label={m.colNextDate} value={formatDateOnly(viewAnimal.nextCollectionAt)} />
               <DetailRow label={m.colCage} value={viewAnimal.cageLocation} />
+              <DetailRow label={m.colClaimant} value={viewAnimal.claimantName ?? "—"} />
             </dl>
 
             {!isClaimCatalog && canEditAnimals && (
@@ -1640,6 +1943,69 @@ export function ManagedAnimals({
           placeholder={f.uploadPlaceholder}
         />
         {uploadMsg && <p className="mt-2 text-xs text-thu">{uploadMsg}</p>}
+      </FluentModal>
+
+      <AssignAnimalOpModal
+        open={opAssignOpen}
+        animalIds={opTargetIds}
+        onClose={() => {
+          setOpAssignOpen(false);
+          setOpTargetIds([]);
+        }}
+        onCreated={() => {
+          showToast(t.animalMgmt.animalOps.createOk);
+        }}
+      />
+
+      <FluentModal
+        open={forceOpen}
+        title={m.forceHandleTitle}
+        onClose={() => {
+          if (!forceSaving) {
+            setForceOpen(false);
+            setForceIds([]);
+          }
+        }}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton
+              variant="outline"
+              disabled={forceSaving}
+              onClick={() => {
+                setForceOpen(false);
+                setForceIds([]);
+              }}
+            >
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton
+              disabled={forceSaving || !forceNote.trim()}
+              onClick={() => void submitForceHandle()}
+            >
+              {forceSaving ? t.common.loading : m.forceHandleSubmit}
+            </FluentButton>
+          </div>
+        }
+      >
+        <p className="mb-3 text-sm text-lab-muted">{m.forceHandleHint}</p>
+        <p className="mb-3 text-xs text-thu">
+          {forceIds.join(", ")}
+        </p>
+        <FluentInput
+          label={m.forceHandleNote}
+          value={forceNote}
+          onChange={(e) => setForceNote(e.target.value)}
+          placeholder={m.forceHandleNotePlaceholder}
+        />
+        <label className="mt-3 flex items-start gap-2 text-sm text-lab-text">
+          <input
+            type="checkbox"
+            className="mt-1 accent-thu"
+            checked={forceCloseTasks}
+            onChange={(e) => setForceCloseTasks(e.target.checked)}
+          />
+          <span>{m.forceCloseTasks}</span>
+        </label>
       </FluentModal>
     </div>
   );

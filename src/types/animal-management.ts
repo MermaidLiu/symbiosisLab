@@ -90,12 +90,20 @@ export interface ManagedAnimal {
   deathMethod?: DeathMethod;
   /** 进笼时间 ISO */
   cageEntryAt?: string;
-  /** 植入时间 ISO（电极植入等） */
+  /** 植入时间 ISO（电极植入等）— CSV: Implantation Day */
   implantAt?: string;
   /** 采集时间 ISO（仅信号鼠） */
   collectionAt?: string;
-  /** 上次采集时间 ISO（仅信号鼠） */
+  /** 上次采集 / Previous date */
   lastCollectionAt?: string;
+  /** 记录状态：Living / Dead / Waiting / Optotagging（吴淑颖表 Status） */
+  recordingStatus?: "living" | "dead" | "waiting" | "optotagging";
+  /** 追踪阶段 Stages：1M / 2M / 3M / 6M / 1Y / 2Y … */
+  trackingStage?: string;
+  /** 重复间隔天数 Repeat */
+  repeatDays?: number;
+  /** 下次采集 Next date */
+  nextCollectionAt?: string;
   /** 特殊实验备注 */
   specialExperiment?: string;
 }

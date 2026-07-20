@@ -20,7 +20,7 @@ export default function DashboardPage() {
     return <FacilityCageBoard mode="workbench" />;
   }
 
-  if (view === "animal_manager") {
+  if (view === "animal_manager" || view === "animal_staff") {
     return <TechnicianWorkbench />;
   }
 

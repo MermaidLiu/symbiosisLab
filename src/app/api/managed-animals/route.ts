@@ -86,17 +86,21 @@ export async function POST(req: NextRequest) {
   return jsonOk({ animal, managedAnimals: getStore().managedAnimals }, { status: 201 });
 }
 
-/** DELETE ?id= — remove a managed animal (managers only) */
+/** DELETE ?id= — managers, or students deleting their own mice */
 export async function DELETE(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!canManageAnimals(user.roles)) return jsonError("forbidden", 403);
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return jsonError("invalid_body", 400);
 
   const existing = getStore().managedAnimals.find((a) => a.id === id);
   if (!existing) return jsonError("not_found", 404);
+
+  const isOwner = existing.claimantUserId === user.id;
+  if (!canManageAnimals(user.roles) && !isOwner) {
+    return jsonError("forbidden", 403);
+  }
 
   await mutateStore((s) => {
     s.managedAnimals = s.managedAnimals.filter((a) => a.id !== id);

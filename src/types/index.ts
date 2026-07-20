@@ -3,6 +3,8 @@ export type Role =
   | "instrument_manager"
   | "animal_facility_supervisor"
   | "animal_manager"
+  | "animal_caretaker"
+  | "animal_collector"
   | "veterinarian"
   | "research_assistant"
   | "user";
@@ -124,9 +126,17 @@ export interface AppNotification {
   messageEn: string;
   read: boolean;
   link?: string;
-  kind?: "info" | "booking_pending" | "booking_status" | "application_status" | "application_pending";
+  kind?:
+    | "info"
+    | "booking_pending"
+    | "booking_status"
+    | "application_status"
+    | "application_pending"
+    | "animal_task"
+    | "animal_task_receipt";
   bookingId?: string;
   applicationId?: string;
+  animalTaskId?: string;
   handled?: boolean;
   createdAt: string;
 }

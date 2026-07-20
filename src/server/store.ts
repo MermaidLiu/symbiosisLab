@@ -23,6 +23,7 @@ import {
   OperationApplication,
   AnimalDayActivity,
 } from "@/types/animal-management";
+import { AnimalOpTask } from "@/types/animal-ops";
 import { SEED_USERS, SEED_INSTRUMENTS, SEED_ANIMALS } from "@/lib/storage/seed";
 import { normalizeInstrument } from "@/lib/instruments";
 import {
@@ -31,6 +32,7 @@ import {
   SEED_APPLICATIONS,
   buildSeedAnimalDayActivities,
 } from "@/lib/mock/animalManagement";
+import { buildWsySurgeryMice } from "@/lib/mock/wsyMiceSeed";
 import { buildSeedRaWorkItems } from "@/server/ra-work-seed";
 import { hashPassword, uid } from "@/server/crypto";
 
@@ -71,6 +73,8 @@ export interface DbStore {
   raWorkItems: RaWorkItem[];
   /** Daily animal-facility activity feed for calendar */
   animalDayActivities: AnimalDayActivity[];
+  /** Student-assigned animal ops (禁食/采集/手术等) */
+  animalOpTasks: AnimalOpTask[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -105,6 +109,7 @@ function emptyStore(): DbStore {
     raProjects: [],
     raWorkItems: [],
     animalDayActivities: [],
+    animalOpTasks: [],
   };
 }
 
@@ -116,6 +121,13 @@ const DEFAULT_RA_PROJECTS: RaProject[] = [
 ];
 
 function seedStore(): DbStore {
+  const wsy = SEED_USERS.find((u) => u.email === "wushuying@lab.edu.cn");
+  const wsyMice = wsy
+    ? buildWsySurgeryMice({ id: wsy.id, name: wsy.name })
+    : [];
+  const managedIds = new Set(SEED_MANAGED_ANIMALS.map((a) => a.id));
+  const extraMice = wsyMice.filter((a) => !managedIds.has(a.id));
+
   return {
     users: SEED_USERS.map((u) => ({ ...u, password: hashPassword(u.password) })),
     sessions: [],
@@ -124,7 +136,7 @@ function seedStore(): DbStore {
     bookings: [],
     logs: [],
     notifications: [],
-    managedAnimals: [...SEED_MANAGED_ANIMALS],
+    managedAnimals: [...extraMice, ...SEED_MANAGED_ANIMALS],
     cages: [...SEED_CAGES],
     applications: [...SEED_APPLICATIONS],
     todos: [],
@@ -137,6 +149,7 @@ function seedStore(): DbStore {
     raProjects: DEFAULT_RA_PROJECTS.map((p) => ({ ...p })),
     raWorkItems: buildSeedRaWorkItems(),
     animalDayActivities: buildSeedAnimalDayActivities(),
+    animalOpTasks: [],
   };
 }
 
@@ -256,6 +269,12 @@ function readFromDisk(): DbStore {
       "student3@lab.edu.cn",
       "student4@lab.edu.cn",
       "student5@lab.edu.cn",
+      "liqintong@lab.edu.cn",
+      "laihongfang@lab.edu.cn",
+      "chensisi@lab.edu.cn",
+      "chenhongzhen@lab.edu.cn",
+      "lvxinwei@lab.edu.cn",
+      "wushuying@lab.edu.cn",
     ]) {
       if (!parsed.users.some((u) => u.email === email)) {
         const seed = SEED_USERS.find((u) => u.email === email);
@@ -269,6 +288,37 @@ function readFromDisk(): DbStore {
     if (tech && tech.name !== "李技术") {
       tech.name = "李技术";
       dirty = true;
+    }
+    // Keep ops staff roles in sync with seed roster
+    const opsRoleByEmail: Record<string, import("@/types").Role[]> = {
+      "liqintong@lab.edu.cn": ["animal_collector", "user"],
+      "laihongfang@lab.edu.cn": ["animal_caretaker", "user"],
+      "chensisi@lab.edu.cn": ["animal_manager", "user"],
+      "chenhongzhen@lab.edu.cn": ["animal_manager", "user"],
+      "lvxinwei@lab.edu.cn": ["animal_manager", "user"],
+    };
+    for (const [email, roles] of Object.entries(opsRoleByEmail)) {
+      const u = parsed.users.find((x) => x.email === email);
+      if (!u) continue;
+      const same =
+        u.roles.length === roles.length && roles.every((r) => u.roles.includes(r));
+      if (!same) {
+        u.roles = [...roles];
+        dirty = true;
+      }
+    }
+    // Seed 吴淑颖 Surgery & Recording mice once
+    const wsyUser = parsed.users.find((u) => u.email === "wushuying@lab.edu.cn");
+    if (wsyUser) {
+      const wsyMice = buildWsySurgeryMice({ id: wsyUser.id, name: wsyUser.name });
+      let added = 0;
+      for (const mouse of wsyMice) {
+        if (!parsed.managedAnimals.some((a) => a.id === mouse.id)) {
+          parsed.managedAnimals.unshift(mouse);
+          added += 1;
+        }
+      }
+      if (added) dirty = true;
     }
     // Keep demo RA display name in sync
     const ra = parsed.users.find((u) => u.email === "ra@lab.edu.cn");
@@ -323,6 +373,9 @@ export function getStore(): DbStore {
     if (!Array.isArray(globalThis.__symbiosisDb.animalDayActivities) || globalThis.__symbiosisDb.animalDayActivities.length === 0) {
       globalThis.__symbiosisDb.animalDayActivities = buildSeedAnimalDayActivities();
       writeToDisk(globalThis.__symbiosisDb);
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.animalOpTasks)) {
+      globalThis.__symbiosisDb.animalOpTasks = [];
     }
   }
   return globalThis.__symbiosisDb;

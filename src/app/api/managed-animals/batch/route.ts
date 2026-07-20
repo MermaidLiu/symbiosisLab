@@ -10,11 +10,17 @@ import {
 } from "@/types/animal-management";
 import { buildFacilityCageCells } from "@/lib/animals/facility-board";
 import { displayName, findUserByKey } from "@/lib/users";
+import {
+  parseChineseDate,
+  parseRecordingStatus,
+  recordingStatusToManaged,
+} from "@/lib/animals/wsy-csv";
 
 /**
  * POST /api/managed-animals/batch
- * body: { rows: Array<partial animal fields> } or { csv: string }
- * Any logged-in user may upload; non-staff auto-claim unassigned non-blank mice.
+ * Preferred CSV (Surgery & Recording):
+ * Status,Name,Implantation Day,Tracking Days,Stages,Previous date,Repeat,Next date
+ * Legacy Chinese/English columns still accepted.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -37,9 +43,11 @@ export async function POST(req: NextRequest) {
 
   await mutateStore((s) => {
     for (const [i, row] of rows.entries()) {
-      const id = String(row.id ?? row.ID ?? "").trim();
+      const id = String(
+        row.Name ?? row.name ?? row.id ?? row.ID ?? row.编号 ?? ""
+      ).trim();
       if (!id) {
-        errors.push(`行 ${i + 1}: 缺少 ID`);
+        errors.push(`行 ${i + 1}: 缺少 Name/编号`);
         continue;
       }
       if (s.managedAnimals.some((a) => a.id === id) || created.some((a) => a.id === id)) {
@@ -47,16 +55,29 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const recordingStatus = parseRecordingStatus(
+        row.Status ?? row.status ?? row.状态
+      );
+      const mapped = recordingStatusToManaged(recordingStatus);
+
       const genderRaw = String(row.gender ?? row.性别 ?? "male").toLowerCase();
       const gender = genderRaw.includes("f") || genderRaw.includes("雌") ? "female" : "male";
       const strain = String(row.strain ?? row.品系 ?? "").trim() || "未知";
-      const purposeRaw = String(row.purpose ?? row.用途 ?? "blank").trim().toLowerCase();
-      let purpose: AnimalPurpose = "blank";
-      if (purposeRaw.includes("signal") || purposeRaw.includes("信号")) purpose = "signal_processing";
-      else if (purposeRaw.includes("immun") || purposeRaw.includes("免疫")) purpose = "immunity";
-      else if (purposeRaw.includes("breed") || purposeRaw.includes("繁殖")) purpose = "breeding";
-      else if (ANIMAL_PURPOSES.includes(purposeRaw as AnimalPurpose)) {
-        purpose = purposeRaw as AnimalPurpose;
+
+      // Surgery & Recording rows default to signal mice
+      const purposeRaw = String(row.purpose ?? row.用途 ?? "").trim().toLowerCase();
+      let purpose: AnimalPurpose = "signal_processing";
+      if (purposeRaw) {
+        purpose = "blank";
+        if (purposeRaw.includes("signal") || purposeRaw.includes("信号")) purpose = "signal_processing";
+        else if (purposeRaw.includes("immun") || purposeRaw.includes("免疫")) purpose = "immunity";
+        else if (purposeRaw.includes("breed") || purposeRaw.includes("繁殖")) purpose = "breeding";
+        else if (purposeRaw.includes("blank") || purposeRaw.includes("空白")) purpose = "blank";
+        else if (ANIMAL_PURPOSES.includes(purposeRaw as AnimalPurpose)) {
+          purpose = purposeRaw as AnimalPurpose;
+        } else {
+          purpose = "signal_processing";
+        }
       }
 
       const cageKey = String(row.cageId ?? row.cage ?? row.笼位 ?? "").trim();
@@ -90,7 +111,8 @@ export async function POST(req: NextRequest) {
         } else {
           claimantName = claimantKey;
         }
-      } else if (!isStaff && purpose !== "blank") {
+      } else if (!isStaff) {
+        // Student upload of Surgery & Recording list → own mice
         claimantUserId = user.id;
         claimantName = displayName(user);
       }
@@ -112,21 +134,45 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const birthDate = String(row.birthDate ?? row.出生日期 ?? now.slice(0, 10)).trim();
       const implantAt = parseOptionalTime(
-        row.implantAt ?? row.植入时间 ?? row.植入日期
+        row["Implantation Day"] ??
+          row.implantationDay ??
+          row.implantAt ??
+          row.植入时间 ??
+          row.植入日期
+      );
+      const lastCollectionAt = parseOptionalTime(
+        row["Previous date"] ??
+          row.previousDate ??
+          row.lastCollectionAt ??
+          row.上次采集时间 ??
+          row.上次采集日期 ??
+          row.lastCollection
+      );
+      const nextCollectionAt = parseOptionalTime(
+        row["Next date"] ?? row.nextDate ?? row.nextCollectionAt ?? row.下次日期 ?? row.下次采集
       );
       const collectionAt = parseOptionalTime(
         row.collectionAt ?? row.采集时间 ?? row.采集日期
       );
-      const lastCollectionAt = parseOptionalTime(
-        row.lastCollectionAt ?? row.上次采集时间 ?? row.上次采集日期 ?? row.lastCollection
-      );
       const cageEntryAt =
-        parseOptionalTime(row.cageEntryAt ?? row.进笼时间 ?? row.进笼日期) || now;
+        parseOptionalTime(row.cageEntryAt ?? row.进笼时间 ?? row.进笼日期) ||
+        implantAt ||
+        now;
+
+      const stageRaw = String(row.Stages ?? row.stages ?? row.阶段 ?? "").trim();
+      const trackingStage = stageRaw || undefined;
+      const repeatRaw = String(row.Repeat ?? row.repeat ?? row.重复间隔 ?? "").trim();
+      const repeatDays = repeatRaw && !Number.isNaN(Number(repeatRaw)) ? Number(repeatRaw) : undefined;
+
+      const birthFromImplant = implantAt?.slice(0, 10);
+      const birthDate = String(
+        row.birthDate ?? row.出生日期 ?? birthFromImplant ?? now.slice(0, 10)
+      ).trim();
 
       let lifecycleStatus: ManagedAnimal["lifecycleStatus"] = "entered";
-      if (collectionAt || lastCollectionAt) lifecycleStatus = "signal_recording";
+      if (mapped.status === "deceased") lifecycleStatus = "euthanasia";
+      else if (collectionAt || lastCollectionAt || nextCollectionAt) lifecycleStatus = "signal_recording";
       else if (implantAt) lifecycleStatus = "electrode_implant";
 
       const animal: ManagedAnimal = {
@@ -145,7 +191,7 @@ export async function POST(req: NextRequest) {
         ),
         cageLocation,
         cageId,
-        status: "active",
+        status: mapped.status,
         strainType: "public",
         generation: 1,
         weaningStatus: "weaned",
@@ -156,17 +202,22 @@ export async function POST(req: NextRequest) {
         claimantName,
         technicianUserId,
         technicianName,
+        ephysStatus: mapped.ephysStatus,
         cageEntryAt,
         implantAt,
         collectionAt,
         lastCollectionAt,
+        recordingStatus,
+        trackingStage,
+        repeatDays,
+        nextCollectionAt,
+        deathMethod: recordingStatus === "dead" ? "found_dead" : undefined,
       };
       created.push(animal);
     }
 
     if (created.length) {
       s.managedAnimals = [...created, ...s.managedAnimals];
-      // refresh occupied counts lightly
       for (const cage of s.cages) {
         cage.occupied = s.managedAnimals.filter((m) => m.cageId === cage.id).length;
       }
@@ -195,13 +246,16 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return jsonOk({
-    created: created.length,
-    errors,
-    managedAnimals: getStore().managedAnimals,
-    cells: buildFacilityCageCells(getStore().cages, getStore().managedAnimals),
-    activities: getStore().animalDayActivities,
-  }, { status: created.length ? 201 : 400 });
+  return jsonOk(
+    {
+      created: created.length,
+      errors,
+      managedAnimals: getStore().managedAnimals,
+      cells: buildFacilityCageCells(getStore().cages, getStore().managedAnimals),
+      activities: getStore().animalDayActivities,
+    },
+    { status: created.length ? 201 : 400 }
+  );
 }
 
 function parseCsv(text: string): Record<string, string>[] {
@@ -242,15 +296,12 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
-/** Accept ISO, YYYY-MM-DD, or YYYY-MM-DD HH:mm — empty → undefined */
 function parseOptionalTime(raw: unknown): string | undefined {
+  const fromZh = parseChineseDate(raw);
+  if (fromZh) return fromZh;
   const s = String(raw ?? "").trim();
   if (!s) return undefined;
-  // date only → start of day UTC-ish ISO
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return `${s}T00:00:00.000Z`;
-  }
-  // datetime without T
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T00:00:00.000Z`;
   if (/^\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}/.test(s)) {
     const normalized = s.replace(" ", "T");
     const d = new Date(normalized.length === 16 ? `${normalized}:00` : normalized);

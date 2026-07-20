@@ -103,6 +103,7 @@ export async function createBookingAtomic(input: {
       }
     }
 
+    const isInstrument = input.resourceType === "instrument";
     const booking: Booking = {
       id: uid("bk"),
       resourceType: input.resourceType,
@@ -111,7 +112,9 @@ export async function createBookingAtomic(input: {
       startTime: input.startTime,
       endTime: input.endTime,
       purpose: input.purpose,
-      status: "pending",
+      // Instruments: no approval — managers only need to know who booked.
+      // Training / maintenance still gate create via canBookInstrument above.
+      status: isInstrument ? "approved" : "pending",
       createdAt: new Date().toISOString(),
     };
 
@@ -124,15 +127,25 @@ export async function createBookingAtomic(input: {
     pushNotificationToUsers(
       s,
       recipients,
-      {
-        title: "新预约待审批",
-        titleEn: "New booking pending",
-        message: `${input.userName} 预约了 ${resource.name}`,
-        messageEn: `${input.userName} booked ${resource.nameEn}`,
-        link: "/bookings",
-        kind: "booking_pending",
-        bookingId: booking.id,
-      },
+      isInstrument
+        ? {
+            title: "仪器预约提醒",
+            titleEn: "Instrument booking notice",
+            message: `${input.userName} 已预约 ${resource.name}（无需审批）`,
+            messageEn: `${input.userName} booked ${resource.nameEn} (no approval needed)`,
+            link: "/bookings",
+            kind: "info",
+            bookingId: booking.id,
+          }
+        : {
+            title: "新预约待审批",
+            titleEn: "New booking pending",
+            message: `${input.userName} 预约了 ${resource.name}`,
+            messageEn: `${input.userName} booked ${resource.nameEn}`,
+            link: "/bookings",
+            kind: "booking_pending",
+            bookingId: booking.id,
+          },
       input.userId
     );
 

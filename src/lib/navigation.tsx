@@ -6,6 +6,7 @@ import {
   canManageAnimals,
   canAccessResearchAssistant,
   canSuperviseAnimalFacility,
+  isAnimalOpsStaff,
 } from "@/lib/roles";
 
 export interface NavLink {
@@ -47,9 +48,22 @@ export const NAV_ENTRIES: NavEntry[] = [
         labelKey: "facilityBoard",
         show: canSuperviseAnimalFacility,
       },
-      { href: "/animals/managed", labelKey: "managedAnimals" },
+      {
+        href: "/animals/managed",
+        labelKey: "managedAnimals",
+        show: (roles) => !isAnimalOpsStaff(roles),
+      },
+      {
+        href: "/animals/managed",
+        labelKey: "animalList",
+        show: isAnimalOpsStaff,
+      },
       // { href: "/animals/cages", labelKey: "myCages" }, // temporarily hidden
-      { href: "/animals/applications", labelKey: "applications" },
+      {
+        href: "/animals/applications",
+        labelKey: "applications",
+        show: (roles) => !isAnimalOpsStaff(roles),
+      },
       { href: "/animals/vet-care", labelKey: "vetCare" },
     ],
   },
