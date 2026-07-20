@@ -187,7 +187,7 @@ const en = {
     importCsv: "Import CSV",
     importTitle: "Bulk import instruments",
     importHint:
-      "Paste CSV with a header row. Columns: name,nameEn,model,location,status,contactPhone,trainingRequired,minBookingHours,maxBookingHours,maintenanceUntil,approvalName,approvalPhone,trainingName,trainingPhone,operationsName,operationsPhone,repairName,repairPhone",
+      "Paste CSV with a header row. Columns: name,nameEn,model,location,status,contactPhone,trainingRequired,minBookingHours,maxBookingHours,maintenanceUntil,approvalName,approvalPhone,trainingName,trainingPhone,operationsName,operationsPhone,repairName,repairPhone. Students and managers can both import. See docs/import-templates/.",
     importPlaceholder: "Paste CSV here…",
     importSuccess: "Imported {n} instruments",
     importFail: "Import failed",
@@ -406,11 +406,14 @@ const en = {
       applyError: "Request failed, please retry",
       claimTitle: "Claim mice",
       claimSubtitle: "Claimable mice only · blank mice cannot be claimed",
-      claimHint: "Select mice and submit a custody request. After approval they appear under your name.",
+      claimHint:
+        "Select mice and submit a custody request. After approval they appear under your name. You can also batch-upload your mouse list via CSV.",
       claimSelected: "Claim selected",
       blankNotClaimable: "Blank mice cannot be claimed",
       alreadyClaimed: "This mouse is already claimed by someone else",
       claimPendingError: "A claim for this mouse is already pending",
+      uploadHintStudent:
+        "Paste CSV with a header row. Non-blank mice with claimant 未分配/Unassigned are auto-assigned to you. Implant / collection / last collection times are optional. See docs/import-templates/.",
       generationLabel: "Generation",
       weaningLabel: "Weaning Status",
       genotypeStatusLabel: "Genotype Status",
@@ -564,9 +567,10 @@ const en = {
       dayLogCage: "Cage",
       dayLogClose: "Close",
       batchUpload: "Batch upload",
-      uploadHint: "Paste CSV with a header row. Use 未分配 / Unassigned for empty cage/claimant/tech.",
+      uploadHint:
+        "Paste CSV with a header row. Use 未分配 / Unassigned for empty cage/claimant/tech. Implant / collection / last collection times are optional.",
       uploadTemplate:
-        "id,gender,strain,purpose,cage,claimant,technician,birthDate\nA-2026-09001,male,C57BL/6J,signal,A01,Wang,Li,2026-04-01",
+        "id,gender,strain,purpose,cage,claimant,technician,birthDate,implantAt,collectionAt,lastCollectionAt\nA-2026-09001,male,C57BL/6J,signal,A01,Wang,Li,2026-04-01,2026-05-10,2026-06-01,2026-06-15\nA-2026-09002,female,C57BL/6J,blank,A02,未分配,未分配,2026-04-02,,,",
       uploadPlaceholder: "Paste CSV here…",
       uploadSubmit: "Upload",
       uploadOk: "Uploaded {n} mice",

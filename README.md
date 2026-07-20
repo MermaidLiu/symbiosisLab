@@ -2,7 +2,8 @@
 
 实验室资源管理平台 — 仪器预约 & 小动物管理
 
-> **产品使用手册（按角色操作指南）**：[docs/产品使用手册.md](./docs/产品使用手册.md)
+> **产品使用手册（按角色操作指南）**：[docs/产品使用手册.md](./docs/产品使用手册.md)  
+> **数据导入模板（小鼠 / 仪器 CSV）**：[docs/import-templates/](./docs/import-templates/)
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev/)

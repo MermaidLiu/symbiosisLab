@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser, jsonError, jsonOk, requireRole } from "@/server/auth";
+import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { mutateStore, uid } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { buildInstrumentFromRow } from "@/server/instrument-import";
@@ -47,10 +47,10 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
+/** Any logged-in user may import instruments (students included). */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!requireRole(user, "instrument_manager")) return jsonError("forbidden", 403);
 
   const body = await req.json().catch(() => ({}));
   const csv = String(body.csv ?? "");

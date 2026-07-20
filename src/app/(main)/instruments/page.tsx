@@ -42,14 +42,16 @@ export default function InstrumentsPage() {
       <PageHeader
         title={t.instruments.title}
         action={
-          canManage ? (
+          user ? (
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 {t.instruments.importCsv}
               </Button>
-              <Button variant="secondary" onClick={() => setAddOpen(true)}>
-                {t.instruments.add}
-              </Button>
+              {canManage && (
+                <Button variant="secondary" onClick={() => setAddOpen(true)}>
+                  {t.instruments.add}
+                </Button>
+              )}
             </div>
           ) : undefined
         }

@@ -109,6 +109,7 @@ export function ManagedAnimals({
 } = {}) {
   const { t } = useLocale();
   const m = t.animalMgmt.managed;
+  const f = t.animalMgmt.facilityBoard;
   const { user } = useAuth();
   const canExport = user ? canManageAnimals(user.roles) : false;
   const canEditAnimals = canExport;
@@ -168,6 +169,10 @@ export function ManagedAnimals({
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [batchMenuPos, setBatchMenuPos] = useState({ top: 0, left: 0 });
   const batchBtnRef = useRef<HTMLButtonElement>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [csvText, setCsvText] = useState<string>(f.uploadTemplate);
+  const [uploadMsg, setUploadMsg] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -374,6 +379,29 @@ export function ManagedAnimals({
       else showToast(m.applyError);
     } finally {
       setApplying(false);
+    }
+  }
+
+  async function submitBatchUpload() {
+    if (!csvText.trim()) return;
+    setUploading(true);
+    setUploadMsg("");
+    try {
+      const res = await api.batchUploadManagedAnimals({ csv: csvText });
+      setCachePartial({ managedAnimals: res.managedAnimals });
+      setAnimals(scopeList(res.managedAnimals));
+      const ok = f.uploadOk.replace("{n}", String(res.created));
+      const errPart =
+        res.errors?.length > 0 ? ` · ${res.errors.slice(0, 3).join("; ")}` : "";
+      setUploadMsg(`${ok}${errPart}`);
+      showToast(ok);
+      if (res.created > 0) {
+        setTimeout(() => setUploadOpen(false), 800);
+      }
+    } catch {
+      setUploadMsg(f.uploadFail);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -851,11 +879,16 @@ export function ManagedAnimals({
           title={isClaimCatalog ? m.claimTitle : m.title}
           subtitle={isClaimCatalog ? m.claimSubtitle : undefined}
           action={
-            canEditAnimals ? (
-              <FluentButton size="sm" onClick={openAddModal}>
-                + {m.addAnimal}
+            <div className="flex flex-wrap gap-2">
+              <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+                {f.batchUpload}
               </FluentButton>
-            ) : undefined
+              {canEditAnimals && (
+                <FluentButton size="sm" onClick={openAddModal}>
+                  + {m.addAnimal}
+                </FluentButton>
+              )}
+            </div>
           }
         />
       )}
@@ -987,18 +1020,26 @@ export function ManagedAnimals({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {isClaimCatalog ? (
-                <FluentButton
-                  size="sm"
-                  disabled={applying || selected.size === 0}
-                  onClick={handleBatchApply}
-                >
-                  {m.claimSelected}
-                  {selected.size > 0 ? ` (${selected.size})` : ""}
-                </FluentButton>
+                <>
+                  <FluentButton
+                    size="sm"
+                    disabled={applying || selected.size === 0}
+                    onClick={handleBatchApply}
+                  >
+                    {m.claimSelected}
+                    {selected.size > 0 ? ` (${selected.size})` : ""}
+                  </FluentButton>
+                  <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+                    {f.batchUpload}
+                  </FluentButton>
+                </>
               ) : (
                 <>
                   <FluentButton variant="secondary" size="sm" onClick={openVetModal}>
                     {m.vetCare}
+                  </FluentButton>
+                  <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+                    {f.batchUpload}
                   </FluentButton>
                   <div className="relative">
                     <FluentButton
@@ -1565,6 +1606,40 @@ export function ManagedAnimals({
             ))}
           </FluentSelect>
         </div>
+      </FluentModal>
+
+      <FluentModal
+        open={uploadOpen}
+        title={f.batchUpload}
+        size="lg"
+        onClose={() => setUploadOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton variant="outline" onClick={() => setUploadOpen(false)}>
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton
+              disabled={uploading || !csvText.trim()}
+              onClick={() => void submitBatchUpload()}
+            >
+              {f.uploadSubmit}
+            </FluentButton>
+          </div>
+        }
+      >
+        <p className="mb-2 text-xs text-lab-muted">
+          {isClaimCatalog ? m.uploadHintStudent : f.uploadHint}
+        </p>
+        <pre className="mb-3 overflow-x-auto rounded-lg bg-white/50 p-2 text-[10px] text-lab-muted">
+          {f.uploadTemplate}
+        </pre>
+        <textarea
+          className="fluent-input min-h-[160px] w-full rounded-lg px-3 py-2 font-mono text-xs shadow-sm"
+          value={csvText}
+          onChange={(e) => setCsvText(e.target.value)}
+          placeholder={f.uploadPlaceholder}
+        />
+        {uploadMsg && <p className="mt-2 text-xs text-thu">{uploadMsg}</p>}
       </FluentModal>
     </div>
   );

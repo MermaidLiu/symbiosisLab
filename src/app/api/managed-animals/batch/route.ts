@@ -13,13 +13,12 @@ import { buildFacilityCageCells } from "@/lib/animals/facility-board";
 /**
  * POST /api/managed-animals/batch
  * body: { rows: Array<partial animal fields> } or { csv: string }
+ * Any logged-in user may upload; non-staff auto-claim unassigned non-blank mice.
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!canSuperviseAnimalFacility(user.roles) && !canManageAnimals(user.roles)) {
-    return jsonError("forbidden", 403);
-  }
+  const isStaff = canSuperviseAnimalFacility(user.roles) || canManageAnimals(user.roles);
 
   const body = await req.json().catch(() => ({}));
   let rows: Record<string, string>[] = [];
@@ -78,7 +77,11 @@ export async function POST(req: NextRequest) {
       const claimantKey = String(row.claimant ?? row.申领人 ?? "").trim();
       let claimantUserId: string | undefined;
       let claimantName: string | undefined;
-      if (claimantKey && claimantKey !== "未分配") {
+      const claimantEmpty =
+        !claimantKey ||
+        claimantKey === "未分配" ||
+        claimantKey.toLowerCase() === "unassigned";
+      if (!claimantEmpty) {
         const u =
           s.users.find((x) => x.name === claimantKey) ||
           s.users.find((x) => x.email === claimantKey) ||
@@ -89,12 +92,19 @@ export async function POST(req: NextRequest) {
         } else {
           claimantName = claimantKey;
         }
+      } else if (!isStaff && purpose !== "blank") {
+        claimantUserId = user.id;
+        claimantName = user.name;
       }
 
       const techKey = String(row.technician ?? row.技术员 ?? "").trim();
       let technicianUserId: string | undefined;
       let technicianName: string | undefined;
-      if (techKey && techKey !== "未分配") {
+      if (
+        techKey &&
+        techKey !== "未分配" &&
+        techKey.toLowerCase() !== "unassigned"
+      ) {
         const u =
           s.users.find((x) => x.name === techKey) ||
           s.users.find((x) => x.email === techKey) ||
@@ -108,6 +118,22 @@ export async function POST(req: NextRequest) {
       }
 
       const birthDate = String(row.birthDate ?? row.出生日期 ?? now.slice(0, 10)).trim();
+      const implantAt = parseOptionalTime(
+        row.implantAt ?? row.植入时间 ?? row.植入日期
+      );
+      const collectionAt = parseOptionalTime(
+        row.collectionAt ?? row.采集时间 ?? row.采集日期
+      );
+      const lastCollectionAt = parseOptionalTime(
+        row.lastCollectionAt ?? row.上次采集时间 ?? row.上次采集日期 ?? row.lastCollection
+      );
+      const cageEntryAt =
+        parseOptionalTime(row.cageEntryAt ?? row.进笼时间 ?? row.进笼日期) || now;
+
+      let lifecycleStatus: ManagedAnimal["lifecycleStatus"] = "entered";
+      if (collectionAt || lastCollectionAt) lifecycleStatus = "signal_recording";
+      else if (implantAt) lifecycleStatus = "electrode_implant";
+
       const animal: ManagedAnimal = {
         id,
         gender,
@@ -130,12 +156,15 @@ export async function POST(req: NextRequest) {
         weaningStatus: "weaned",
         genotypeStatus: "identified",
         purpose,
-        lifecycleStatus: "entered",
+        lifecycleStatus,
         claimantUserId,
         claimantName,
         technicianUserId,
         technicianName,
-        cageEntryAt: String(row.cageEntryAt ?? row.进笼时间 ?? "").trim() || now,
+        cageEntryAt,
+        implantAt,
+        collectionAt,
+        lastCollectionAt,
       };
       created.push(animal);
     }
@@ -216,4 +245,23 @@ function splitCsvLine(line: string): string[] {
   }
   out.push(cur);
   return out;
+}
+
+/** Accept ISO, YYYY-MM-DD, or YYYY-MM-DD HH:mm — empty → undefined */
+function parseOptionalTime(raw: unknown): string | undefined {
+  const s = String(raw ?? "").trim();
+  if (!s) return undefined;
+  // date only → start of day UTC-ish ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return `${s}T00:00:00.000Z`;
+  }
+  // datetime without T
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}/.test(s)) {
+    const normalized = s.replace(" ", "T");
+    const d = new Date(normalized.length === 16 ? `${normalized}:00` : normalized);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+  return undefined;
 }
