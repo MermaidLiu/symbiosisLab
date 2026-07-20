@@ -7,12 +7,19 @@ import { useEffect, useState } from "react";
 import { NAV_ENTRIES, NavIcon } from "@/lib/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLocale } from "@/components/providers/LocaleProvider";
+import { FluentModal } from "@/components/fluent/FluentModal";
+import { FluentButton } from "@/components/fluent/FluentButton";
+import { displayName } from "@/lib/users";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, updateNickname } = useAuth();
   const { t } = useLocale();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [nickOpen, setNickOpen] = useState(false);
+  const [nickDraft, setNickDraft] = useState("");
+  const [nickMsg, setNickMsg] = useState("");
+  const [nickSaving, setNickSaving] = useState(false);
 
   useEffect(() => {
     setOpenGroups((prev) => {
@@ -29,9 +36,33 @@ export function Sidebar() {
   if (!user) return null;
 
   const visibleNav = NAV_ENTRIES.filter((item) => item.show(user.roles));
+  const shown = displayName(user);
 
   function toggleGroup(key: string) {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function openNickname() {
+    setNickDraft(user?.nickname ?? "");
+    setNickMsg("");
+    setNickOpen(true);
+  }
+
+  async function saveNickname() {
+    setNickSaving(true);
+    setNickMsg("");
+    const res = await updateNickname(nickDraft.trim());
+    setNickSaving(false);
+    if (!res.ok) {
+      setNickMsg(t.profile.saveFail);
+      return;
+    }
+    if (res.warning === "nickname_taken") {
+      setNickMsg(t.profile.nicknameTakenSoft);
+    } else {
+      setNickMsg(t.profile.saveOk);
+      setTimeout(() => setNickOpen(false), 600);
+    }
   }
 
   return (
@@ -46,8 +77,18 @@ export function Sidebar() {
       </div>
 
       <div className="border-b border-white/25 px-4 py-3">
-        <p className="text-sm font-medium text-thu">{user.name}</p>
+        <p className="text-sm font-medium text-thu">{shown}</p>
+        {user.nickname ? (
+          <p className="text-[10px] text-lab-muted">{user.name}</p>
+        ) : null}
         <p className="text-[10px] text-lab-muted">{user.email}</p>
+        <button
+          type="button"
+          onClick={openNickname}
+          className="mt-1.5 text-[10px] text-thu/80 underline-offset-2 hover:underline"
+        >
+          {t.profile.editNickname}
+        </button>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
@@ -125,6 +166,36 @@ export function Sidebar() {
           {t.nav.logout}
         </button>
       </div>
+
+      <FluentModal
+        open={nickOpen}
+        title={t.profile.nicknameTitle}
+        onClose={() => setNickOpen(false)}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton variant="outline" onClick={() => setNickOpen(false)}>
+              {t.common.cancel}
+            </FluentButton>
+            <FluentButton disabled={nickSaving} onClick={() => void saveNickname()}>
+              {t.common.save}
+            </FluentButton>
+          </div>
+        }
+      >
+        <p className="mb-3 text-xs text-lab-muted">{t.profile.nicknameHint}</p>
+        <label className="mb-1 block text-xs text-lab-muted">{t.profile.nickname}</label>
+        <input
+          className="fluent-input w-full rounded-lg px-3 py-2 text-sm shadow-sm"
+          value={nickDraft}
+          maxLength={32}
+          onChange={(e) => setNickDraft(e.target.value)}
+          placeholder={t.profile.nicknamePlaceholder}
+        />
+        <p className="mt-2 text-[10px] text-lab-muted">
+          {t.profile.realName}: {user.name}
+        </p>
+        {nickMsg && <p className="mt-2 text-xs text-thu">{nickMsg}</p>}
+      </FluentModal>
     </aside>
   );
 }

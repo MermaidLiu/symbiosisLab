@@ -11,6 +11,7 @@ import {
 } from "@/server/auth";
 import { publicUser, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
+import { displayName, normalizeNickname } from "@/lib/users";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -63,6 +64,59 @@ export async function POST(req: NextRequest) {
     const res = jsonOk({ ok: true });
     clearSessionCookie(res);
     return res;
+  }
+
+  if (action === "update_profile") {
+    const user = await getCurrentUser();
+    if (!user) return jsonError("unauthorized", 401);
+
+    const nickname = normalizeNickname(body.nickname);
+    let warning: string | undefined;
+    let updated = user;
+
+    await mutateStore((s) => {
+      const me = s.users.find((u) => u.id === user.id);
+      if (!me) return;
+
+      if (nickname) {
+        const taken = s.users.some(
+          (u) =>
+            u.id !== me.id &&
+            u.nickname?.trim().toLowerCase() === nickname.toLowerCase()
+        );
+        if (taken) warning = "nickname_taken";
+      }
+
+      me.nickname = nickname;
+      const label = displayName(me);
+
+      // Ownership stays on userId; only refresh display labels
+      for (const a of s.managedAnimals) {
+        if (a.claimantUserId === me.id) a.claimantName = label;
+        if (a.technicianUserId === me.id) a.technicianName = label;
+      }
+      for (const app of s.applications) {
+        if (
+          app.applicantUserId === me.id &&
+          (app.status === "pending_receipt" || app.status === "received")
+        ) {
+          app.applicant = label;
+        }
+      }
+
+      updated = me;
+    });
+
+    await appendAuditLog({
+      userId: user.id,
+      userName: user.name,
+      action: "update_nickname",
+      entityType: "user",
+      entityId: user.id,
+      details: nickname ? `设置花名: ${nickname}` : "清除花名",
+    });
+
+    return jsonOk({ user: publicUser(updated), warning });
   }
 
   return jsonError("unknown_action", 400);

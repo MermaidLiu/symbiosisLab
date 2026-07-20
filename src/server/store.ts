@@ -251,6 +251,11 @@ function readFromDisk(): DbStore {
       "zhao@lab.edu.cn",
       "vet@lab.edu.cn",
       "facility@lab.edu.cn",
+      "student1@lab.edu.cn",
+      "student2@lab.edu.cn",
+      "student3@lab.edu.cn",
+      "student4@lab.edu.cn",
+      "student5@lab.edu.cn",
     ]) {
       if (!parsed.users.some((u) => u.email === email)) {
         const seed = SEED_USERS.find((u) => u.email === email);

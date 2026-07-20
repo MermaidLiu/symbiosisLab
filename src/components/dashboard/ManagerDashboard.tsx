@@ -13,6 +13,7 @@ import {
   pendingBookingsForManager,
 } from "@/lib/dashboard";
 import { canManageAnimals, canManageInstruments } from "@/lib/roles";
+import { displayName } from "@/lib/users";
 
 interface ManagerDashboardProps {
   view: Exclude<
@@ -95,7 +96,7 @@ export function ManagerDashboard({ view }: ManagerDashboardProps) {
     <div className="flex-1 overflow-y-auto p-4 md:p-6">
       <GlassPanel className="mb-6 bg-gradient-to-r from-thu/10 via-white/50 to-indigo-100/40">
         <p className="text-sm text-lab-muted">{d.welcome}</p>
-        <h2 className="mt-1 text-2xl font-bold text-thu">{user.name}</h2>
+        <h2 className="mt-1 text-2xl font-bold text-thu">{displayName(user)}</h2>
         <p className="mt-2 text-sm text-lab-text">
           {isAdmin ? d.adminHint : isInst ? d.instrumentMgrHint : d.animalMgrHint}
         </p>

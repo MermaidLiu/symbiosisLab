@@ -41,7 +41,8 @@
 | `instrument@lab.edu.cn` | `demo123` | 仪器负责人 |
 | `animal@lab.edu.cn` | `demo123` | 区域负责人 |
 | `ra@lab.edu.cn` | `demo123` | 科研助理 |
-| `student@lab.edu.cn` | `demo123` | 普通用户 |
+| `student@lab.edu.cn` | `demo123` | 普通用户（王同学） |
+| `student1@lab.edu.cn` … `student5@lab.edu.cn` | `demo123` | 学生演示账号 ×5（同学一～五） |
 
 ## 快速开始
 

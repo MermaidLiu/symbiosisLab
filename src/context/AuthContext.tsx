@@ -12,6 +12,7 @@ interface AuthContextValue {
   register: (data: RegisterData) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUserRoles: (userId: string, roles: Role[]) => Promise<void>;
+  updateNickname: (nickname: string) => Promise<{ ok: boolean; warning?: string; error?: string }>;
   refreshUser: () => Promise<void>;
 }
 
@@ -106,8 +107,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [user]
   );
 
+  const updateNickname = useCallback(async (nickname: string) => {
+    try {
+      const { user: next, warning } = await api.updateProfile({ nickname });
+      setUser(next);
+      await hydrateFromApi();
+      return { ok: true as const, warning };
+    } catch (e) {
+      const code = (e as { code?: string }).code ?? "update_failed";
+      return { ok: false as const, error: code };
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUserRoles, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        updateUserRoles,
+        updateNickname,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

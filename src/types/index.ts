@@ -15,6 +15,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  /** Optional self-set alias shown in lists; real name stays for admin records */
+  nickname?: string;
   password: string;
   roles: Role[];
   phone?: string;

@@ -51,6 +51,18 @@ const zh = {
     adminUsers: "用户管理",
     logout: "退出登录",
   },
+  profile: {
+    editNickname: "设置花名",
+    nicknameTitle: "我的花名",
+    nickname: "花名",
+    nicknameHint:
+      "花名会显示在侧栏和小鼠申领人中；改花名不会丢数据（所有权按账号绑定）。尽量与他人不重复，重复时会提示但仍可保存。",
+    nicknamePlaceholder: "例如：小明 / 阿花",
+    realName: "真实姓名",
+    nicknameTakenSoft: "已保存。提示：有人和你用了相同花名，建议换一个更好区分。",
+    saveOk: "花名已保存",
+    saveFail: "保存失败，请重试",
+  },
   auth: {
     login: "登录",
     register: "注册",
@@ -410,7 +422,7 @@ const zh = {
       alreadyClaimed: "该小鼠已被他人申领",
       claimPendingError: "该小鼠已有待审申领",
       uploadHintStudent:
-        "粘贴 CSV（首行为表头）。非空白鼠且申领人写「未分配」时，将自动归到你的名下。植入/采集/上次采集时间可选。模板见仓库 docs/import-templates/。",
+        "粘贴 CSV（首行为表头）。非空白鼠且申领人写「未分配」时，将自动归到你的名下。申领人可填花名/姓名/邮箱。植入/采集/上次采集时间可选。模板见仓库 docs/import-templates/。",
       generationLabel: "代数",
       weaningLabel: "离乳状态",
       genotypeStatusLabel: "基因型状态",

@@ -6,6 +6,7 @@ import { canManageAnimals, canProcessVeterinary } from "@/lib/roles";
 import { ApplicationType, OperationApplication } from "@/types/animal-management";
 import { approverRecipientIds, pushNotificationToUsers } from "@/server/notify";
 import { normalizePurpose } from "@/lib/animals/facility-board";
+import { displayName } from "@/lib/users";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
   const item: OperationApplication = {
     id: `APP-${new Date().getFullYear()}-${uid("app").slice(-4)}`,
     applicationTime: new Date().toISOString(),
-    applicant: user.name,
+    applicant: displayName(user),
     applicantUserId: user.id,
     pi: String(body.pi ?? "—"),
     type,

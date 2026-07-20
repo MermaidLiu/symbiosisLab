@@ -52,6 +52,18 @@ const en = {
     adminUsers: "User Management",
     logout: "Log out",
   },
+  profile: {
+    editNickname: "Set nickname",
+    nicknameTitle: "My nickname",
+    nickname: "Nickname",
+    nicknameHint:
+      "Shown in the sidebar and as mouse claimant. Changing it never drops your data (ownership is by account). Prefer unique; duplicates are allowed with a tip.",
+    nicknamePlaceholder: "e.g. XiaoMing",
+    realName: "Legal name",
+    nicknameTakenSoft: "Saved. Tip: someone else uses the same nickname — consider another for clarity.",
+    saveOk: "Nickname saved",
+    saveFail: "Could not save, please retry",
+  },
   auth: {
     login: "Log in",
     register: "Register",
@@ -413,7 +425,7 @@ const en = {
       alreadyClaimed: "This mouse is already claimed by someone else",
       claimPendingError: "A claim for this mouse is already pending",
       uploadHintStudent:
-        "Paste CSV with a header row. Non-blank mice with claimant 未分配/Unassigned are auto-assigned to you. Implant / collection / last collection times are optional. See docs/import-templates/.",
+        "Paste CSV with a header row. Non-blank mice with claimant 未分配/Unassigned are auto-assigned to you. Claimant may be nickname, name, or email. Implant / collection / last collection times are optional. See docs/import-templates/.",
       generationLabel: "Generation",
       weaningLabel: "Weaning Status",
       genotypeStatusLabel: "Genotype Status",

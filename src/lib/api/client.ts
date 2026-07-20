@@ -77,6 +77,12 @@ export const api = {
       body: JSON.stringify({ action: "logout" }),
     }),
 
+  updateProfile: (data: { nickname?: string }) =>
+    request<{ user: PublicUser; warning?: string }>("/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ action: "update_profile", ...data }),
+    }),
+
   users: () => request<{ users: PublicUser[] }>("/api/users"),
 
   updateUserRoles: (userId: string, roles: Role[]) =>

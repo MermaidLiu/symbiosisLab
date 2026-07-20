@@ -174,6 +174,11 @@ export default function AdminUsersPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="font-semibold text-thu">{u.name}</p>
+                {u.nickname ? (
+                  <p className="text-xs text-lab-muted">
+                    {t.profile.nickname}: {u.nickname}
+                  </p>
+                ) : null}
                 <p className="text-xs text-lab-muted">{u.email}</p>
                 <p className="text-xs text-lab-muted">{u.department}</p>
               </div>

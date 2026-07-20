@@ -17,6 +17,7 @@ import {
   PURPOSE_LIFECYCLE,
 } from "@/types/animal-management";
 import { buildFacilityCageCells } from "@/lib/animals/facility-board";
+import { displayName, findUserByKey } from "@/lib/users";
 
 function canEdit(user: { roles: import("@/types").Role[] }) {
   return hasRole(user.roles, "super_admin") || canManageAnimals(user.roles);
@@ -127,7 +128,7 @@ export async function PATCH(
       } else {
         const u = s.users.find((x) => x.id === cid);
         next.claimantUserId = cid;
-        next.claimantName = u?.name ?? String(body.claimantName ?? cid);
+        next.claimantName = u ? displayName(u) : String(body.claimantName ?? cid);
       }
     } else if (body.claimantName !== undefined) {
       const name = String(body.claimantName || "").trim();
@@ -135,7 +136,13 @@ export async function PATCH(
         next.claimantUserId = undefined;
         next.claimantName = undefined;
       } else {
-        next.claimantName = name;
+        const u = findUserByKey(s.users, name);
+        if (u) {
+          next.claimantUserId = u.id;
+          next.claimantName = displayName(u);
+        } else {
+          next.claimantName = name;
+        }
       }
     }
 
@@ -148,7 +155,7 @@ export async function PATCH(
       } else {
         const u = s.users.find((x) => x.id === tid);
         next.technicianUserId = tid;
-        next.technicianName = u?.name ?? String(body.technicianName ?? tid);
+        next.technicianName = u ? displayName(u) : String(body.technicianName ?? tid);
       }
     } else if (body.technicianName !== undefined) {
       const name = String(body.technicianName || "").trim();
@@ -156,7 +163,13 @@ export async function PATCH(
         next.technicianUserId = undefined;
         next.technicianName = undefined;
       } else {
-        next.technicianName = name;
+        const u = findUserByKey(s.users, name);
+        if (u) {
+          next.technicianUserId = u.id;
+          next.technicianName = displayName(u);
+        } else {
+          next.technicianName = name;
+        }
       }
     }
 

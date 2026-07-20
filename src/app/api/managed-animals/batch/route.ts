@@ -9,6 +9,7 @@ import {
   ManagedAnimal,
 } from "@/types/animal-management";
 import { buildFacilityCageCells } from "@/lib/animals/facility-board";
+import { displayName, findUserByKey } from "@/lib/users";
 
 /**
  * POST /api/managed-animals/batch
@@ -82,19 +83,16 @@ export async function POST(req: NextRequest) {
         claimantKey === "未分配" ||
         claimantKey.toLowerCase() === "unassigned";
       if (!claimantEmpty) {
-        const u =
-          s.users.find((x) => x.name === claimantKey) ||
-          s.users.find((x) => x.email === claimantKey) ||
-          s.users.find((x) => x.id === claimantKey);
+        const u = findUserByKey(s.users, claimantKey);
         if (u) {
           claimantUserId = u.id;
-          claimantName = u.name;
+          claimantName = displayName(u);
         } else {
           claimantName = claimantKey;
         }
       } else if (!isStaff && purpose !== "blank") {
         claimantUserId = user.id;
-        claimantName = user.name;
+        claimantName = displayName(user);
       }
 
       const techKey = String(row.technician ?? row.技术员 ?? "").trim();
@@ -105,13 +103,10 @@ export async function POST(req: NextRequest) {
         techKey !== "未分配" &&
         techKey.toLowerCase() !== "unassigned"
       ) {
-        const u =
-          s.users.find((x) => x.name === techKey) ||
-          s.users.find((x) => x.email === techKey) ||
-          s.users.find((x) => x.id === techKey);
+        const u = findUserByKey(s.users, techKey);
         if (u) {
           technicianUserId = u.id;
-          technicianName = u.name;
+          technicianName = displayName(u);
         } else {
           technicianName = techKey;
         }
