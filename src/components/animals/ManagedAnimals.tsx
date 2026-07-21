@@ -21,7 +21,7 @@ import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
 import { formatTrackingDays, trackingDays, trackingStageFromDays, normalizePurpose } from "@/lib/animals/facility-board";
-import { JELLY_SWATCH, JELLY_TIP_CLASS, resolveStatusColor } from "@/lib/animals/status-tip";
+import { JELLY_SWATCH, JELLY_TIP_STYLE, resolveStatusColor } from "@/lib/animals/status-tip";
 import {
   ManagedAnimal,
   AnimalFilterState,
@@ -206,6 +206,10 @@ export function ManagedAnimals({
   const [statusEditText, setStatusEditText] = useState("");
   const [statusEditColor, setStatusEditColor] = useState<StatusJellyColor>("sky");
   const [statusSaving, setStatusSaving] = useState(false);
+  const statusEditTextRef = useRef(statusEditText);
+  const statusEditColorRef = useRef(statusEditColor);
+  statusEditTextRef.current = statusEditText;
+  statusEditColorRef.current = statusEditColor;
 
   useEffect(() => {
     if (isOpsStaff) {
@@ -986,9 +990,9 @@ export function ManagedAnimals({
     return m.recordingStatus[rs] ?? rs;
   }
 
-  function recordingTipClass(row: ManagedAnimal) {
+  function recordingTipStyle(row: ManagedAnimal) {
     const color = resolveStatusColor(row.statusColor, row.recordingStatus);
-    return JELLY_TIP_CLASS[color];
+    return JELLY_TIP_STYLE[color];
   }
 
   function stageForRow(row: ManagedAnimal) {
@@ -1012,11 +1016,13 @@ export function ManagedAnimals({
 
   async function saveStatusEdit() {
     if (!statusEditId) return;
+    const label = statusEditTextRef.current.trim();
+    const color = statusEditColorRef.current;
     setStatusSaving(true);
     try {
       const { managedAnimals } = await api.updateManagedAnimal(statusEditId, {
-        statusLabel: statusEditText.trim() || undefined,
-        statusColor: statusEditColor,
+        statusLabel: label || undefined,
+        statusColor: color,
       });
       setCachePartial({ managedAnimals });
       setAnimals(scopeList(managedAnimals));
@@ -1029,7 +1035,8 @@ export function ManagedAnimals({
     }
   }
 
-  function RecordingStatusTip({ row }: { row: ManagedAnimal }) {
+  /** Render helper (not a nested component) so input does not remount on each keystroke */
+  function renderRecordingStatusTip(row: ManagedAnimal) {
     const editing = statusEditId === row.id;
     const label = recordingStatusLabel(row.recordingStatus, row.statusLabel);
     const editable = canEditStatusTip(row);
@@ -1039,6 +1046,7 @@ export function ManagedAnimals({
         <div
           className="min-w-[140px] rounded-lg border border-[#E0D4E8] bg-white p-2 shadow-sm"
           onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           <input
             autoFocus
@@ -1046,7 +1054,10 @@ export function ManagedAnimals({
             value={statusEditText}
             onChange={(e) => setStatusEditText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") void saveStatusEdit();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveStatusEdit();
+              }
               if (e.key === "Escape") setStatusEditId(null);
             }}
             placeholder={m.statusTipPlaceholder}
@@ -1063,7 +1074,11 @@ export function ManagedAnimals({
                   statusEditColor === c ? "ring-thu scale-110" : "ring-transparent"
                 )}
                 style={{ backgroundColor: JELLY_SWATCH[c] }}
-                onClick={() => setStatusEditColor(c)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStatusEditColor(c);
+                }}
               />
             ))}
           </div>
@@ -1087,12 +1102,16 @@ export function ManagedAnimals({
     return (
       <span
         className={clsx(
-          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-          recordingTipClass(row),
+          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
           editable && "cursor-pointer"
         )}
+        style={recordingTipStyle(row)}
         title={editable ? m.statusTipEditHint : undefined}
-        onDoubleClick={() => openStatusEdit(row)}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          openStatusEdit(row);
+        }}
       >
         {label}
       </span>
@@ -1524,7 +1543,7 @@ export function ManagedAnimals({
                             )}
                           >
                             {key === "recordingStatus" ? (
-                              <RecordingStatusTip row={row} />
+                              renderRecordingStatusTip(row)
                             ) : key === "status" ? (
                               <span
                                 className={clsx(
@@ -1601,7 +1620,7 @@ export function ManagedAnimals({
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
                     <span className="font-mono text-sm font-semibold text-thu">{row.id}</span>
                   </label>
-                  <RecordingStatusTip row={row} />
+                  {renderRecordingStatusTip(row)}
                 </div>
                 <dl className="flex-1 space-y-1 text-xs">
                   <div className="flex items-center gap-1.5">
@@ -1610,11 +1629,13 @@ export function ManagedAnimals({
                     </span>
                     <span>{row.claimantName?.trim() || "—"}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div>
                     <span className="text-lab-muted">
                       {isOpsStaff ? m.colStatusNow : m.colRecordingStatus}:{" "}
                     </span>
-                    <RecordingStatusTip row={row} />
+                    <span className="font-medium">
+                      {recordingStatusLabel(row.recordingStatus, row.statusLabel)}
+                    </span>
                   </div>
                   <div><span className="text-lab-muted">{m.colImplant}: </span>{formatDateOnly(row.implantAt)}</div>
                   <div>
@@ -1769,7 +1790,7 @@ export function ManagedAnimals({
               <div className="flex gap-2 border-b border-white/30 py-2 text-sm">
                 <dt className="w-28 shrink-0 text-lab-muted">{m.colRecordingStatus}</dt>
                 <dd>
-                  <RecordingStatusTip row={viewAnimal} />
+                  {renderRecordingStatusTip(viewAnimal)}
                 </dd>
               </div>
               <DetailRow label={m.colId} value={viewAnimal.id} />

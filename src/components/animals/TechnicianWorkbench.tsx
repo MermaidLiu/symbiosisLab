@@ -15,7 +15,7 @@ import { api } from "@/lib/api/client";
 import { AnimalOpTask, URGENCY_COLORS } from "@/types/animal-ops";
 import { ManagedAnimal } from "@/types/animal-management";
 import { trackingDays, trackingStageFromDays } from "@/lib/animals/facility-board";
-import { JELLY_TIP_CLASS, resolveStatusColor } from "@/lib/animals/status-tip";
+import { JELLY_TIP_STYLE, resolveStatusColor } from "@/lib/animals/status-tip";
 
 function buildMonthGrid(monthStart: Date): (string | null)[] {
   const year = monthStart.getFullYear();
@@ -268,12 +268,12 @@ export function TechnicianWorkbench() {
                             <td className="px-2 py-2 text-xs text-lab-text">{ownerName(row)}</td>
                             <td className="px-2 py-2">
                               <span
-                                className={clsx(
-                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                                  JELLY_TIP_CLASS[
+                                className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                style={
+                                  JELLY_TIP_STYLE[
                                     resolveStatusColor(row.statusColor, row.recordingStatus)
                                   ]
-                                )}
+                                }
                               >
                                 {recordingLabel(row)}
                               </span>
