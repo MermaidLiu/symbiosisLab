@@ -319,6 +319,62 @@ export const api = {
       tasks: import("@/types/animal-ops").AnimalOpTask[];
     }>("/api/animal-force-handle", { method: "POST", body: JSON.stringify(data) }),
 
+  instrumentTrainingRequests: (opts?: { mine?: boolean; instrumentId?: string }) => {
+    const q = new URLSearchParams();
+    if (opts?.mine) q.set("mine", "1");
+    if (opts?.instrumentId) q.set("instrumentId", opts.instrumentId);
+    const qs = q.toString();
+    return request<{ requests: import("@/types/instrument-ops").InstrumentTrainingRequest[] }>(
+      `/api/instrument-training-requests${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  createTrainingRequest: (data: { instrumentId: string; note?: string }) =>
+    request<{
+      request: import("@/types/instrument-ops").InstrumentTrainingRequest;
+      requests: import("@/types/instrument-ops").InstrumentTrainingRequest[];
+    }>("/api/instrument-training-requests", { method: "POST", body: JSON.stringify(data) }),
+
+  updateTrainingRequest: (data: {
+    id: string;
+    action: "approve" | "authorize" | "reject";
+    note?: string;
+  }) =>
+    request<{
+      request: import("@/types/instrument-ops").InstrumentTrainingRequest;
+      requests: import("@/types/instrument-ops").InstrumentTrainingRequest[];
+    }>("/api/instrument-training-requests", { method: "PATCH", body: JSON.stringify(data) }),
+
+  instrumentRepairs: (opts?: { mine?: boolean; instrumentId?: string; escalated?: boolean }) => {
+    const q = new URLSearchParams();
+    if (opts?.mine) q.set("mine", "1");
+    if (opts?.instrumentId) q.set("instrumentId", opts.instrumentId);
+    if (opts?.escalated) q.set("escalated", "1");
+    const qs = q.toString();
+    return request<{ tickets: import("@/types/instrument-ops").InstrumentRepairTicket[] }>(
+      `/api/instrument-repairs${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  createRepairTicket: (data: { instrumentId: string; description: string }) =>
+    request<{
+      ticket: import("@/types/instrument-ops").InstrumentRepairTicket;
+      tickets: import("@/types/instrument-ops").InstrumentRepairTicket[];
+      instruments: import("@/types").Instrument[];
+    }>("/api/instrument-repairs", { method: "POST", body: JSON.stringify(data) }),
+
+  updateRepairTicket: (data: {
+    id: string;
+    action: "acknowledge" | "escalate" | "resolve";
+    eta?: string;
+    note?: string;
+  }) =>
+    request<{
+      ticket: import("@/types/instrument-ops").InstrumentRepairTicket;
+      tickets: import("@/types/instrument-ops").InstrumentRepairTicket[];
+      instruments: import("@/types").Instrument[];
+    }>("/api/instrument-repairs", { method: "PATCH", body: JSON.stringify(data) }),
+
   cancelApplication: (id: string) =>
     request<{ applications: OperationApplication[] }>(`/api/applications?id=${encodeURIComponent(id)}`, {
       method: "DELETE",

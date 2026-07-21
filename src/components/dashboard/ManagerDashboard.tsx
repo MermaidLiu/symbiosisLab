@@ -12,7 +12,7 @@ import {
   filterDashboardLogs,
   pendingBookingsForManager,
 } from "@/lib/dashboard";
-import { canManageAnimals, canManageInstruments } from "@/lib/roles";
+import { canManageAnimals, canManageInstruments, canSuperviseInstruments } from "@/lib/roles";
 import { displayName } from "@/lib/users";
 
 interface ManagerDashboardProps {
@@ -36,12 +36,12 @@ export function ManagerDashboard({ view }: ManagerDashboardProps) {
 
   if (!user) return null;
 
-  const isAdmin = view === "admin";
+  const isAdmin = view === "admin" || canSuperviseInstruments(user.roles);
   const isInst = isAdmin || canManageInstruments(user.roles);
   const isAnimal = isAdmin || canManageAnimals(user.roles);
 
   const myInstruments = isInst
-    ? isAdmin
+    ? isAdmin || canSuperviseInstruments(user.roles)
       ? instruments
       : instruments.filter((i) => i.contactUserId === user.id)
     : [];

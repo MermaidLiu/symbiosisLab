@@ -9,6 +9,9 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { api } from "@/lib/api/client";
+import { canSuperviseInstruments } from "@/lib/roles";
+import { getUsers } from "@/lib/storage/db";
+import { displayName } from "@/lib/users";
 import {
   BOOKING_HOURS_CEILING,
   BOOKING_HOURS_FLOOR,
@@ -67,6 +70,9 @@ export function InstrumentFormModal({ open, onClose, instrument }: InstrumentFor
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [ownerUserId, setOwnerUserId] = useState("");
+  const canAssignOwner = user ? canSuperviseInstruments(user.roles) : false;
+  const users = getUsers();
 
   useEffect(() => {
     if (!open || !user) return;
@@ -94,6 +100,7 @@ export function InstrumentFormModal({ open, onClose, instrument }: InstrumentFor
           : defaultInstrumentContacts(user.name, instrument.contactPhone, user.id)
       );
       setAccessories(instrument.accessories ?? []);
+      setOwnerUserId(instrument.contactUserId || "");
     } else {
       setForm({
         name: "",
@@ -112,6 +119,7 @@ export function InstrumentFormModal({ open, onClose, instrument }: InstrumentFor
       });
       setContacts(defaultInstrumentContacts(user.name, user.phone ?? "", user.id));
       setAccessories([]);
+      setOwnerUserId(user.id);
     }
     setAccDraft({ name: "", nameEn: "", quantity: 1 });
     setImageFile(null);
@@ -143,12 +151,23 @@ export function InstrumentFormModal({ open, onClose, instrument }: InstrumentFor
     setSaving(true);
     setError("");
     try {
-      const approval = contacts.find((c) => c.step === "approval");
+      const owner = users.find((u) => u.id === ownerUserId) ?? user;
+      const contactsWithOwner = contacts.map((c) =>
+        c.step === "approval" || c.step === "training" || c.step === "operations"
+          ? {
+              ...c,
+              userId: owner.id,
+              name: c.name && c.name !== "—" ? c.name : displayName(owner),
+              phone: c.phone || owner.phone || form.contactPhone,
+            }
+          : c
+      );
+      const approval = contactsWithOwner.find((c) => c.step === "approval");
       const payload = {
         ...form,
-        contactUserId: approval?.userId || user.id,
+        contactUserId: approval?.userId || owner.id,
         contactPhone: approval?.phone || form.contactPhone,
-        contacts,
+        contacts: contactsWithOwner,
         tags: instrument?.tags ?? [],
         specs: instrument?.specs ?? [],
         accessories,
@@ -203,6 +222,33 @@ export function InstrumentFormModal({ open, onClose, instrument }: InstrumentFor
       }
     >
       <form id="instrument-form" onSubmit={handleSubmit} className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+        {canAssignOwner && (
+          <Select
+            label={t.instruments.assignOwner}
+            value={ownerUserId}
+            onChange={(e) => {
+              const uid = e.target.value;
+              setOwnerUserId(uid);
+              const u = users.find((x) => x.id === uid);
+              if (!u) return;
+              setContacts((prev) =>
+                prev.map((c) =>
+                  c.step === "approval" || c.step === "training" || c.step === "operations"
+                    ? { ...c, userId: u.id, name: displayName(u), phone: u.phone || c.phone }
+                    : c
+                )
+              );
+              // Ensure assignee has instrument_manager role hint via name only; admin assigns role separately
+            }}
+          >
+            <option value="">{t.instruments.pickOwner}</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {displayName(u)} ({u.email})
+              </option>
+            ))}
+          </Select>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label={t.form.nameZh}

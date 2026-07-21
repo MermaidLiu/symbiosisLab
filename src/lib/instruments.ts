@@ -112,7 +112,9 @@ export function canBookInstrument(opts: {
   if (instrument.status === "retired") return { ok: false, reason: "retired" };
   if (instrument.status === "maintenance") return { ok: false, reason: "maintenance" };
   const bypass =
-    roles.includes("instrument_manager") || roles.includes("super_admin");
+    roles.includes("instrument_manager") ||
+    roles.includes("instrument_super_admin") ||
+    roles.includes("super_admin");
   if (
     instrument.trainingRequired &&
     !bypass &&
@@ -121,6 +123,28 @@ export function canBookInstrument(opts: {
     return { ok: false, reason: "training_required" };
   }
   return { ok: true };
+}
+
+/** Runtime display status: idle / in use / training / maintenance / retired */
+export function deriveInstrumentDisplayStatus(
+  instrument: Instrument,
+  bookings: { resourceType: string; resourceId: string; status: string; startTime: string; endTime: string }[],
+  pendingTrainingCount = 0
+): import("@/types/instrument-ops").InstrumentDisplayStatus {
+  if (instrument.status === "retired") return "retired";
+  if (instrument.status === "maintenance") return "maintenance";
+  const now = Date.now();
+  const inUse = bookings.some(
+    (b) =>
+      b.resourceType === "instrument" &&
+      b.resourceId === instrument.id &&
+      (b.status === "approved" || b.status === "pending") &&
+      new Date(b.startTime).getTime() <= now &&
+      new Date(b.endTime).getTime() > now
+  );
+  if (inUse) return "in_use";
+  if (pendingTrainingCount > 0) return "training";
+  return "idle";
 }
 
 export function durationHoursValid(

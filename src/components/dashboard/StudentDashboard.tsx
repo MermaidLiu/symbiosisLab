@@ -19,6 +19,11 @@ import {
   ManagedAnimal,
   OperationApplication,
 } from "@/types/animal-management";
+import {
+  deriveInstrumentDisplayStatus,
+  instrumentImageUrl,
+  normalizeInstrument,
+} from "@/lib/instruments";
 
 const RECORDING_STATUS_TIP: Record<
   NonNullable<ManagedAnimal["recordingStatus"]>,
@@ -106,6 +111,42 @@ export function StudentDashboard() {
         .sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [myBookings]
   );
+
+  const myManagedInstruments = useMemo(
+    () =>
+      instruments
+        .filter((i) => i.contactUserId === user?.id)
+        .map((i) => normalizeInstrument(i)),
+    [instruments, user?.id]
+  );
+
+  const [trainingPendingByInst, setTrainingPendingByInst] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!user || myManagedInstruments.length === 0) return;
+    (async () => {
+      try {
+        const { requests } = await api.instrumentTrainingRequests();
+        const counts: Record<string, number> = {};
+        for (const r of requests) {
+          if (r.status !== "pending" && r.status !== "approved") continue;
+          counts[r.instrumentId] = (counts[r.instrumentId] ?? 0) + 1;
+        }
+        setTrainingPendingByInst(counts);
+      } catch {
+        setTrainingPendingByInst({});
+      }
+    })();
+  }, [user, myManagedInstruments.length]);
+
+  function opsStatusLabel(code: string) {
+    if (code === "idle") return s.opsIdle;
+    if (code === "in_use") return s.opsInUse;
+    if (code === "training") return s.opsTraining;
+    if (code === "maintenance") return s.opsMaintenance;
+    if (code === "retired") return s.opsRetired;
+    return code;
+  }
 
   const bookedInstrumentCount = useMemo(() => {
     const ids = new Set(
@@ -233,7 +274,7 @@ export function StudentDashboard() {
               ))}
             </div>
 
-            {/* Collapsible booked instrument cards */}
+            {/* Collapsible: instruments I manage */}
             <GlassPanel>
               <button
                 type="button"
@@ -243,7 +284,7 @@ export function StudentDashboard() {
                 <div>
                   <h3 className="text-sm font-semibold text-thu">{s.myBookingsTitle}</h3>
                   <p className="mt-0.5 text-[11px] text-lab-muted">
-                    {s.bookingsCollapseHint.replace("{n}", String(activeBookings.length))}
+                    {s.bookingsCollapseHint.replace("{n}", String(myManagedInstruments.length))}
                   </p>
                 </div>
                 <span className="text-lab-muted">{bookingsOpen ? "▾" : "▸"}</span>
@@ -251,47 +292,55 @@ export function StudentDashboard() {
 
               {bookingsOpen && (
                 <div className="mt-3">
-                  {activeBookings.length === 0 ? (
-                    <p className="text-sm text-lab-muted">{d.noUpcoming}</p>
+                  {myManagedInstruments.length === 0 ? (
+                    <p className="text-sm text-lab-muted">{s.noManagedInstruments}</p>
                   ) : (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {activeBookings.map((b) => (
-                        <Link
-                          key={b.id}
-                          href={`/instruments/${encodeURIComponent(b.resourceId)}`}
-                          className="rounded-lg border border-[#E0D4E8] bg-white/60 p-3 transition hover:bg-white/90"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="truncate text-sm font-semibold text-thu">
-                              {resourceName(b)}
-                            </p>
-                            <StatusBadge status={b.status} label={t.status[b.status]} />
-                          </div>
-                          <p className="mt-2 text-[11px] text-lab-muted">
-                            {new Date(b.startTime).toLocaleString(localeStr, {
-                              month: "2-digit",
-                              day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}{" "}
-                            –{" "}
-                            {new Date(b.endTime).toLocaleString(localeStr, {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                          {b.purpose ? (
-                            <p className="mt-1 truncate text-[11px] text-lab-text">{b.purpose}</p>
-                          ) : null}
-                        </Link>
-                      ))}
+                      {myManagedInstruments.map((inst) => {
+                        const display = deriveInstrumentDisplayStatus(
+                          inst,
+                          bookings,
+                          trainingPendingByInst[inst.id] ?? 0
+                        );
+                        const img = instrumentImageUrl(inst.imageId);
+                        return (
+                          <Link
+                            key={inst.id}
+                            href={`/instruments/${encodeURIComponent(inst.id)}`}
+                            className="rounded-lg border border-[#E0D4E8] bg-white/60 p-3 transition hover:bg-white/90"
+                          >
+                            <div className="flex items-start gap-2">
+                              {img ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={img}
+                                  alt=""
+                                  className="h-12 w-12 shrink-0 rounded-md object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-[#F3EAF7] text-[10px] text-lab-muted">
+                                  —
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="truncate text-sm font-semibold text-thu">
+                                    {isZh ? inst.name : inst.nameEn}
+                                  </p>
+                                  <span className="shrink-0 rounded-full bg-thu/10 px-2 py-0.5 text-[10px] font-medium text-thu">
+                                    {opsStatusLabel(display)}
+                                  </span>
+                                </div>
+                                <p className="mt-1 truncate text-[11px] text-lab-muted">
+                                  {inst.model} · {inst.location}
+                                </p>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
                     </div>
                   )}
-                  <div className="mt-3 text-right">
-                    <Link href="/bookings" className="text-xs text-thu hover:underline">
-                      {d.viewAllBookings}
-                    </Link>
-                  </div>
                 </div>
               )}
             </GlassPanel>
@@ -476,7 +525,7 @@ export function StudentDashboard() {
               href="/bookings"
               className="block rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
             >
-              <p className="text-sm font-semibold text-thu">{d.viewAllBookings}</p>
+              <p className="text-sm font-semibold text-thu">{s.myBookingsLink}</p>
               <p className="mt-1 text-xs text-lab-muted">{s.viewBookingsDesc}</p>
             </Link>
           </div>

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser, jsonError, jsonOk, requireRole } from "@/server/auth";
+import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { Instrument, InstrumentStepContact } from "@/types";
@@ -8,6 +8,7 @@ import {
   normalizeInstrument,
   normalizeInstrumentContacts,
 } from "@/lib/instruments";
+import { canManageInstruments } from "@/lib/roles";
 import { deleteInstrumentImageFile } from "@/server/instrument-images";
 
 export async function PATCH(
@@ -16,7 +17,7 @@ export async function PATCH(
 ) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!requireRole(user, "instrument_manager")) return jsonError("forbidden", 403);
+  if (!canManageInstruments(user.roles)) return jsonError("forbidden", 403);
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -67,6 +68,18 @@ export async function PATCH(
     }
     updated = normalizeInstrument(merged);
     s.instruments[idx] = updated;
+
+    // When assigning an owner, ensure they can act as instrument_manager
+    const ownerId = updated.contactUserId;
+    if (ownerId) {
+      s.users = s.users.map((u) => {
+        if (u.id !== ownerId) return u;
+        if (u.roles.includes("instrument_manager") || u.roles.includes("instrument_super_admin")) {
+          return u;
+        }
+        return { ...u, roles: [...u.roles, "instrument_manager"] };
+      });
+    }
   });
 
   if (!updated) return jsonError("not_found", 404);
@@ -87,7 +100,7 @@ export async function DELETE(
 ) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!requireRole(user, "instrument_manager")) return jsonError("forbidden", 403);
+  if (!canManageInstruments(user.roles)) return jsonError("forbidden", 403);
 
   const { id } = await params;
   let found = false;

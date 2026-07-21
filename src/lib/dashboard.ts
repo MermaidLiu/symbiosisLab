@@ -21,8 +21,26 @@ export function getDashboardView(roles: Role[]): DashboardView {
   if (roles.includes("veterinarian") && !canManageAnimals(roles) && !canManageInstruments(roles)) {
     return "veterinarian";
   }
+  // 仪器总管理员：全量仪器管理台
+  if (
+    roles.includes("instrument_super_admin") &&
+    !canManageAnimals(roles) &&
+    !canSuperviseAnimalFacility(roles)
+  ) {
+    return "instrument_manager";
+  }
   const inst = canManageInstruments(roles);
   const animal = canManageAnimals(roles) && !canSuperviseAnimalFacility(roles);
+  // 普通用户兼仪器负责人 → 学生工作台（我负责的仪器 + 我的预约）
+  if (
+    roles.includes("instrument_manager") &&
+    roles.includes("user") &&
+    !roles.includes("instrument_super_admin") &&
+    !animal &&
+    !canSuperviseAnimalFacility(roles)
+  ) {
+    return "student";
+  }
   if (inst && !animal && !canSuperviseAnimalFacility(roles)) return "instrument_manager";
   if (animal && !inst) return "animal_manager";
   if (

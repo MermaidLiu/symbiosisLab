@@ -1,5 +1,6 @@
 export type Role =
   | "super_admin"
+  | "instrument_super_admin"
   | "instrument_manager"
   | "animal_facility_supervisor"
   | "animal_manager"
@@ -133,10 +134,15 @@ export interface AppNotification {
     | "application_status"
     | "application_pending"
     | "animal_task"
-    | "animal_task_receipt";
+    | "animal_task_receipt"
+    | "instrument_training"
+    | "instrument_repair";
   bookingId?: string;
   applicationId?: string;
   animalTaskId?: string;
+  instrumentId?: string;
+  trainingRequestId?: string;
+  repairTicketId?: string;
   handled?: boolean;
   createdAt: string;
 }

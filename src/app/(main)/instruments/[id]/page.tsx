@@ -1,12 +1,12 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Textarea, Select } from "@/components/ui/Input";
+import { Textarea, Select, Input } from "@/components/ui/Input";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WeekCalendar } from "@/components/booking/WeekCalendar";
 import { InstrumentFormModal } from "@/components/instruments/InstrumentFormModal";
@@ -16,16 +16,25 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { api } from "@/lib/api/client";
 import { getUsers, setCachePartial } from "@/lib/storage/db";
-import { canManageInstruments } from "@/lib/roles";
+import {
+  canManageInstruments,
+  canSuperviseInstruments,
+  isInstrumentOwner,
+} from "@/lib/roles";
 import { exportBookingsToCsv } from "@/lib/export";
 import {
   canBookInstrument,
+  deriveInstrumentDisplayStatus,
   durationHoursValid,
   instrumentImageUrl,
   normalizeInstrument,
   userHasInstrumentTraining,
 } from "@/lib/instruments";
 import { InstrumentContactStep } from "@/types";
+import {
+  InstrumentRepairTicket,
+  InstrumentTrainingRequest,
+} from "@/types/instrument-ops";
 
 const STEP_LABEL: Record<
   InstrumentContactStep,
@@ -51,6 +60,12 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
   const [trainUserId, setTrainUserId] = useState("");
   const [trainMsg, setTrainMsg] = useState("");
   const [usersVersion, setUsersVersion] = useState(0);
+  const [trainingReqs, setTrainingReqs] = useState<InstrumentTrainingRequest[]>([]);
+  const [repairTickets, setRepairTickets] = useState<InstrumentRepairTicket[]>([]);
+  const [trainNote, setTrainNote] = useState("");
+  const [repairDesc, setRepairDesc] = useState("");
+  const [repairEta, setRepairEta] = useState("");
+  const [opsMsg, setOpsMsg] = useState("");
 
   const users = useMemo(() => {
     void usersVersion;
@@ -69,9 +84,27 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
     [resourceBookings]
   );
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const [tr, rp] = await Promise.all([
+          api.instrumentTrainingRequests({ instrumentId: id }),
+          api.instrumentRepairs({ instrumentId: id }),
+        ]);
+        setTrainingReqs(tr.requests);
+        setRepairTickets(rp.tickets);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [id]);
+
   if (!inst) notFound();
 
   const isManager = user ? canManageInstruments(user.roles) : false;
+  const isSuper = user ? canSuperviseInstruments(user.roles) : false;
+  const isOwner = user ? isInstrumentOwner(user.id, inst.contactUserId) : false;
+  const canHandleOps = Boolean(isSuper || isOwner);
   const localeStr = locale === "zh" ? "zh-CN" : "en-US";
   const img = instrumentImageUrl(inst.imageId);
   const trained = userHasInstrumentTraining(user?.trainedInstrumentIds, inst.id);
@@ -87,6 +120,29 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
   const trainedUsers = users.filter((u) =>
     userHasInstrumentTraining(u.trainedInstrumentIds, inst.id)
   );
+
+  const myPendingTraining = trainingReqs.find(
+    (r) =>
+      r.applicantUserId === user?.id &&
+      (r.status === "pending" || r.status === "approved")
+  );
+
+  const displayStatus = deriveInstrumentDisplayStatus(
+    inst,
+    bookings,
+    trainingReqs.filter((r) => r.status === "pending" || r.status === "approved").length
+  );
+
+  const opsLabel =
+    displayStatus === "idle"
+      ? t.dashboard.student.opsIdle
+      : displayStatus === "in_use"
+        ? t.dashboard.student.opsInUse
+        : displayStatus === "training"
+          ? t.dashboard.student.opsTraining
+          : displayStatus === "maintenance"
+            ? t.dashboard.student.opsMaintenance
+            : t.dashboard.student.opsRetired;
 
   async function handleBook() {
     if (!inst || !user || !slot || !purpose.trim()) return;
@@ -165,6 +221,74 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
     }
   }
 
+  async function handleApplyTraining() {
+    try {
+      const { requests } = await api.createTrainingRequest({
+        instrumentId: id,
+        note: trainNote,
+      });
+      setTrainingReqs(requests.filter((r) => r.instrumentId === id));
+      setOpsMsg(t.instruments.applyTrainingOk);
+      setTrainNote("");
+    } catch {
+      setOpsMsg(t.instruments.applyTrainingFail);
+    }
+  }
+
+  async function handleTrainingAction(
+    reqId: string,
+    action: "approve" | "authorize" | "reject"
+  ) {
+    try {
+      const { requests } = await api.updateTrainingRequest({ id: reqId, action });
+      setTrainingReqs(requests.filter((r) => r.instrumentId === id));
+      setOpsMsg(t.instruments.grantTrainingOk);
+      await refreshUser();
+      setUsersVersion((v) => v + 1);
+    } catch {
+      setOpsMsg(t.instruments.applyTrainingFail);
+    }
+  }
+
+  async function handleReportRepair() {
+    if (!repairDesc.trim()) return;
+    try {
+      const res = await api.createRepairTicket({
+        instrumentId: id,
+        description: repairDesc.trim(),
+      });
+      setRepairTickets(res.tickets.filter((x) => x.instrumentId === id));
+      setCachePartial({ instruments: res.instruments });
+      await refresh();
+      setOpsMsg(t.instruments.reportRepairOk);
+      setRepairDesc("");
+    } catch {
+      setOpsMsg(t.instruments.applyTrainingFail);
+    }
+  }
+
+  async function handleRepairAction(
+    ticketId: string,
+    action: "acknowledge" | "escalate" | "resolve"
+  ) {
+    try {
+      const res = await api.updateRepairTicket({
+        id: ticketId,
+        action,
+        eta: repairEta ? new Date(repairEta).toISOString() : undefined,
+        note: repairDesc || undefined,
+      });
+      setRepairTickets(res.tickets.filter((x) => x.instrumentId === id));
+      setCachePartial({ instruments: res.instruments });
+      await refresh();
+      setOpsMsg(t.instruments.grantTrainingOk);
+      setRepairDesc("");
+      setRepairEta("");
+    } catch {
+      setOpsMsg(t.instruments.applyTrainingFail);
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
@@ -190,7 +314,18 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={img} alt="" className="mb-3 h-44 w-full rounded-lg object-cover" />
               )}
-              <InstrumentStatusBadge instrument={inst} />
+              <div className="flex flex-wrap items-center gap-2">
+                <InstrumentStatusBadge instrument={inst} />
+                <span className="rounded-full bg-thu/10 px-2 py-0.5 text-[10px] font-medium text-thu">
+                  {t.instruments.displayStatus}: {opsLabel}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-lab-muted">
+                {t.instruments.owner}:{" "}
+                <span className="font-medium text-thu">
+                  {users.find((u) => u.id === inst.contactUserId)?.name ?? "—"}
+                </span>
+              </p>
               <p className="mt-3 text-sm text-lab-text">
                 {isZh ? inst.description : inst.descriptionEn}
               </p>
@@ -304,6 +439,116 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
                 )}
               </Card>
             )}
+
+            {user && inst.trainingRequired && !trained && !isManager && (
+              <Card>
+                <h3 className="mb-2 text-sm font-semibold text-thu">{t.instruments.applyTraining}</h3>
+                <p className="mb-2 text-xs text-lab-muted">{t.instruments.applyTrainingHint}</p>
+                {myPendingTraining ? (
+                  <p className="text-sm text-thu">{t.instruments.applyTrainingPending}</p>
+                ) : (
+                  <>
+                    <Textarea
+                      label={t.instruments.applyTrainingNote}
+                      value={trainNote}
+                      onChange={(e) => setTrainNote(e.target.value)}
+                    />
+                    <Button className="mt-2" size="sm" onClick={() => void handleApplyTraining()}>
+                      {t.instruments.applyTraining}
+                    </Button>
+                  </>
+                )}
+              </Card>
+            )}
+
+            {user && (
+              <Card>
+                <h3 className="mb-2 text-sm font-semibold text-thu">{t.instruments.reportRepair}</h3>
+                <p className="mb-2 text-xs text-lab-muted">{t.instruments.reportRepairHint}</p>
+                <Textarea
+                  label={t.instruments.reportRepair}
+                  value={repairDesc}
+                  onChange={(e) => setRepairDesc(e.target.value)}
+                />
+                <Button
+                  className="mt-2"
+                  size="sm"
+                  variant="outline"
+                  disabled={!repairDesc.trim()}
+                  onClick={() => void handleReportRepair()}
+                >
+                  {t.instruments.reportRepair}
+                </Button>
+              </Card>
+            )}
+
+            {canHandleOps && trainingReqs.some((r) => r.status === "pending" || r.status === "approved") && (
+              <Card>
+                <h3 className="mb-2 text-sm font-semibold text-thu">{t.instruments.trainingRequests}</h3>
+                <ul className="space-y-2">
+                  {trainingReqs
+                    .filter((r) => r.status === "pending" || r.status === "approved")
+                    .map((r) => (
+                      <li key={r.id} className="rounded-lg border border-[#E0D4E8] bg-white/50 p-2 text-xs">
+                        <p className="font-medium text-thu">
+                          {r.applicantName} · {r.status}
+                        </p>
+                        {r.note && <p className="mt-1 text-lab-muted">{r.note}</p>}
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {r.status === "pending" && (
+                            <Button size="sm" variant="outline" onClick={() => void handleTrainingAction(r.id, "approve")}>
+                              {t.instruments.approveTraining}
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => void handleTrainingAction(r.id, "authorize")}>
+                            {t.instruments.authorizeTraining}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => void handleTrainingAction(r.id, "reject")}>
+                            {t.instruments.rejectTraining}
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              </Card>
+            )}
+
+            {canHandleOps && repairTickets.some((r) => r.status !== "resolved" && r.status !== "cancelled") && (
+              <Card>
+                <h3 className="mb-2 text-sm font-semibold text-thu">{t.instruments.repairOpenTickets}</h3>
+                <Input
+                  label={t.instruments.repairEta}
+                  type="datetime-local"
+                  value={repairEta}
+                  onChange={(e) => setRepairEta(e.target.value)}
+                />
+                <ul className="mt-2 space-y-2">
+                  {repairTickets
+                    .filter((r) => r.status !== "resolved" && r.status !== "cancelled")
+                    .map((r) => (
+                      <li key={r.id} className="rounded-lg border border-[#E0D4E8] bg-white/50 p-2 text-xs">
+                        <p className="font-medium text-thu">
+                          {r.reporterName} · {r.status}
+                        </p>
+                        <p className="mt-1 text-lab-muted">{r.description}</p>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          <Button size="sm" onClick={() => void handleRepairAction(r.id, "acknowledge")}>
+                            {t.instruments.repairAck}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => void handleRepairAction(r.id, "escalate")}>
+                            {t.instruments.repairEscalate}
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => void handleRepairAction(r.id, "resolve")}>
+                            {t.instruments.repairResolve}
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              </Card>
+            )}
+
+            {opsMsg && <p className="text-xs text-thu">{opsMsg}</p>}
           </div>
 
           <div className="space-y-4 lg:col-span-2">

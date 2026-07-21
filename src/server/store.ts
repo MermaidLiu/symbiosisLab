@@ -24,6 +24,10 @@ import {
   AnimalDayActivity,
 } from "@/types/animal-management";
 import { AnimalOpTask } from "@/types/animal-ops";
+import {
+  InstrumentRepairTicket,
+  InstrumentTrainingRequest,
+} from "@/types/instrument-ops";
 import { SEED_USERS, SEED_INSTRUMENTS, SEED_ANIMALS } from "@/lib/storage/seed";
 import { normalizeInstrument } from "@/lib/instruments";
 import {
@@ -75,6 +79,10 @@ export interface DbStore {
   animalDayActivities: AnimalDayActivity[];
   /** Student-assigned animal ops (禁食/采集/手术等) */
   animalOpTasks: AnimalOpTask[];
+  /** Instrument training applications */
+  instrumentTrainingRequests: InstrumentTrainingRequest[];
+  /** Instrument repair tickets */
+  instrumentRepairTickets: InstrumentRepairTicket[];
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -110,6 +118,8 @@ function emptyStore(): DbStore {
     raWorkItems: [],
     animalDayActivities: [],
     animalOpTasks: [],
+    instrumentTrainingRequests: [],
+    instrumentRepairTickets: [],
   };
 }
 
@@ -150,6 +160,8 @@ function seedStore(): DbStore {
     raWorkItems: buildSeedRaWorkItems(),
     animalDayActivities: buildSeedAnimalDayActivities(),
     animalOpTasks: [],
+    instrumentTrainingRequests: [],
+    instrumentRepairTickets: [],
   };
 }
 
@@ -275,6 +287,7 @@ function readFromDisk(): DbStore {
       "chenhongzhen@lab.edu.cn",
       "lvxinwei@lab.edu.cn",
       "wushuying@lab.edu.cn",
+      "inst-super@lab.edu.cn",
     ]) {
       if (!parsed.users.some((u) => u.email === email)) {
         const seed = SEED_USERS.find((u) => u.email === email);
@@ -306,6 +319,33 @@ function readFromDisk(): DbStore {
         u.roles = [...roles];
         dirty = true;
       }
+    }
+    // Instrument super admin + dual-role demo student
+    const instSuper = parsed.users.find((u) => u.email === "inst-super@lab.edu.cn");
+    if (instSuper) {
+      const want: import("@/types").Role[] = ["instrument_super_admin", "user"];
+      const same =
+        instSuper.roles.length === want.length &&
+        want.every((r) => instSuper.roles.includes(r));
+      if (!same) {
+        instSuper.roles = [...want];
+        dirty = true;
+      }
+    }
+    const dualStudent = parsed.users.find((u) => u.email === "student1@lab.edu.cn");
+    if (dualStudent && !dualStudent.roles.includes("instrument_manager")) {
+      dualStudent.roles = Array.from(
+        new Set<import("@/types").Role>([...dualStudent.roles, "instrument_manager", "user"])
+      );
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.instrumentTrainingRequests)) {
+      parsed.instrumentTrainingRequests = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.instrumentRepairTickets)) {
+      parsed.instrumentRepairTickets = [];
+      dirty = true;
     }
     // Seed 吴淑颖 Surgery & Recording mice once
     const wsyUser = parsed.users.find((u) => u.email === "wushuying@lab.edu.cn");
@@ -376,6 +416,12 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.animalOpTasks)) {
       globalThis.__symbiosisDb.animalOpTasks = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.instrumentTrainingRequests)) {
+      globalThis.__symbiosisDb.instrumentTrainingRequests = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.instrumentRepairTickets)) {
+      globalThis.__symbiosisDb.instrumentRepairTickets = [];
     }
   }
   return globalThis.__symbiosisDb;

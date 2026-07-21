@@ -2,6 +2,7 @@ import { Role } from "@/types";
 
 export const ALL_ROLES: Role[] = [
   "super_admin",
+  "instrument_super_admin",
   "instrument_manager",
   "animal_facility_supervisor",
   "animal_manager",
@@ -21,8 +22,22 @@ export function canSuperviseAnimalFacility(roles: Role[]): boolean {
   return hasRole(roles, "animal_facility_supervisor");
 }
 
+/** 仪器总管理员：导入设备、分配负责人 */
+export function canSuperviseInstruments(roles: Role[]): boolean {
+  return hasRole(roles, "instrument_super_admin") || hasRole(roles, "super_admin");
+}
+
+/** 仪器负责人或总管理员（可维护名下/全部仪器、培训授权、保修响应） */
 export function canManageInstruments(roles: Role[]): boolean {
-  return hasRole(roles, "instrument_manager");
+  return (
+    hasRole(roles, "instrument_manager") ||
+    canSuperviseInstruments(roles)
+  );
+}
+
+/** 是否某台仪器的负责人（contactUserId） */
+export function isInstrumentOwner(userId: string, contactUserId: string): boolean {
+  return Boolean(userId && contactUserId && userId === contactUserId);
 }
 
 /** 动物技术员 / 主管 */
