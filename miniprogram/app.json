@@ -1,0 +1,53 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/instruments/instruments",
+    "pages/instrument-detail/instrument-detail",
+    "pages/bookings/bookings",
+    "pages/animals/animals",
+    "pages/notices/notices"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#660874",
+    "navigationBarTitleText": "Symbiosis Lab",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F7F1FA",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#8B7A90",
+    "selectedColor": "#660874",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "工作台",
+        "iconPath": "assets/tab-home.png",
+        "selectedIconPath": "assets/tab-home-active.png"
+      },
+      {
+        "pagePath": "pages/instruments/instruments",
+        "text": "仪器",
+        "iconPath": "assets/tab-inst.png",
+        "selectedIconPath": "assets/tab-inst-active.png"
+      },
+      {
+        "pagePath": "pages/animals/animals",
+        "text": "动物",
+        "iconPath": "assets/tab-animal.png",
+        "selectedIconPath": "assets/tab-animal-active.png"
+      },
+      {
+        "pagePath": "pages/notices/notices",
+        "text": "通知",
+        "iconPath": "assets/tab-bell.png",
+        "selectedIconPath": "assets/tab-bell-active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

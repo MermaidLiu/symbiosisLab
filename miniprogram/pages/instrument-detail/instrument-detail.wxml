@@ -1,0 +1,37 @@
+<view class="card" wx:if="{{instrument}}">
+  <view class="title">{{instrument.name}}</view>
+  <view class="muted">{{instrument.nameEn}}</view>
+  <view class="meta">型号：{{instrument.model}}</view>
+  <view class="meta">位置：{{instrument.location}}</view>
+  <view class="meta">状态：{{statusText}}</view>
+  <view class="meta">培训要求：{{instrument.trainingRequired ? "需要培训" : "无需培训"}}</view>
+  <view class="desc">{{instrument.description}}</view>
+</view>
+
+<view class="card" wx:if="{{instrument}}">
+  <view class="section">预约</view>
+  <view class="field">
+    <text class="label">日期</text>
+    <picker mode="date" value="{{date}}" bindchange="onDate">
+      <view class="picker">{{date || "选择日期"}}</view>
+    </picker>
+  </view>
+  <view class="field">
+    <text class="label">开始</text>
+    <picker mode="time" value="{{startTime}}" bindchange="onStart">
+      <view class="picker">{{startTime || "开始时间"}}</view>
+    </picker>
+  </view>
+  <view class="field">
+    <text class="label">结束</text>
+    <picker mode="time" value="{{endTime}}" bindchange="onEnd">
+      <view class="picker">{{endTime || "结束时间"}}</view>
+    </picker>
+  </view>
+  <view class="field">
+    <text class="label">用途</text>
+    <input class="input" placeholder="实验用途" value="{{purpose}}" bindinput="onPurpose" />
+  </view>
+  <button class="btn-primary" loading="{{submitting}}" bindtap="onBook">提交预约</button>
+  <view class="hint muted">与网页端同步；仪器预约无需审批，管理员会收到提醒。</view>
+</view>

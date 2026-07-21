@@ -1,0 +1,23 @@
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.notice.unread {
+  border-left: 6rpx solid #660874;
+}
+
+.title {
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.msg {
+  color: #374151;
+  line-height: 1.45;
+}
+
+.time {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+}

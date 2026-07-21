@@ -1,0 +1,19 @@
+<view class="search card">
+  <input placeholder="搜索仪器名称 / 型号" value="{{keyword}}" bindinput="onSearch" />
+</view>
+
+<view wx:if="{{filtered.length === 0}}" class="empty">暂无仪器</view>
+
+<view
+  class="card item"
+  wx:for="{{filtered}}"
+  wx:key="id"
+  data-id="{{item.id}}"
+  bindtap="goDetail"
+>
+  <view class="row">
+    <view class="name">{{item.name}}</view>
+    <view class="status status-{{item.status}}">{{item.statusText}}</view>
+  </view>
+  <view class="muted">{{item.model}} · {{item.location}}</view>
+</view>

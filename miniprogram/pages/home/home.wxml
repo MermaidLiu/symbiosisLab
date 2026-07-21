@@ -1,0 +1,35 @@
+<view class="page" wx:if="{{ready}}">
+  <view class="hero card">
+    <view class="hello">你好，{{name}}</view>
+    <view class="muted roles">{{rolesText}}</view>
+  </view>
+
+  <view class="stats">
+    <view class="stat card" bindtap="goInstruments">
+      <view class="num">{{instrumentCount}}</view>
+      <view class="muted">可预约仪器</view>
+    </view>
+    <view class="stat card" bindtap="goAnimals">
+      <view class="num">{{animalCount}}</view>
+      <view class="muted">我的动物</view>
+    </view>
+    <view class="stat card" bindtap="goBookings">
+      <view class="num">{{bookingCount}}</view>
+      <view class="muted">我的预约</view>
+    </view>
+    <view class="stat card" bindtap="goNotices">
+      <view class="num">{{unreadCount}}</view>
+      <view class="muted">未读通知</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="section-title">快捷入口</view>
+    <view class="actions">
+      <button class="btn-ghost" size="mini" bindtap="goInstruments">仪器列表</button>
+      <button class="btn-ghost" size="mini" bindtap="goBookings">我的预约</button>
+      <button class="btn-ghost" size="mini" bindtap="goAnimals">代管动物</button>
+      <button class="btn-ghost" size="mini" bindtap="onLogout">退出登录</button>
+    </view>
+  </view>
+</view>

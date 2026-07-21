@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { Role, User } from "@/types";
 import { getStore, mutateStore, publicUser, SessionRecord, uid } from "@/server/store";
@@ -38,8 +38,20 @@ export async function getSessionTokenFromCookies(): Promise<string | null> {
   return jar.get(SESSION_COOKIE)?.value ?? null;
 }
 
+/** Cookie session or Authorization: Bearer <token> (WeChat mini-program) */
+export async function getSessionToken(): Promise<string | null> {
+  const fromCookie = await getSessionTokenFromCookies();
+  if (fromCookie) return fromCookie;
+  const h = await headers();
+  const auth = h.get("authorization") ?? h.get("Authorization");
+  if (auth && /^Bearer\s+/i.test(auth)) {
+    return auth.replace(/^Bearer\s+/i, "").trim() || null;
+  }
+  return null;
+}
+
 export async function getCurrentUser(): Promise<User | null> {
-  const token = await getSessionTokenFromCookies();
+  const token = await getSessionToken();
   if (!token) return null;
   const store = getStore();
   const session = store.sessions.find((s) => s.token === token);

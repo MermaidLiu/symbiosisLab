@@ -1,0 +1,19 @@
+<view wx:if="{{list.length === 0}}" class="empty">暂无预约</view>
+
+<view class="card" wx:for="{{list}}" wx:key="id">
+  <view class="row">
+    <view class="name">{{item.resourceName}}</view>
+    <view class="badge badge-{{item.status}}">{{item.statusText}}</view>
+  </view>
+  <view class="muted">{{item.timeRange}}</view>
+  <view class="muted">用途：{{item.purpose}}</view>
+  <view class="ops" wx:if="{{item.status === 'pending' || item.status === 'approved'}}">
+    <button
+      wx:if="{{item.status === 'approved' || item.status === 'pending'}}"
+      size="mini"
+      class="btn-ghost"
+      data-id="{{item.id}}"
+      bindtap="onCancel"
+    >取消</button>
+  </view>
+</view>

@@ -1,0 +1,46 @@
+page {
+  background: #f7f1fa;
+  color: #1f2937;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(102, 8, 116, 0.06);
+}
+
+.btn-primary {
+  background: #660874;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+}
+
+.btn-ghost {
+  background: #f5eef7;
+  color: #660874;
+  border-radius: 12rpx;
+}
+
+.muted {
+  color: #6b7280;
+}
+
+.tip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999rpx;
+  padding: 4rpx 16rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.empty {
+  text-align: center;
+  color: #6b7280;
+  padding: 80rpx 40rpx;
+}

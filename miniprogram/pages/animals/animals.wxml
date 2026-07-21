@@ -1,0 +1,44 @@
+<view class="search card">
+  <input placeholder="按动物 ID 筛选" value="{{keyword}}" bindinput="onSearch" />
+</view>
+
+<view wx:if="{{filtered.length === 0}}" class="empty">暂无名下动物</view>
+
+<view class="card" wx:for="{{filtered}}" wx:key="id">
+  <view class="row">
+    <view class="id">{{item.id}}</view>
+    <view
+      class="tip"
+      style="background:{{item.tipBg}};color:{{item.tipFg}};"
+      data-id="{{item.id}}"
+      bindtap="openEdit"
+    >{{item.label}}</view>
+  </view>
+  <view class="muted">植入：{{item.implantText}}</view>
+  <view class="muted">追踪：{{item.trackingText}} · 阶段 {{item.stage}}</view>
+  <view class="muted">下次采集：{{item.nextText}}</view>
+  <view class="edit-hint muted">轻触状态可改文案与果冻色</view>
+</view>
+
+<!-- status editor -->
+<view class="mask" wx:if="{{editing}}" bindtap="closeEdit">
+  <view class="editor" catchtap="noop">
+    <view class="editor-title">编辑状态</view>
+    <input class="input" value="{{editText}}" bindinput="onEditText" placeholder="状态文字" />
+    <view class="color-label muted">果冻色</view>
+    <view class="colors">
+      <view
+        wx:for="{{jellyList}}"
+        wx:key="key"
+        class="swatch {{editColor === item.key ? 'on' : ''}}"
+        style="background:{{item.bg}};"
+        data-color="{{item.key}}"
+        bindtap="pickColor"
+      ></view>
+    </view>
+    <view class="editor-actions">
+      <button size="mini" class="btn-ghost" bindtap="closeEdit">取消</button>
+      <button size="mini" class="btn-primary" loading="{{saving}}" bindtap="saveEdit">保存</button>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,4 @@
+{
+  "desc": "Symbiosis Lab mini program",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

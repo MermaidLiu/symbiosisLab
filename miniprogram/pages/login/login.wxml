@@ -1,0 +1,15 @@
+<view class="wrap">
+  <view class="hero">
+    <view class="brand">Symbiosis Lab</view>
+    <view class="sub">实验室资源 · 手机端一期</view>
+  </view>
+
+  <view class="card form">
+    <view class="label">邮箱</view>
+    <input class="input" type="text" placeholder="student@lab.edu.cn" value="{{email}}" bindinput="onEmail" />
+    <view class="label">密码</view>
+    <input class="input" password placeholder="demo123" value="{{password}}" bindinput="onPassword" />
+    <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">登录</button>
+    <view class="hint muted">账号由管理员开通，与网页端同一套数据</view>
+  </view>
+</view>

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import {
   clearSessionCookie,
   getCurrentUser,
-  getSessionTokenFromCookies,
+  getSessionToken,
   jsonError,
   jsonOk,
   loginUser,
@@ -26,7 +26,12 @@ export async function POST(req: NextRequest) {
   if (action === "login") {
     const result = await loginUser(String(body.email ?? ""), String(body.password ?? ""));
     if (!result.ok) return jsonError(result.error, 401);
-    const res = jsonOk({ user: result.user });
+    const res = jsonOk({
+      user: result.user,
+      /** Returned for WeChat mini-program / mobile clients (cookie still set for web) */
+      token: result.session.token,
+      expiresAt: result.session.expiresAt,
+    });
     await setSessionCookie(res, result.session.token, result.session.expiresAt);
     return res;
   }
@@ -46,7 +51,7 @@ export async function POST(req: NextRequest) {
 
   if (action === "logout") {
     const user = await getCurrentUser();
-    const sessionToken = await getSessionTokenFromCookies();
+    const sessionToken = await getSessionToken();
     if (user) {
       await appendAuditLog({
         userId: user.id,

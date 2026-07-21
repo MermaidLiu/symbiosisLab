@@ -1,0 +1,17 @@
+<view class="toolbar card">
+  <button size="mini" class="btn-ghost" bindtap="markAll">全部已读</button>
+</view>
+
+<view wx:if="{{list.length === 0}}" class="empty">暂无通知</view>
+
+<view
+  class="card notice {{item.read ? '' : 'unread'}}"
+  wx:for="{{list}}"
+  wx:key="id"
+  data-id="{{item.id}}"
+  bindtap="openNotice"
+>
+  <view class="title">{{item.title}}</view>
+  <view class="msg">{{item.message}}</view>
+  <view class="muted time">{{item.timeText}}</view>
+</view>

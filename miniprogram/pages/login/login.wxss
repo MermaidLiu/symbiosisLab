@@ -1,0 +1,50 @@
+.wrap {
+  min-height: 100vh;
+  background: linear-gradient(165deg, #660874 0%, #82318e 42%, #f7f1fa 42%);
+  padding: 80rpx 32rpx 48rpx;
+}
+
+.hero {
+  color: #fff;
+  padding: 40rpx 16rpx 64rpx;
+}
+
+.brand {
+  font-size: 48rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.sub {
+  margin-top: 12rpx;
+  opacity: 0.9;
+  font-size: 26rpx;
+}
+
+.form {
+  margin: 0;
+}
+
+.label {
+  font-size: 24rpx;
+  color: #6b7280;
+  margin-bottom: 8rpx;
+  margin-top: 16rpx;
+}
+
+.input {
+  background: #f9f5fb;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  border: 1rpx solid #e8dce9;
+}
+
+.login-btn {
+  margin-top: 40rpx;
+}
+
+.hint {
+  margin-top: 24rpx;
+  font-size: 22rpx;
+  text-align: center;
+}
