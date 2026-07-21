@@ -6,6 +6,7 @@ import {
   canManageAnimals,
   canAccessResearchAssistant,
   canSuperviseAnimalFacility,
+  canProcessVeterinary,
   isAnimalOpsStaff,
 } from "@/lib/roles";
 
@@ -64,7 +65,7 @@ export const NAV_ENTRIES: NavEntry[] = [
         labelKey: "applications",
         show: (roles) => !isAnimalOpsStaff(roles),
       },
-      { href: "/animals/vet-care", labelKey: "vetCare" },
+      { href: "/animals/vet-care", labelKey: "vetCare", show: canProcessVeterinary },
     ],
   },
   {

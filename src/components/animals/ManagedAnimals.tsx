@@ -20,7 +20,8 @@ import {
 import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { formatTrackingDays, trackingDays, normalizePurpose } from "@/lib/animals/facility-board";
+import { formatTrackingDays, trackingDays, trackingStageFromDays, normalizePurpose } from "@/lib/animals/facility-board";
+import { JELLY_SWATCH, JELLY_TIP_CLASS, resolveStatusColor } from "@/lib/animals/status-tip";
 import {
   ManagedAnimal,
   AnimalFilterState,
@@ -33,6 +34,8 @@ import {
   EuthanasiaMethod,
   OperationApplication,
   AnimalDayActivity,
+  StatusJellyColor,
+  STATUS_JELLY_COLORS,
 } from "@/types/animal-management";
 import { AnimalOpTask } from "@/types/animal-ops";
 
@@ -99,16 +102,6 @@ const STATUS_TIP: Record<ManagedAnimal["status"], string> = {
   quarantine: "bg-[#FFF3E0] text-[#E65100] ring-[#FFCC80]",
   reserved: "bg-[#E3F2FD] text-[#1565C0] ring-[#90CAF9]",
   deceased: "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]",
-};
-
-const RECORDING_STATUS_TIP: Record<
-  NonNullable<ManagedAnimal["recordingStatus"]>,
-  string
-> = {
-  living: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
-  dead: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
-  waiting: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
-  optotagging: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
 };
 
 const LIFECYCLE_TIP: Record<MouseLifecycleStatus, string> = {
@@ -209,6 +202,10 @@ export function ManagedAnimals({
   const [forceNote, setForceNote] = useState("");
   const [forceCloseTasks, setForceCloseTasks] = useState(true);
   const [forceSaving, setForceSaving] = useState(false);
+  const [statusEditId, setStatusEditId] = useState<string | null>(null);
+  const [statusEditText, setStatusEditText] = useState("");
+  const [statusEditColor, setStatusEditColor] = useState<StatusJellyColor>("sky");
+  const [statusSaving, setStatusSaving] = useState(false);
 
   useEffect(() => {
     if (isOpsStaff) {
@@ -834,8 +831,8 @@ export function ManagedAnimals({
           ? [
               row.id,
               row.claimantName ?? "",
-              recordingStatusLabel(row.recordingStatus),
-              row.trackingStage ?? "",
+              recordingStatusLabel(row.recordingStatus, row.statusLabel),
+              stageForRow(row),
               formatDateOnly(row.implantAt),
               formatTrackingDays(
                 trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
@@ -845,14 +842,14 @@ export function ManagedAnimals({
               row.cageLocation ?? "",
             ]
           : [
-              recordingStatusLabel(row.recordingStatus),
+              recordingStatusLabel(row.recordingStatus, row.statusLabel),
               row.id,
               formatDateOnly(row.implantAt),
               formatTrackingDays(
                 trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
                 m.trackingUnit
               ),
-              row.trackingStage ?? "",
+              stageForRow(row),
               formatDateOnly(row.lastCollectionAt),
               row.repeatDays != null ? String(row.repeatDays) : "",
               formatDateOnly(row.nextCollectionAt),
@@ -983,25 +980,121 @@ export function ManagedAnimals({
     return s === "public" ? m.containsPublic : m.excludesPublic;
   }
 
-  function recordingStatusLabel(rs?: ManagedAnimal["recordingStatus"]) {
+  function recordingStatusLabel(rs?: ManagedAnimal["recordingStatus"], custom?: string) {
+    if (custom?.trim()) return custom.trim();
     if (!rs) return "—";
     return m.recordingStatus[rs] ?? rs;
   }
 
-  function recordingStatusTipClass(rs?: ManagedAnimal["recordingStatus"]) {
-    if (!rs) return "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]";
-    return RECORDING_STATUS_TIP[rs];
+  function recordingTipClass(row: ManagedAnimal) {
+    const color = resolveStatusColor(row.statusColor, row.recordingStatus);
+    return JELLY_TIP_CLASS[color];
   }
 
-  function RecordingStatusTip({ rs }: { rs?: ManagedAnimal["recordingStatus"] }) {
+  function stageForRow(row: ManagedAnimal) {
+    return trackingStageFromDays(
+      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt)
+    );
+  }
+
+  function canEditStatusTip(row: ManagedAnimal) {
+    if (!user) return false;
+    if (canEditAnimals) return true;
+    return row.claimantUserId === user.id;
+  }
+
+  function openStatusEdit(row: ManagedAnimal) {
+    if (!canEditStatusTip(row)) return;
+    setStatusEditId(row.id);
+    setStatusEditText(recordingStatusLabel(row.recordingStatus, row.statusLabel));
+    setStatusEditColor(resolveStatusColor(row.statusColor, row.recordingStatus));
+  }
+
+  async function saveStatusEdit() {
+    if (!statusEditId) return;
+    setStatusSaving(true);
+    try {
+      const { managedAnimals } = await api.updateManagedAnimal(statusEditId, {
+        statusLabel: statusEditText.trim() || undefined,
+        statusColor: statusEditColor,
+      });
+      setCachePartial({ managedAnimals });
+      setAnimals(scopeList(managedAnimals));
+      setStatusEditId(null);
+      showToast(m.statusTipSaved);
+    } catch {
+      showToast(m.statusTipFail);
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
+  function RecordingStatusTip({ row }: { row: ManagedAnimal }) {
+    const editing = statusEditId === row.id;
+    const label = recordingStatusLabel(row.recordingStatus, row.statusLabel);
+    const editable = canEditStatusTip(row);
+
+    if (editing) {
+      return (
+        <div
+          className="min-w-[140px] rounded-lg border border-[#E0D4E8] bg-white p-2 shadow-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            autoFocus
+            className="fluent-input w-full rounded-md px-2 py-1 text-xs"
+            value={statusEditText}
+            onChange={(e) => setStatusEditText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void saveStatusEdit();
+              if (e.key === "Escape") setStatusEditId(null);
+            }}
+            placeholder={m.statusTipPlaceholder}
+          />
+          <p className="mt-1.5 text-[10px] text-lab-muted">{m.statusTipPickColor}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {STATUS_JELLY_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                title={c}
+                className={clsx(
+                  "h-5 w-5 rounded-full ring-2 transition",
+                  statusEditColor === c ? "ring-thu scale-110" : "ring-transparent"
+                )}
+                style={{ backgroundColor: JELLY_SWATCH[c] }}
+                onClick={() => setStatusEditColor(c)}
+              />
+            ))}
+          </div>
+          <div className="mt-2 flex gap-1">
+            <FluentButton size="sm" disabled={statusSaving} onClick={() => void saveStatusEdit()}>
+              {t.common.save}
+            </FluentButton>
+            <FluentButton
+              size="sm"
+              variant="ghost"
+              disabled={statusSaving}
+              onClick={() => setStatusEditId(null)}
+            >
+              {t.common.cancel}
+            </FluentButton>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <span
         className={clsx(
           "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-          recordingStatusTipClass(rs)
+          recordingTipClass(row),
+          editable && "cursor-pointer"
         )}
+        title={editable ? m.statusTipEditHint : undefined}
+        onDoubleClick={() => openStatusEdit(row)}
       >
-        {recordingStatusLabel(rs)}
+        {label}
       </span>
     );
   }
@@ -1014,7 +1107,7 @@ export function ManagedAnimals({
   }
 
   function cellValue(row: ManagedAnimal, key: ColumnKey): string {
-    if (key === "recordingStatus") return recordingStatusLabel(row.recordingStatus);
+    if (key === "recordingStatus") return recordingStatusLabel(row.recordingStatus, row.statusLabel);
     if (key === "status") return currentStatusLabel(row);
     if (key === "purpose") return purposeLabel(row.purpose);
     if (key === "implantAt") return formatDateOnly(row.implantAt);
@@ -1026,7 +1119,7 @@ export function ManagedAnimals({
         m.trackingUnit
       );
     }
-    if (key === "trackingStage") return row.trackingStage?.trim() || "—";
+    if (key === "trackingStage") return stageForRow(row);
     if (key === "repeatDays") return row.repeatDays != null ? String(row.repeatDays) : "—";
     if (key === "cageLocation") return row.cageLocation || "—";
     if (key === "claimantName") return row.claimantName ?? "—";
@@ -1431,7 +1524,7 @@ export function ManagedAnimals({
                             )}
                           >
                             {key === "recordingStatus" ? (
-                              <RecordingStatusTip rs={row.recordingStatus} />
+                              <RecordingStatusTip row={row} />
                             ) : key === "status" ? (
                               <span
                                 className={clsx(
@@ -1508,18 +1601,7 @@ export function ManagedAnimals({
                     <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
                     <span className="font-mono text-sm font-semibold text-thu">{row.id}</span>
                   </label>
-                  <span
-                    className={clsx(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                      row.recordingStatus
-                        ? recordingStatusTipClass(row.recordingStatus)
-                        : statusTipClass(row)
-                    )}
-                  >
-                    {row.recordingStatus
-                      ? recordingStatusLabel(row.recordingStatus)
-                      : currentStatusLabel(row)}
-                  </span>
+                  <RecordingStatusTip row={row} />
                 </div>
                 <dl className="flex-1 space-y-1 text-xs">
                   <div className="flex items-center gap-1.5">
@@ -1532,7 +1614,7 @@ export function ManagedAnimals({
                     <span className="text-lab-muted">
                       {isOpsStaff ? m.colStatusNow : m.colRecordingStatus}:{" "}
                     </span>
-                    <RecordingStatusTip rs={row.recordingStatus} />
+                    <RecordingStatusTip row={row} />
                   </div>
                   <div><span className="text-lab-muted">{m.colImplant}: </span>{formatDateOnly(row.implantAt)}</div>
                   <div>
@@ -1546,7 +1628,7 @@ export function ManagedAnimals({
                     <span className="text-lab-muted">
                       {isOpsStaff ? m.colStage : m.colTrackingStage}:{" "}
                     </span>
-                    {row.trackingStage ?? "—"}
+                    {stageForRow(row)}
                   </div>
                   <div><span className="text-lab-muted">{m.colNextDate}: </span>{formatDateOnly(row.nextCollectionAt)}</div>
                 </dl>
@@ -1687,7 +1769,7 @@ export function ManagedAnimals({
               <div className="flex gap-2 border-b border-white/30 py-2 text-sm">
                 <dt className="w-28 shrink-0 text-lab-muted">{m.colRecordingStatus}</dt>
                 <dd>
-                  <RecordingStatusTip rs={viewAnimal.recordingStatus} />
+                  <RecordingStatusTip row={viewAnimal} />
                 </dd>
               </div>
               <DetailRow label={m.colId} value={viewAnimal.id} />
@@ -1703,7 +1785,7 @@ export function ManagedAnimals({
                   m.trackingUnit
                 )}
               />
-              <DetailRow label={m.colTrackingStage} value={viewAnimal.trackingStage ?? "—"} />
+              <DetailRow label={m.colTrackingStage} value={stageForRow(viewAnimal)} />
               <DetailRow label={m.colLastCollection} value={formatDateOnly(viewAnimal.lastCollectionAt)} />
               <DetailRow
                 label={m.colRepeat}

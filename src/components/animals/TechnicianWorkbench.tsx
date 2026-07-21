@@ -14,6 +14,8 @@ import { canUseAnimalStaffWorkbench } from "@/lib/roles";
 import { api } from "@/lib/api/client";
 import { AnimalOpTask, URGENCY_COLORS } from "@/types/animal-ops";
 import { ManagedAnimal } from "@/types/animal-management";
+import { trackingDays, trackingStageFromDays } from "@/lib/animals/facility-board";
+import { JELLY_TIP_CLASS, resolveStatusColor } from "@/lib/animals/status-tip";
 
 function buildMonthGrid(monthStart: Date): (string | null)[] {
   const year = monthStart.getFullYear();
@@ -34,16 +36,6 @@ function dayKeyFromIso(iso: string): string {
   const d = new Date(iso);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-const RECORDING_STATUS_TIP: Record<
-  NonNullable<ManagedAnimal["recordingStatus"]>,
-  string
-> = {
-  living: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
-  dead: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
-  waiting: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
-  optotagging: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
-};
 
 /** 饲养员 / 技术员 / 采集员工作台：待处理 · 代管 · 已分配 + 日历 + 排班 */
 export function TechnicianWorkbench() {
@@ -139,9 +131,16 @@ export function TechnicianWorkbench() {
     return ids.size;
   }, [scheduled]);
 
-  function recordingLabel(rs?: ManagedAnimal["recordingStatus"]) {
-    if (!rs) return "—";
-    return m.recordingStatus[rs] ?? rs;
+  function recordingLabel(row: ManagedAnimal) {
+    if (row.statusLabel?.trim()) return row.statusLabel.trim();
+    if (!row.recordingStatus) return "—";
+    return m.recordingStatus[row.recordingStatus] ?? row.recordingStatus;
+  }
+
+  function stageForRow(row: ManagedAnimal) {
+    return trackingStageFromDays(
+      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt)
+    );
   }
 
   function ownerName(row: ManagedAnimal) {
@@ -271,15 +270,15 @@ export function TechnicianWorkbench() {
                               <span
                                 className={clsx(
                                   "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                                  row.recordingStatus
-                                    ? RECORDING_STATUS_TIP[row.recordingStatus]
-                                    : "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]"
+                                  JELLY_TIP_CLASS[
+                                    resolveStatusColor(row.statusColor, row.recordingStatus)
+                                  ]
                                 )}
                               >
-                                {recordingLabel(row.recordingStatus)}
+                                {recordingLabel(row)}
                               </span>
                             </td>
-                            <td className="px-2 py-2 text-xs">{row.trackingStage?.trim() || "—"}</td>
+                            <td className="px-2 py-2 text-xs">{stageForRow(row)}</td>
                           </tr>
                         ))}
                       </tbody>

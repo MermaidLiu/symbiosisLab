@@ -14,7 +14,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { formatTrackingDays, trackingDays } from "@/lib/animals/facility-board";
+import { formatTrackingDays, trackingDays, trackingStageFromDays } from "@/lib/animals/facility-board";
+import { JELLY_TIP_CLASS, resolveStatusColor } from "@/lib/animals/status-tip";
 import {
   ManagedAnimal,
   OperationApplication,
@@ -24,16 +25,6 @@ import {
   instrumentImageUrl,
   normalizeInstrument,
 } from "@/lib/instruments";
-
-const RECORDING_STATUS_TIP: Record<
-  NonNullable<ManagedAnimal["recordingStatus"]>,
-  string
-> = {
-  living: "bg-[#E8F5E9] text-[#2E7D32] ring-[#A5D6A7]",
-  dead: "bg-[#FFEBEE] text-[#C62828] ring-[#EF9A9A]",
-  waiting: "bg-[#FFF8E1] text-[#F57F17] ring-[#FFE082]",
-  optotagging: "bg-[#EDE7F6] text-[#5E35B1] ring-[#B39DDB]",
-};
 
 function buildMonthGrid(monthStart: Date): (string | null)[] {
   const year = monthStart.getFullYear();
@@ -221,9 +212,16 @@ export function StudentDashboard() {
     return booking.resourceId;
   }
 
-  function recordingLabel(rs?: ManagedAnimal["recordingStatus"]) {
-    if (!rs) return "—";
-    return m.recordingStatus[rs] ?? rs;
+  function recordingLabel(row: ManagedAnimal) {
+    if (row.statusLabel?.trim()) return row.statusLabel.trim();
+    if (!row.recordingStatus) return "—";
+    return m.recordingStatus[row.recordingStatus] ?? row.recordingStatus;
+  }
+
+  function stageForRow(row: ManagedAnimal) {
+    return trackingStageFromDays(
+      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt)
+    );
   }
 
   const summaryCards = [
@@ -403,12 +401,12 @@ export function StudentDashboard() {
                             <span
                               className={clsx(
                                 "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset",
-                                row.recordingStatus
-                                  ? RECORDING_STATUS_TIP[row.recordingStatus]
-                                  : "bg-[#F5F5F5] text-[#616161] ring-[#BDBDBD]"
+                                JELLY_TIP_CLASS[
+                                  resolveStatusColor(row.statusColor, row.recordingStatus)
+                                ]
                               )}
                             >
-                              {recordingLabel(row.recordingStatus)}
+                              {recordingLabel(row)}
                             </span>
                           </td>
                           <td className="px-2 py-2 font-mono text-xs text-thu">{row.id}</td>
@@ -419,7 +417,7 @@ export function StudentDashboard() {
                               m.trackingUnit
                             )}
                           </td>
-                          <td className="px-2 py-2 text-xs">{row.trackingStage ?? "—"}</td>
+                          <td className="px-2 py-2 text-xs">{stageForRow(row)}</td>
                           <td className="px-2 py-2 text-xs">{formatDateOnly(row.nextCollectionAt)}</td>
                         </tr>
                       ))}

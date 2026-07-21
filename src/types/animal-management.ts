@@ -98,7 +98,11 @@ export interface ManagedAnimal {
   lastCollectionAt?: string;
   /** 记录状态：Living / Dead / Waiting / Optotagging（吴淑颖表 Status） */
   recordingStatus?: "living" | "dead" | "waiting" | "optotagging";
-  /** 追踪阶段 Stages：1M / 2M / 3M / 6M / 1Y / 2Y … */
+  /** 状态 tip 自定义文案（双击可改；空则回退到 recordingStatus 文案） */
+  statusLabel?: string;
+  /** 状态 tip 果冻色（7 选 1） */
+  statusColor?: StatusJellyColor;
+  /** 追踪阶段 Stages：由追踪天数计算 1M / 2M / … / 1Y …（导入值可作缓存） */
   trackingStage?: string;
   /** 重复间隔天数 Repeat */
   repeatDays?: number;
@@ -107,6 +111,19 @@ export interface ManagedAnimal {
   /** 特殊实验备注 */
   specialExperiment?: string;
 }
+
+/** 状态 tip 果冻色（7 种） */
+export const STATUS_JELLY_COLORS = [
+  "mint",
+  "peach",
+  "lavender",
+  "sky",
+  "lemon",
+  "rose",
+  "grape",
+] as const;
+
+export type StatusJellyColor = (typeof STATUS_JELLY_COLORS)[number];
 
 /** 电生理记录状态 */
 export type EphysRecordStatus =

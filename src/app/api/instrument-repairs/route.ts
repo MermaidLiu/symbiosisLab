@@ -20,6 +20,13 @@ export async function GET(req: NextRequest) {
   if (mine) {
     filtered = list.filter((r) => r.reporterUserId === user.id);
   } else if (instrumentId) {
+    const inst = getStore().instruments.find((i) => i.id === instrumentId);
+    if (
+      !canSuperviseInstruments(user.roles) &&
+      !(inst && isInstrumentOwner(user.id, inst.contactUserId))
+    ) {
+      return jsonError("forbidden", 403);
+    }
     filtered = list.filter((r) => r.instrumentId === instrumentId);
   } else if (escalated || canSuperviseInstruments(user.roles)) {
     if (escalated) {

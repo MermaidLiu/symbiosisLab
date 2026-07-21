@@ -15,11 +15,12 @@ import {
   ManagedAnimal,
   MouseLifecycleStatus,
   PURPOSE_LIFECYCLE,
+  STATUS_JELLY_COLORS,
 } from "@/types/animal-management";
 import { buildFacilityCageCells } from "@/lib/animals/facility-board";
 import { displayName, findUserByKey } from "@/lib/users";
 
-function canEdit(user: { roles: import("@/types").Role[] }) {
+function canFullEdit(user: { roles: import("@/types").Role[] }) {
   return hasRole(user.roles, "super_admin") || canManageAnimals(user.roles);
 }
 
@@ -29,13 +30,25 @@ export async function PATCH(
 ) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!canEdit(user)) return jsonError("forbidden", 403);
 
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const store = getStore();
   const existing = store.managedAnimals.find((a) => a.id === id);
   if (!existing) return jsonError("not_found", 404);
+
+  const isClaimant = existing.claimantUserId === user.id;
+  const fullEdit = canFullEdit(user);
+  if (!fullEdit && !isClaimant) return jsonError("forbidden", 403);
+
+  // Claimants may only edit status tip fields
+  const claimantOnlyKeys = new Set(["statusLabel", "statusColor", "recordingStatus"]);
+  if (!fullEdit && isClaimant) {
+    const keys = Object.keys(body).filter((k) => body[k] !== undefined);
+    if (keys.length === 0 || keys.some((k) => !claimantOnlyKeys.has(k))) {
+      return jsonError("forbidden", 403);
+    }
+  }
 
   const prevClaimant = existing.claimantUserId;
   const prevClaimantName = existing.claimantName;
@@ -51,6 +64,24 @@ export async function PATCH(
     const next: ManagedAnimal = { ...cur };
     const prevLife = cur.lifecycleStatus;
     const prevCollection = cur.collectionAt;
+
+    if (body.statusLabel !== undefined) {
+      next.statusLabel = String(body.statusLabel ?? "").trim() || undefined;
+    }
+    if (body.statusColor !== undefined) {
+      const c = String(body.statusColor || "");
+      if (!c) next.statusColor = undefined;
+      else if (STATUS_JELLY_COLORS.includes(c as (typeof STATUS_JELLY_COLORS)[number])) {
+        next.statusColor = c as ManagedAnimal["statusColor"];
+      }
+    }
+    if (body.recordingStatus !== undefined) {
+      const rs = String(body.recordingStatus || "");
+      if (!rs) next.recordingStatus = undefined;
+      else if (["living", "dead", "waiting", "optotagging"].includes(rs)) {
+        next.recordingStatus = rs as ManagedAnimal["recordingStatus"];
+      }
+    }
 
     if (body.purpose !== undefined) {
       const p = String(body.purpose) as AnimalPurpose;

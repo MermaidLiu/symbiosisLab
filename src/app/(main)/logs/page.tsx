@@ -9,7 +9,6 @@ import { useAuth } from "@/context/AuthContext";
 import { getLogs, setCachePartial } from "@/lib/storage/db";
 import { api } from "@/lib/api/client";
 import { AuditLog } from "@/types";
-import { canViewAllLogs, canManageInstruments, canManageAnimals } from "@/lib/roles";
 
 export default function LogsPage() {
   const { t, locale } = useLocale();
@@ -31,14 +30,9 @@ export default function LogsPage() {
   }, []);
 
   const logs = useMemo(() => {
+    // Server already scopes instrument managers to their own instruments
     let all = [...rawLogs];
     if (!user) return [];
-    if (!canViewAllLogs(user.roles)) {
-      const allowed = new Set<string>(["auth", "booking", "notification", "application"]);
-      if (canManageInstruments(user.roles)) allowed.add("instrument");
-      if (canManageAnimals(user.roles)) allowed.add("animal");
-      all = all.filter((l) => allowed.has(l.entityType) || l.userId === user.id);
-    }
     if (filter !== "all") all = all.filter((l) => l.entityType === filter);
     return all;
   }, [user, filter, rawLogs]);
@@ -51,6 +45,8 @@ export default function LogsPage() {
           <Select value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="all">{t.logs.filterAll}</option>
             <option value="instrument">instrument</option>
+            <option value="instrument_training">instrument_training</option>
+            <option value="instrument_repair">instrument_repair</option>
             <option value="animal">animal</option>
             <option value="booking">booking</option>
             <option value="auth">auth</option>

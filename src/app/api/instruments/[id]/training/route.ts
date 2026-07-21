@@ -1,16 +1,19 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser, jsonError, jsonOk, requireRole } from "@/server/auth";
+import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
+import { canAccessInstrumentWorkflow } from "@/server/instrument-scope";
+import { canManageInstruments } from "@/lib/roles";
+import { displayName } from "@/lib/users";
 
-/** Grant or revoke instrument training for a user */
+/** Grant or revoke instrument training for a user — owner or instrument super only */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const actor = await getCurrentUser();
   if (!actor) return jsonError("unauthorized", 401);
-  if (!requireRole(actor, "instrument_manager")) return jsonError("forbidden", 403);
+  if (!canManageInstruments(actor.roles)) return jsonError("forbidden", 403);
 
   const { id: instrumentId } = await params;
   const body = await req.json().catch(() => ({}));
@@ -19,9 +22,9 @@ export async function POST(
   if (!userId) return jsonError("invalid_body", 400);
 
   const store = getStore();
-  if (!store.instruments.some((i) => i.id === instrumentId)) {
-    return jsonError("instrument_not_found", 404);
-  }
+  const instrument = store.instruments.find((i) => i.id === instrumentId);
+  if (!instrument) return jsonError("instrument_not_found", 404);
+  if (!canAccessInstrumentWorkflow(actor, instrument)) return jsonError("forbidden", 403);
 
   let updatedUser = null as (typeof store.users)[number] | null;
   await mutateStore((s) => {
@@ -41,7 +44,7 @@ export async function POST(
 
   await appendAuditLog({
     userId: actor.id,
-    userName: actor.name,
+    userName: displayName(actor),
     action: action === "grant" ? "grant_training" : "revoke_training",
     entityType: "instrument",
     entityId: instrumentId,

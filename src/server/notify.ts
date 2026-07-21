@@ -1,8 +1,12 @@
 import { Role, User } from "@/types";
 import { DbStore, uid } from "@/server/store";
-import { canManageAnimals, canManageInstruments, canProcessVeterinary } from "@/lib/roles";
+import {
+  canManageAnimals,
+  canProcessVeterinary,
+  canSuperviseInstruments,
+} from "@/lib/roles";
 
-/** Unique recipient user ids for a pending approval notification */
+/** Unique recipient user ids for a pending approval / resource notice */
 export function approverRecipientIds(
   store: DbStore,
   opts: {
@@ -18,7 +22,8 @@ export function approverRecipientIds(
       ids.add(u.id);
       continue;
     }
-    if (opts.resourceType === "instrument" && canManageInstruments(u.roles)) {
+    // Instruments: only the designated manager + instrument super admins — never all managers
+    if (opts.resourceType === "instrument" && canSuperviseInstruments(u.roles)) {
       ids.add(u.id);
     }
     if (

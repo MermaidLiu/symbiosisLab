@@ -3,12 +3,17 @@ import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { updateBookingStatusAtomic } from "@/server/booking";
+import { notificationVisibleToUser } from "@/server/instrument-scope";
+
+function notificationsForUser(user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>) {
+  const store = getStore();
+  return store.notifications.filter((n) => notificationVisibleToUser(n, user, store));
+}
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  const items = getStore().notifications.filter((n) => n.userId === user.id);
-  return jsonOk({ notifications: items });
+  return jsonOk({ notifications: notificationsForUser(user) });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -20,10 +25,13 @@ export async function PATCH(req: NextRequest) {
   const notificationId = body.id ? String(body.id) : null;
 
   if (action === "mark_all_read") {
-    const unread = getStore().notifications.filter((n) => n.userId === user.id && !n.read);
+    const store = getStore();
+    const visible = store.notifications.filter((n) => notificationVisibleToUser(n, user, store));
+    const visibleIds = new Set(visible.map((n) => n.id));
+    const unread = visible.filter((n) => !n.read);
     await mutateStore((s) => {
       s.notifications = s.notifications.map((n) =>
-        n.userId === user.id ? { ...n, read: true } : n
+        visibleIds.has(n.id) ? { ...n, read: true } : n
       );
     });
     for (const n of unread) {
@@ -37,7 +45,7 @@ export async function PATCH(req: NextRequest) {
       });
     }
     return jsonOk({
-      notifications: getStore().notifications.filter((n) => n.userId === user.id),
+      notifications: notificationsForUser(user),
     });
   }
 
@@ -46,6 +54,7 @@ export async function PATCH(req: NextRequest) {
   const store = getStore();
   const target = store.notifications.find((n) => n.id === notificationId && n.userId === user.id);
   if (!target) return jsonError("not_found", 404);
+  if (!notificationVisibleToUser(target, user, store)) return jsonError("forbidden", 403);
 
   // Approve/reject first — if slot conflict, do not mark notification handled
   if ((action === "approve" || action === "reject") && target.bookingId) {
@@ -99,7 +108,7 @@ export async function PATCH(req: NextRequest) {
   });
 
   return jsonOk({
-    notifications: getStore().notifications.filter((n) => n.userId === user.id),
+    notifications: notificationsForUser(user),
     bookings: getStore().bookings,
   });
 }

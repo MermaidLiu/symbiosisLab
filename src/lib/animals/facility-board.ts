@@ -162,6 +162,21 @@ export function formatTrackingDays(days: number | null, unit = "d"): string {
   return `${days} ${unit}`;
 }
 
+/**
+ * Stage from tracking days:
+ * - under 1 month → 1M
+ * - N months (< 12) → NM
+ * - N years → NY
+ */
+export function trackingStageFromDays(days: number | null): string {
+  if (days === null || !Number.isFinite(days) || days < 0) return "—";
+  if (days < 30) return "1M";
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${Math.max(1, months)}M`;
+  const years = Math.floor(months / 12);
+  return `${Math.max(1, years)}Y`;
+}
+
 /** @deprecated Prefer formatTrackingDays */
 export function formatTrackingMinutes(minutes: number | null, unit = "min"): string {
   if (minutes === null) return "—";
