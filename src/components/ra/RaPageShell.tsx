@@ -37,7 +37,7 @@ export function RaPageShell({
   return (
     <>
       <PageHeader title={title} action={action} />
-      <div className="fluent-mica-bg flex-1 overflow-y-auto p-4 md:p-6">{children}</div>
+      <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto p-4 pb-24 md:p-6">{children}</div>
     </>
   );
 }

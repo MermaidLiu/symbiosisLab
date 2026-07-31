@@ -1,16 +1,53 @@
 const { api } = require("../../utils/api");
-const { setSession, getToken } = require("../../utils/auth");
+const { setSession, getToken, clearSession } = require("../../utils/auth");
+const { API_BASE, isInsecureApiBase } = require("../../utils/config");
 
 Page({
   data: {
     email: "student@lab.edu.cn",
     password: "demo123",
     loading: false,
+    checking: false,
+    apiBase: API_BASE,
+    insecureApi: isInsecureApiBase(),
   },
 
-  onShow() {
-    if (getToken()) {
-      wx.switchTab({ url: "/pages/home/home" });
+  onLoad(query) {
+    if (query && (query.force === "1" || query.force === "true")) {
+      clearSession();
+      getApp().globalData.user = null;
+    }
+    if (isInsecureApiBase()) {
+      clearSession();
+      getApp().globalData.user = null;
+    }
+  },
+
+  async onShow() {
+    // 体验版 + HTTP/IP：绝不过自动跳转，必须停在登录页提示
+    if (isInsecureApiBase()) {
+      clearSession();
+      getApp().globalData.user = null;
+      this.setData({ insecureApi: true, checking: false });
+      return;
+    }
+
+    const token = getToken();
+    if (!token) return;
+
+    this.setData({ checking: true });
+    try {
+      const res = await api.me();
+      if (res && res.user) {
+        setSession(token, res.user);
+        getApp().globalData.user = res.user;
+        wx.switchTab({ url: "/pages/home/home" });
+      }
+    } catch (_) {
+      clearSession();
+      getApp().globalData.user = null;
+    } finally {
+      this.setData({ checking: false });
     }
   },
 
@@ -23,6 +60,17 @@ Page({
   },
 
   async onLogin() {
+    if (isInsecureApiBase()) {
+      wx.showModal({
+        title: "无法登录",
+        content:
+          "当前 API 仍是 HTTP/IP，体验版和正式版都不能访问。\n请先配置 HTTPS 域名，再修改 utils/config.js 后重新上传。\n\n" +
+          API_BASE,
+        showCancel: false,
+      });
+      return;
+    }
+
     const email = (this.data.email || "").trim();
     const password = this.data.password || "";
     if (!email || !password) {
@@ -32,29 +80,34 @@ Page({
     this.setData({ loading: true });
     try {
       const res = await api.login(email, password);
-      if (!res.token) {
+      const token = (res && res.token) || "";
+      if (!token) {
         wx.showModal({
-          title: "服务器未就绪",
-          content:
-            "当前线上后端未返回登录 token（小程序无法使用网页 Cookie）。请将最新代码部署到服务器后再试。",
+          title: "登录异常",
+          content: `接口未返回 token。\nAPI: ${API_BASE}\n响应: ${JSON.stringify(res).slice(0, 180)}`,
           showCancel: false,
         });
         return;
       }
-      setSession(res.token, res.user);
+      setSession(token, res.user);
       getApp().globalData.user = res.user;
       wx.showToast({ title: "登录成功", icon: "success" });
       setTimeout(() => wx.switchTab({ url: "/pages/home/home" }), 300);
     } catch (err) {
-      const msg =
+      const detail = err.detail || err.errMsg || err.code || "";
+      const isDomain =
+        String(detail).includes("domain list") || String(detail).includes("url not in");
+      const content =
         err.code === "invalid_credentials"
           ? "邮箱或密码错误"
-          : err.code === "network_error"
-            ? "无法连接服务器：请在开发者工具勾选「不校验合法域名」，并确认 API 地址正确"
-            : err.code === "bad_response"
-              ? "接口返回异常，请检查 API_BASE 是否含 /symbiosis/lab"
-              : "登录失败";
-      wx.showToast({ title: msg, icon: "none", duration: 3000 });
+          : isDomain || err.code === "network_error"
+            ? `无法连接服务器（体验版必须用 HTTPS 域名）。\n\n${detail}\n${API_BASE}`
+            : `登录失败：${err.code || "unknown"}\n${detail}\n${API_BASE}`;
+      wx.showModal({
+        title: "登录失败",
+        content: content.slice(0, 500),
+        showCancel: false,
+      });
     } finally {
       this.setData({ loading: false });
     }

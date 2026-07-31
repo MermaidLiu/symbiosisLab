@@ -1,31 +1,55 @@
-.search input {
-  background: #f9f5fb;
-  padding: 16rpx 20rpx;
-  border-radius: 12rpx;
+.page {
+  padding-bottom: 40rpx;
 }
 
-.row {
+.search {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 18rpx 24rpx;
+}
+
+.search-icon {
+  font-size: 28rpx;
+}
+
+.search .ali-icon {
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+}
+
+.animal .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10rpx;
+  margin-bottom: 12rpx;
 }
 
 .id {
   font-family: monospace;
-  font-weight: 700;
-  color: #660874;
+  font-weight: 800;
+  color: #5b3a9e;
+  font-size: 30rpx;
+}
+
+.line {
+  margin-top: 6rpx;
+  font-size: 24rpx;
 }
 
 .edit-hint {
-  margin-top: 12rpx;
+  margin-top: 14rpx;
   font-size: 22rpx;
+  color: #9a90b0;
 }
 
 .mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(50, 30, 80, 0.35);
   display: flex;
   align-items: flex-end;
   z-index: 100;
@@ -34,42 +58,47 @@
 .editor {
   width: 100%;
   background: #fff;
-  border-radius: 24rpx 24rpx 0 0;
-  padding: 32rpx;
+  border-radius: 32rpx 32rpx 0 0;
+  padding: 36rpx 32rpx calc(36rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -12rpx 40rpx rgba(123, 77, 184, 0.15);
 }
 
 .editor-title {
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 32rpx;
   margin-bottom: 20rpx;
+  color: #5b3a9e;
 }
 
 .input {
-  background: #f9f5fb;
-  padding: 16rpx 20rpx;
-  border-radius: 12rpx;
+  background: #f7f2ff;
+  padding: 18rpx 20rpx;
+  border-radius: 16rpx;
+  border: 2rpx solid #ede0ff;
 }
 
 .color-label {
-  margin: 20rpx 0 12rpx;
+  margin: 22rpx 0 14rpx;
   font-size: 24rpx;
 }
 
 .colors {
   display: flex;
   flex-wrap: wrap;
-  gap: 16rpx;
+  gap: 18rpx;
 }
 
 .swatch {
-  width: 48rpx;
-  height: 48rpx;
+  width: 52rpx;
+  height: 52rpx;
   border-radius: 50%;
   border: 4rpx solid transparent;
+  box-shadow: 0 6rpx 14rpx rgba(90, 70, 120, 0.12);
 }
 
 .swatch.on {
-  border-color: #660874;
-  transform: scale(1.1);
+  border-color: #7b4db8;
+  transform: scale(1.12);
 }
 
 .editor-actions {

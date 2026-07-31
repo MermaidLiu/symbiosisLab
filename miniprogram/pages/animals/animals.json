@@ -1,4 +1,7 @@
 {
   "navigationBarTitleText": "代管动物",
-  "enablePullDownRefresh": true
+  "navigationBarBackgroundColor": "#7B4DB8",
+  "navigationBarTextStyle": "white",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#F3EAFF"
 }

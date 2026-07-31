@@ -6,20 +6,21 @@
     "pages/instrument-detail/instrument-detail",
     "pages/bookings/bookings",
     "pages/animals/animals",
-    "pages/notices/notices"
+    "pages/notices/notices",
+    "pages/calendar/calendar"
   ],
   "window": {
-    "navigationBarBackgroundColor": "#660874",
+    "navigationBarBackgroundColor": "#7B4DB8",
     "navigationBarTitleText": "Symbiosis Lab",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#F7F1FA",
+    "backgroundColor": "#F3EAFF",
     "backgroundTextStyle": "dark"
   },
   "tabBar": {
     "color": "#8B7A90",
-    "selectedColor": "#660874",
+    "selectedColor": "#7B4DB8",
     "backgroundColor": "#FFFFFF",
-    "borderStyle": "black",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/home/home",
@@ -48,6 +49,5 @@
     ]
   },
   "style": "v2",
-  "sitemapLocation": "sitemap.json",
-  "lazyCodeLoading": "requiredComponents"
+  "sitemapLocation": "sitemap.json"
 }

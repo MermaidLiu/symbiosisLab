@@ -1,0 +1,65 @@
+/* 阿里 iconfont 风格线性图标（本地 SVG data-URI，不依赖 emoji） */
+
+.ali-icon {
+  width: 44rpx;
+  height: 44rpx;
+  display: block;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.ali-icon-lg {
+  width: 48rpx;
+  height: 48rpx;
+}
+
+.ali-icon-sm {
+  width: 32rpx;
+  height: 32rpx;
+}
+
+/* 仪器 / 显微镜 */
+.ali-icon-instrument {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B3A9E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3Ccircle cx='11' cy='11' r='3'/%3E%3C/svg%3E");
+}
+
+/* 日历 / 预约 */
+.ali-icon-calendar {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A7A12' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M3 10h18M8 3v4M16 3v4'/%3E%3C/svg%3E");
+}
+
+/* 动物 */
+.ali-icon-animal {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231B7A5A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 14c3 0 5 1.5 5 3.5V19H7v-1.5C7 15.5 9 14 12 14z'/%3E%3Ccircle cx='12' cy='9' r='3.2'/%3E%3Ccircle cx='6.5' cy='8' r='1.4'/%3E%3Ccircle cx='17.5' cy='8' r='1.4'/%3E%3C/svg%3E");
+}
+
+/* 通知铃铛 */
+.ali-icon-bell {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B83B5E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 16h12l-1.2-2.2a7 7 0 0 1-1.3-4V8a4.5 4.5 0 1 0-9 0v1.8c0 1.4-.45 2.8-1.3 4L6 16z'/%3E%3Cpath d='M10 19a2 2 0 0 0 4 0'/%3E%3C/svg%3E");
+}
+
+/* 工具 / 报修 */
+.ali-icon-tool {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C45C26' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.5 6.5l3 3M4 20l7.5-7.5'/%3E%3Cpath d='M13 5.5a4 4 0 0 0 5.5 5.5L15 14.5 9.5 9 13 5.5z'/%3E%3C/svg%3E");
+}
+
+/* 退出 */
+.ali-icon-logout {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B3A9E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4'/%3E%3Cpath d='M15 12H8M15 12l-2.5-2.5M15 12l-2.5 2.5'/%3E%3C/svg%3E");
+}
+
+/* 搜索 */
+.ali-icon-search {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A7190' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='6.5'/%3E%3Cpath d='M20 20l-3.2-3.2'/%3E%3C/svg%3E");
+}
+
+/* 首页 */
+.ali-icon-home {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B3A9E' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 11.5L12 4l8 7.5'/%3E%3Cpath d='M6.5 10.5V20h11V10.5'/%3E%3C/svg%3E");
+}
+
+/* 列表文档 */
+.ali-icon-list {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231A6B8A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 7h11M8 12h11M8 17h11'/%3E%3Ccircle cx='5' cy='7' r='1' fill='%231A6B8A' stroke='none'/%3E%3Ccircle cx='5' cy='12' r='1' fill='%231A6B8A' stroke='none'/%3E%3Ccircle cx='5' cy='17' r='1' fill='%231A6B8A' stroke='none'/%3E%3C/svg%3E");
+}

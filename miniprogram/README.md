@@ -26,18 +26,26 @@ npm run dev
 > **重要**：小程序登录依赖接口返回 `token` 字段。请确保服务器已部署包含 Bearer 登录的最新后端；仅更新小程序不够。
 
 2. 打开 [微信开发者工具](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)
-3. 导入本目录：`miniprogram/`
+3. **导入目录请选 `miniprogram/`**（不要只选仓库根目录；若选根目录，需依赖根目录的 `project.config.json` 里 `miniprogramRoot`）
 4. 填写 AppID：`wxb4ad423abf19b61f`
 5. 详情 → 本地设置 → 勾选 **不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书**
+6. 若预览报 `functionalPages`：菜单「工具 → 清除缓存 → 全部清除」，关闭项目后重新导入 `miniprogram/`，再点预览
 
 真机预览时，HTTP IP 地址在部分环境下仍可能被拦截；正式上线请使用 **HTTPS** 域名并在微信后台配置 request 合法域名。
 
-## 上线前
+## 上线前（必须 HTTPS 域名）
 
-1. 后端部署到 HTTPS 域名
-2. 微信公众平台 → 开发管理 → 开发设置 → **服务器域名** 配置 request 合法域名
-3. 将 `API_BASE` 改为该 HTTPS 地址
-4. 上传代码并提交审核
+微信提审不能使用 IP / HTTP。请按仓库文档操作：
+
+→ [docs/小程序域名HTTPS上手.md](../docs/小程序域名HTTPS上手.md)
+
+摘要：
+
+1. 腾讯云/阿里云购买域名（约几十元/年）并完成实名  
+2. A 记录解析到 `122.51.204.136`，完成 ICP 备案  
+3. 申请免费 SSL，按 `deploy/nginx-symbiosis-https.conf.example` 配 Nginx  
+4. 微信后台添加 request 合法域名 `https://你的域名`  
+5. 将 `utils/config.js` 的 `API_BASE` 改为 `https://你的域名/symbiosis/lab` 后重新上传
 
 ## 演示账号
 

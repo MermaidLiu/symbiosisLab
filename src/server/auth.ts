@@ -38,7 +38,7 @@ export async function getSessionTokenFromCookies(): Promise<string | null> {
   return jar.get(SESSION_COOKIE)?.value ?? null;
 }
 
-/** Cookie session or Authorization: Bearer <token> (WeChat mini-program) */
+/** Cookie session, Authorization Bearer, or X-Symbiosis-Token (mini-program) */
 export async function getSessionToken(): Promise<string | null> {
   const fromCookie = await getSessionTokenFromCookies();
   if (fromCookie) return fromCookie;
@@ -47,6 +47,8 @@ export async function getSessionToken(): Promise<string | null> {
   if (auth && /^Bearer\s+/i.test(auth)) {
     return auth.replace(/^Bearer\s+/i, "").trim() || null;
   }
+  const custom = h.get("x-symbiosis-token");
+  if (custom && custom.trim()) return custom.trim();
   return null;
 }
 

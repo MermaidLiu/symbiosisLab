@@ -1,0 +1,181 @@
+.page {
+  padding-bottom: 40rpx;
+  min-height: 100vh;
+}
+
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.month-title {
+  font-size: 32rpx;
+  font-weight: 800;
+  color: #5b3a9e;
+}
+
+.nav-btn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 20rpx;
+  background: #ede0ff;
+  color: #5b3a9e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.weekrow {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
+
+.wd {
+  flex: 1;
+  text-align: center;
+  font-size: 22rpx;
+  color: #9a90b0;
+  padding: 8rpx 0 12rpx;
+  box-sizing: border-box;
+}
+
+.cal-row {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 72rpx;
+  align-items: center;
+}
+
+.cell {
+  position: relative;
+  flex: 1;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.cell.empty {
+  pointer-events: none;
+}
+
+.day {
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  text-align: center;
+  border-radius: 18rpx;
+  font-size: 26rpx;
+  color: #2a2340;
+}
+
+.cell.today .day {
+  background: #d0eeff;
+  color: #1a6b8a;
+  font-weight: 700;
+}
+
+.cell.selected .day {
+  background: linear-gradient(135deg, #a78bfa, #7b4db8);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 8rpx 16rpx rgba(123, 77, 184, 0.28);
+}
+
+.dot {
+  position: absolute;
+  left: 50%;
+  bottom: 6rpx;
+  width: 10rpx;
+  height: 10rpx;
+  margin-left: -5rpx;
+  border-radius: 50%;
+  background: #ff8fb3;
+  pointer-events: none;
+}
+
+.legend {
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  text-align: center;
+}
+
+.list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16rpx;
+}
+
+.count {
+  font-size: 22rpx;
+  color: #9a90b0;
+}
+
+.empty-day {
+  text-align: center;
+  color: #9a90b0;
+  padding: 48rpx 0;
+  font-size: 26rpx;
+}
+
+.event {
+  padding: 20rpx 0;
+  border-bottom: 2rpx solid #f3eaff;
+}
+
+.event:last-child {
+  border-bottom: none;
+}
+
+.event-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.badge {
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  font-weight: 600;
+}
+
+.badge-notification {
+  background: #ffd6e0;
+  color: #b83b5e;
+}
+
+.badge-booking {
+  background: #d0eeff;
+  color: #1a6b8a;
+}
+
+.badge-activity {
+  background: #c8f7e0;
+  color: #1b7a5a;
+}
+
+.time {
+  font-size: 22rpx;
+}
+
+.event-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #2a2340;
+}
+
+.event-detail {
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  line-height: 1.45;
+}

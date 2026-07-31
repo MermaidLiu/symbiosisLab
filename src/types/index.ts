@@ -326,3 +326,39 @@ export interface RaWorkItem {
   updatedAt: string;
 }
 
+/** Hot-topic radar: watch keywords (e.g. BCI domains) */
+export interface RaTopicKeyword {
+  id: string;
+  label: string;
+  /** system seed vs professor/RA added */
+  source: "system" | "manual";
+  createdBy: string;
+  createdAt: string;
+}
+
+export type RaTopicSource =
+  | "linkedin"
+  | "x"
+  | "researchgate"
+  | "news"
+  | "paper"
+  | "other";
+
+/** Weekly board item — manual paste or later ingestion */
+export interface RaTopicItem {
+  id: string;
+  /** ISO week key, e.g. 2026-W31 */
+  weekKey: string;
+  title: string;
+  url: string;
+  source: RaTopicSource;
+  /** 1–100 relative heat / attention */
+  heat: number;
+  summary: string;
+  keywordIds: string[];
+  starred: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

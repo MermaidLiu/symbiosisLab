@@ -1,46 +1,92 @@
+@import "./styles/icons.wxss";
+
+/* Symbiosis Lab MP — Fluent jelly palette */
 page {
-  background: #f7f1fa;
-  color: #1f2937;
+  --jelly-mint: #c8f7e0;
+  --jelly-peach: #ffe0c8;
+  --jelly-lavender: #ede0ff;
+  --jelly-sky: #d0eeff;
+  --jelly-lemon: #fff6c2;
+  --jelly-rose: #ffd6e0;
+  --jelly-grape: #e2d4ff;
+  --ink: #2a2340;
+  --muted: #7a7190;
+  --brand: #7b4db8;
+  --brand-deep: #5b3a9e;
+  background: linear-gradient(180deg, #f3eaff 0%, #eef7ff 42%, #fff6f0 100%);
+  background-attachment: fixed;
+  color: var(--ink);
   font-size: 28rpx;
   box-sizing: border-box;
 }
 
 .card {
-  background: #fff;
-  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 28rpx;
   padding: 28rpx;
-  margin: 24rpx;
-  box-shadow: 0 8rpx 24rpx rgba(102, 8, 116, 0.06);
+  margin: 20rpx 24rpx;
+  box-shadow: 0 12rpx 32rpx rgba(123, 77, 184, 0.08);
+  border: 2rpx solid rgba(255, 255, 255, 0.9);
 }
 
 .btn-primary {
-  background: #660874;
+  background: linear-gradient(135deg, #a78bfa, #7b4db8);
   color: #fff;
-  border-radius: 12rpx;
+  border-radius: 999rpx;
   font-size: 30rpx;
+  font-weight: 600;
+  box-shadow: 0 10rpx 24rpx rgba(123, 77, 184, 0.28);
+  border: none;
+}
+
+.btn-primary::after {
+  border: none;
 }
 
 .btn-ghost {
-  background: #f5eef7;
-  color: #660874;
-  border-radius: 12rpx;
+  background: var(--jelly-lavender);
+  color: var(--brand-deep);
+  border-radius: 999rpx;
+  border: none;
+}
+
+.btn-ghost::after {
+  border: none;
 }
 
 .muted {
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .tip {
   display: inline-flex;
   align-items: center;
   border-radius: 999rpx;
-  padding: 4rpx 16rpx;
+  padding: 6rpx 18rpx;
   font-size: 22rpx;
   font-weight: 600;
 }
 
 .empty {
   text-align: center;
-  color: #6b7280;
-  padding: 80rpx 40rpx;
+  color: var(--muted);
+  padding: 100rpx 40rpx;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8rpx 8rpx 16rpx;
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.section-sub {
+  font-size: 22rpx;
+  color: var(--muted);
 }

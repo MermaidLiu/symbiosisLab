@@ -1,38 +1,81 @@
-.search input {
-  background: #f9f5fb;
-  padding: 16rpx 20rpx;
-  border-radius: 12rpx;
+.page {
+  padding-bottom: 32rpx;
 }
 
-.item .row {
+.search {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 18rpx 24rpx;
+}
+
+.search-icon {
+  font-size: 28rpx;
+}
+
+.search .ali-icon {
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  font-size: 28rpx;
+}
+
+.item {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.accent {
+  width: 12rpx;
+  background: linear-gradient(180deg, #a8ddff, #c9b0f5);
+}
+
+.body {
+  flex: 1;
+  padding: 26rpx 28rpx;
+}
+
+.row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8rpx;
+  gap: 16rpx;
 }
 
 .name {
-  font-weight: 600;
+  flex: 1;
+  font-weight: 700;
   font-size: 30rpx;
+  color: #2a2340;
+}
+
+.meta {
+  margin-top: 10rpx;
+  font-size: 24rpx;
 }
 
 .status {
   font-size: 22rpx;
-  padding: 4rpx 12rpx;
+  padding: 6rpx 14rpx;
   border-radius: 999rpx;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .status-available {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: #c8f7e0;
+  color: #1b7a5a;
 }
 
 .status-maintenance {
-  background: #fff3e0;
-  color: #e65100;
+  background: #ffe0c8;
+  color: #c45c26;
 }
 
 .status-retired {
-  background: #f5f5f5;
-  color: #616161;
+  background: #ede0ff;
+  color: #5b3a9e;
 }

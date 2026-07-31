@@ -33,7 +33,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-thu-muted via-white to-tsinghua-yellow-light/30 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-thu-muted via-white to-tsinghua-yellow-light/30 p-4 pb-12">
       <div className="w-full max-w-md rounded-xl border border-lab-border bg-white p-8 shadow-card">
         <div className="mb-6 flex items-center justify-between">
           <div>

@@ -1,0 +1,44 @@
+<view class="page">
+  <view class="card cal">
+    <view class="cal-head">
+      <view class="nav-btn" bindtap="prevMonth">‹</view>
+      <view class="month-title">{{monthText}}</view>
+      <view class="nav-btn" bindtap="nextMonth">›</view>
+    </view>
+  <view class="weekrow">
+    <view class="wd" wx:for="{{weeks}}" wx:key="*this">{{item}}</view>
+  </view>
+  <view class="cal-row" wx:for="{{rows}}" wx:key="key">
+    <view
+      class="cell {{day.empty ? 'empty' : ''}} {{day.today ? 'today' : ''}} {{day.selected ? 'selected' : ''}}"
+      wx:for="{{item.days}}"
+      wx:for-item="day"
+      wx:key="key"
+      data-date="{{day.date}}"
+      bindtap="onPickDay"
+    >
+      <view class="day" wx:if="{{!day.empty}}">{{day.day}}</view>
+      <view class="dot" wx:if="{{day.marked}}"></view>
+    </view>
+  </view>
+    <view class="legend muted">有圆点的日期表示当天有日志</view>
+  </view>
+
+  <view class="card list-card">
+    <view class="list-head">
+      <view class="section-title">{{selected}} 的日志</view>
+      <view class="count">{{dayEvents.length}} 条</view>
+    </view>
+
+    <view wx:if="{{dayEvents.length === 0}}" class="empty-day">这一天暂无记录</view>
+
+    <view class="event type-{{item.type}}" wx:for="{{dayEvents}}" wx:key="id">
+      <view class="event-top">
+        <view class="badge badge-{{item.type}}">{{item.typeLabel}}</view>
+        <view class="time muted">{{item.timeText}}</view>
+      </view>
+      <view class="event-title">{{item.title}}</view>
+      <view class="event-detail muted" wx:if="{{item.detail}}">{{item.detail}}</view>
+    </view>
+  </view>
+</view>

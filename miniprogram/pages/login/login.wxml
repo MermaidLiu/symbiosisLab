@@ -1,15 +1,32 @@
 <view class="wrap">
+  <view class="blob blob-a"></view>
+  <view class="blob blob-b"></view>
   <view class="hero">
     <view class="brand">Symbiosis Lab</view>
-    <view class="sub">实验室资源 · 手机端一期</view>
+    <view class="sub">实验室资源 · 果冻色手机端</view>
   </view>
 
-  <view class="card form">
+  <view class="card form" wx:if="{{insecureApi}}">
+    <view class="warn-title">体验版暂不可用</view>
+    <view class="warn-body">
+      当前接口仍是 HTTP/IP，微信体验版和正式版会拦截请求，所以会出现「闪一下登录页 → 加载失败」。
+    </view>
+    <view class="warn-body">
+      请先准备 HTTPS 域名，把 utils/config.js 改成 https://你的域名/symbiosis/lab，并在公众平台配置 request 合法域名后重新上传。
+    </view>
+    <view class="api muted">{{apiBase}}</view>
+    <view class="hint muted">开发阶段请用开发者工具「不校验合法域名」，或直接用网页端。</view>
+  </view>
+
+  <view class="card form" wx:else>
     <view class="label">邮箱</view>
     <input class="input" type="text" placeholder="student@lab.edu.cn" value="{{email}}" bindinput="onEmail" />
     <view class="label">密码</view>
     <input class="input" password placeholder="demo123" value="{{password}}" bindinput="onPassword" />
-    <button class="btn-primary login-btn" loading="{{loading}}" bindtap="onLogin">登录</button>
-    <view class="hint muted">账号由管理员开通，与网页端同一套数据</view>
+    <button class="btn-primary login-btn" loading="{{loading}}" disabled="{{checking}}" bindtap="onLogin">
+      {{checking ? "检查登录中…" : "登录"}}
+    </button>
+    <view class="hint muted">与网页端同一套账号与数据</view>
+    <view class="api muted">{{apiBase}}</view>
   </view>
 </view>

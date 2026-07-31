@@ -1,0 +1,44 @@
+# Symbiosis Lab — Nginx HTTPS 示例
+# 用法：
+# 1. 把 your.domain.com 换成真实域名
+# 2. 换成真实证书路径
+# 3. 确认 proxy_pass 端口与现网一致（常见 127.0.0.1:3000）
+# 4. sudo nginx -t && sudo systemctl reload nginx
+
+server {
+    listen 80;
+    server_name your.domain.com;
+
+    # HTTP 全部跳到 HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name your.domain.com;
+
+    ssl_certificate     /etc/nginx/ssl/symbiosis.crt;
+    ssl_certificate_key /etc/nginx/ssl/symbiosis.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+
+    # 与现网一致：站点挂在 /symbiosis/lab
+    # 若你们现有 HTTP 配置不是 rewrite，请对照服务器上原 server{} 修改本段
+    location /symbiosis/lab {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Next 静态资源等（按现网需要增删）
+    location /_next/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

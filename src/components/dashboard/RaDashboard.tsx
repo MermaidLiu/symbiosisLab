@@ -129,6 +129,13 @@ export function RaDashboard() {
       accent: "text-thu",
       small: true,
     },
+    {
+      label: d.cardRadar,
+      value: d.manage,
+      href: "/ra/radar",
+      accent: "text-sky-700",
+      small: true,
+    },
   ];
 
   function kindLabel(kind: RaWorkItem["kind"]) {
@@ -157,7 +164,7 @@ export function RaDashboard() {
         </GlassPanel>
 
         <GlassPanel padding={false} className="mb-5 overflow-hidden">
-          <div className="grid grid-cols-2 gap-px bg-white/30 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-px bg-white/30 sm:grid-cols-3 lg:grid-cols-7">
             {cards.map((card) => (
               <Link
                 key={card.href + card.label}

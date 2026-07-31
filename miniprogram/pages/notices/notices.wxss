@@ -1,23 +1,51 @@
+.page {
+  padding-bottom: 32rpx;
+}
+
 .toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tip-text {
+  font-size: 24rpx;
+  color: #7a7190;
+}
+
+.notice {
+  position: relative;
+  padding-left: 36rpx;
 }
 
 .notice.unread {
-  border-left: 6rpx solid #660874;
+  background: linear-gradient(135deg, rgba(255, 246, 194, 0.55), rgba(255, 255, 255, 0.9));
+}
+
+.dot {
+  position: absolute;
+  left: 16rpx;
+  top: 34rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #ff8fb3;
+  box-shadow: 0 0 0 6rpx rgba(255, 143, 179, 0.25);
 }
 
 .title {
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 8rpx;
+  color: #2a2340;
 }
 
 .msg {
-  color: #374151;
-  line-height: 1.45;
+  color: #4b4560;
+  line-height: 1.5;
+  font-size: 26rpx;
 }
 
 .time {
-  margin-top: 10rpx;
+  margin-top: 12rpx;
   font-size: 22rpx;
 }

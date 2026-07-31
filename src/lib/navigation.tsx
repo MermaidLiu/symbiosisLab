@@ -85,6 +85,7 @@ export const NAV_ENTRIES: NavEntry[] = [
       { href: "/ra/achievements", labelKey: "raAchievements" },
       { href: "/ra/images", labelKey: "raImageLibrary" },
       { href: "/ra/ppt", labelKey: "raPptStudio" },
+      { href: "/ra/radar", labelKey: "raHotTopicRadar" },
     ],
   },
   { type: "link", href: "/bookings", labelKey: "bookings", icon: "calendar", show: () => true },

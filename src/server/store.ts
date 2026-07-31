@@ -16,7 +16,10 @@ import {
   RaImageLibraryItem,
   RaProject,
   RaWorkItem,
+  RaTopicKeyword,
+  RaTopicItem,
 } from "@/types";
+import { buildDefaultTopicKeywords } from "@/server/ra-topic-seed";
 import {
   ManagedAnimal,
   Cage,
@@ -75,6 +78,10 @@ export interface DbStore {
   raProjects: RaProject[];
   /** RA project-management work items (7 duty modules) */
   raWorkItems: RaWorkItem[];
+  /** Hot-topic radar watch keywords */
+  raTopicKeywords: RaTopicKeyword[];
+  /** Hot-topic radar weekly board items */
+  raTopicItems: RaTopicItem[];
   /** Daily animal-facility activity feed for calendar */
   animalDayActivities: AnimalDayActivity[];
   /** Student-assigned animal ops (禁食/采集/手术等) */
@@ -116,6 +123,8 @@ function emptyStore(): DbStore {
     raImageLibrary: [],
     raProjects: [],
     raWorkItems: [],
+    raTopicKeywords: [],
+    raTopicItems: [],
     animalDayActivities: [],
     animalOpTasks: [],
     instrumentTrainingRequests: [],
@@ -158,6 +167,8 @@ function seedStore(): DbStore {
     raImageLibrary: [],
     raProjects: DEFAULT_RA_PROJECTS.map((p) => ({ ...p })),
     raWorkItems: buildSeedRaWorkItems(),
+    raTopicKeywords: buildDefaultTopicKeywords("system"),
+    raTopicItems: [],
     animalDayActivities: buildSeedAnimalDayActivities(),
     animalOpTasks: [],
     instrumentTrainingRequests: [],
@@ -245,6 +256,14 @@ function readFromDisk(): DbStore {
     }
     if (!Array.isArray(parsed.raWorkItems) || parsed.raWorkItems.length === 0) {
       parsed.raWorkItems = buildSeedRaWorkItems();
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.raTopicKeywords) || parsed.raTopicKeywords.length === 0) {
+      parsed.raTopicKeywords = buildDefaultTopicKeywords("system");
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.raTopicItems)) {
+      parsed.raTopicItems = [];
       dirty = true;
     }
     if (!Array.isArray(parsed.animalDayActivities) || parsed.animalDayActivities.length === 0) {
@@ -409,6 +428,16 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.raProjects)) {
       globalThis.__symbiosisDb.raProjects = DEFAULT_RA_PROJECTS.map((p) => ({ ...p }));
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raWorkItems)) {
+      globalThis.__symbiosisDb.raWorkItems = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raTopicKeywords) || globalThis.__symbiosisDb.raTopicKeywords.length === 0) {
+      globalThis.__symbiosisDb.raTopicKeywords = buildDefaultTopicKeywords("system");
+      writeToDisk(globalThis.__symbiosisDb);
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.raTopicItems)) {
+      globalThis.__symbiosisDb.raTopicItems = [];
     }
     if (!Array.isArray(globalThis.__symbiosisDb.animalDayActivities) || globalThis.__symbiosisDb.animalDayActivities.length === 0) {
       globalThis.__symbiosisDb.animalDayActivities = buildSeedAnimalDayActivities();

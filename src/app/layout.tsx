@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Noto_Sans_SC } from "next/font/google";
 import { LocaleProvider } from "@/components/providers/LocaleProvider";
 import { AuthProvider } from "@/context/AuthContext";
+import { IcpBeianFooter } from "@/components/layout/IcpBeianFooter";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <LocaleProvider>
           <AuthProvider>{children}</AuthProvider>
         </LocaleProvider>
+        <IcpBeianFooter />
       </body>
     </html>
   );
