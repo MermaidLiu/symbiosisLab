@@ -1,4 +1,11 @@
-<view class="page" wx:if="{{instrument}}">
+<view class="page">
+  <view class="card guest-card" wx:if="{{guestMode}}">
+    <view class="guest-title">仪器详情与预约</view>
+    <view class="guest-desc muted">登录后可查看仪器信息并提交预约。</view>
+    <button class="btn-primary" bindtap="goLogin">去登录</button>
+  </view>
+
+  <block wx:elif="{{instrument}}">
   <view class="hero card">
     <view class="title">{{instrument.name}}</view>
     <view class="en">{{instrument.nameEn}}</view>
@@ -38,4 +45,5 @@
     <button class="btn-primary" loading="{{submitting}}" bindtap="onBook">提交预约</button>
     <view class="hint muted">与网页同步；仪器预约无需审批。</view>
   </view>
+  </block>
 </view>

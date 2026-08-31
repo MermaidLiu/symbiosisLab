@@ -1,7 +1,7 @@
 # 小程序上线：便宜域名 + 免费 HTTPS（实验室）
 
 当前服务器 IP：`122.51.204.136`  
-正式 HTTPS 入口：`https://www.dailab.online/symbiosis/lab`  
+正式 HTTPS 入口：`https://daigroup.org/lab`  
 小程序 AppID：`wxb4ad423abf19b61f`
 
 > 域名必须由**你们账号**实名购买与备案，AI 无法代付。按下面做，大约几十元/年 + 免费证书即可提审。

@@ -1,7 +1,7 @@
 /** 部署环境 API 根路径（不要末尾斜杠） */
-const API_BASE = "https://www.dailab.online/symbiosis/lab";
+const API_BASE = "https://daigroup.org/lab";
 
-/** 体验版/正式版不能用 HTTP 或纯 IP，需换成 https://你的域名/symbiosis/lab */
+/** 体验版/正式版不能用 HTTP 或纯 IP，需换成 https://你的域名/... */
 function isInsecureApiBase(base = API_BASE) {
   const b = String(base || "");
   if (!b) return true;
@@ -19,4 +19,3 @@ module.exports = {
   APP_NAME: "Symbiosis Lab",
   isInsecureApiBase,
 };
-  

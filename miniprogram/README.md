@@ -21,7 +21,7 @@ AppID：`wxb4ad423abf19b61f`
 npm run dev
 ```
 
-默认 API：见 `utils/config.js`（当前正式地址：`https://www.dailab.online/symbiosis/lab`）。
+默认 API：见 `utils/config.js`（当前正式地址：`https://daigroup.org/lab`）。
 
 > **重要**：小程序登录依赖接口返回 `token` 字段。请确保服务器已部署包含 Bearer 登录的最新后端；仅更新小程序不够。
 
@@ -41,9 +41,9 @@ npm run dev
 
 摘要：
 
-1. 域名 `www.dailab.online` 已备案并配置 HTTPS  
-2. 微信公众平台 → 开发管理 → 开发设置 → **request 合法域名** 添加：`https://www.dailab.online`（不要带路径）  
-3. `utils/config.js` 的 `API_BASE` 已为：`https://www.dailab.online/symbiosis/lab`  
+1. 域名 `daigroup.org` 已备案并配置 HTTPS  
+2. 微信公众平台 → 开发管理 → 开发设置 → **request 合法域名** 添加：`https://daigroup.org`（不要带路径）  
+3. `utils/config.js` 的 `API_BASE` 已为：`https://daigroup.org/lab`  
 4. 开发者工具重新编译 → **上传** → 设为体验版 / 提交审核
 
 ## 演示账号

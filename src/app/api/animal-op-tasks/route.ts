@@ -9,10 +9,41 @@ import {
   AnimalOpTask,
   urgencyFromFlags,
 } from "@/types/animal-ops";
+import {
+  appendLifecycleTrace,
+  assertCanCreateOperation,
+  findAnimal,
+  setRegistrationStatus,
+} from "@/server/animal-lifecycle";
+import { ExperimentKind, ExperimentOperation } from "@/types/animal-lifecycle";
 
 function isOpType(v: string): v is AnimalOpTask["opType"] {
   return (ANIMAL_OP_TYPES as readonly string[]).includes(v);
 }
+
+/** 派发时同步创建实验 Operation（需扫码拍照 + 学生 NAS 闭环）的操作类型 */
+const EXPERIMENT_DISPATCH_TYPES = new Set([
+  "signal_collection",
+  "surgery",
+  "perfusion",
+  "other",
+]);
+
+function kindFromOpType(opType: string): ExperimentKind {
+  if (opType === "signal_collection") return "ephys";
+  if (opType === "surgery") return "other";
+  return "other";
+}
+
+const OP_TYPE_TITLE: Record<string, string> = {
+  fasting: "禁食",
+  water_deprivation: "禁水",
+  signal_collection: "数据采集",
+  euthanasia: "安乐死",
+  perfusion: "灌流",
+  surgery: "手术",
+  other: "其他实验",
+};
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -86,17 +117,68 @@ export async function POST(req: NextRequest) {
   await mutateStore((s) => {
     if (!Array.isArray(s.animalOpTasks)) s.animalOpTasks = [];
     s.animalOpTasks = [task, ...s.animalOpTasks];
+
+    const createdOps: string[] = [];
+    if (EXPERIMENT_DISPATCH_TYPES.has(opTypeRaw)) {
+      for (const animalId of animalIds) {
+        const a = findAnimal(s, animalId);
+        if (!a) continue;
+        if (assertCanCreateOperation(a, s)) continue;
+        const kind = kindFromOpType(opTypeRaw);
+        const title =
+          (note && note.slice(0, 40)) ||
+          OP_TYPE_TITLE[opTypeRaw] ||
+          "实验操作";
+        const op: ExperimentOperation = {
+          id: uid("exp"),
+          animalId,
+          status: "open",
+          kind,
+          title,
+          technicianUserId: assignee.id,
+          technicianName: displayName(assignee),
+          studentUserId: a.claimantUserId ?? user.id,
+          studentName: a.claimantName ?? displayName(user),
+          startedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        };
+        s.experimentOperations = [op, ...(s.experimentOperations ?? [])];
+        setRegistrationStatus(a, "in_experiment");
+        a.technicianUserId = assignee.id;
+        a.technicianName = displayName(assignee);
+        appendLifecycleTrace(s, {
+          animalId,
+          timestamp: now,
+          action: "operation_created",
+          userId: user.id,
+          userName: displayName(user),
+          details: `派发实验：${title} → ${displayName(assignee)}`,
+          operationId: op.id,
+        });
+        createdOps.push(animalId);
+      }
+    }
+
+    const needScan = createdOps.length > 0;
     s.notifications.unshift({
       id: uid("ntf"),
       userId: assignee.id,
-      title: "新的动物操作任务",
-      titleEn: "New animal operation task",
-      message: `${displayName(user)} 指派你处理 ${animalIds.length} 只小鼠的操作`,
-      messageEn: `${displayName(user)} assigned you an animal op on ${animalIds.length} mouse(es)`,
+      title: needScan ? "新的实验处理任务（需扫码）" : "新的动物操作任务",
+      titleEn: needScan ? "New experiment task (scan required)" : "New animal operation task",
+      message: needScan
+        ? `${displayName(user)} 派发 ${createdOps.length} 只小鼠：请打开小程序扫笼码，上传拍照记录后完成。`
+        : `${displayName(user)} 指派你处理 ${animalIds.length} 只小鼠的操作`,
+      messageEn: needScan
+        ? `${displayName(user)} assigned ${createdOps.length} mouse(es). Scan cage QR in mini-program and upload photos.`
+        : `${displayName(user)} assigned you an animal op on ${animalIds.length} mouse(es)`,
       read: false,
-      link: "/",
-      kind: "animal_task",
+      link: needScan
+        ? `/animals/lifecycle?animalId=${encodeURIComponent(createdOps[0])}`
+        : "/",
+      kind: needScan ? "experiment_operation" : "animal_task",
       animalTaskId: task.id,
+      animalId: createdOps[0],
       handled: false,
       createdAt: now,
     });

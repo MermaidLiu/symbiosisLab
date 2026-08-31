@@ -1,5 +1,5 @@
 const { api } = require("../../utils/api");
-const { requireLogin } = require("../../utils/auth");
+const { isLoggedIn, goLogin, promptLogin } = require("../../utils/auth");
 
 const STATUS_TEXT = {
   available: "可用",
@@ -9,6 +9,7 @@ const STATUS_TEXT = {
 
 Page({
   data: {
+    guestMode: true,
     id: "",
     instrument: null,
     statusText: "",
@@ -24,8 +25,14 @@ Page({
   },
 
   onShow() {
-    if (!requireLogin()) return;
+    const loggedIn = isLoggedIn();
+    this.setData({ guestMode: !loggedIn });
+    if (!loggedIn) return;
     this.load();
+  },
+
+  goLogin() {
+    goLogin();
   },
 
   async load() {
@@ -40,11 +47,16 @@ Page({
       const pad = (n) => String(n).padStart(2, "0");
       const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       this.setData({
+        guestMode: false,
         instrument,
         statusText: STATUS_TEXT[instrument.status] || instrument.status,
         date: this.data.date || date,
       });
     } catch (e) {
+      if (e && e.status === 401) {
+        this.setData({ guestMode: true, instrument: null });
+        return;
+      }
       wx.showToast({ title: "加载失败", icon: "none" });
     }
   },
@@ -63,6 +75,7 @@ Page({
   },
 
   async onBook() {
+    if (!(await promptLogin("登录后可提交仪器预约。"))) return;
     const { instrument, date, startTime, endTime, purpose } = this.data;
     if (!instrument) return;
     if (!date || !startTime || !endTime || !(purpose || "").trim()) {

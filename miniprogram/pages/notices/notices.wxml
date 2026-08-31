@@ -1,4 +1,11 @@
 <view class="page">
+  <view class="card guest-card" wx:if="{{guestMode}}">
+    <view class="guest-title">通知中心</view>
+    <view class="guest-desc muted">接收预约审批、动物状态与实验相关提醒。登录后可查看个人通知。</view>
+    <button class="btn-primary" bindtap="goLogin">登录后查看</button>
+  </view>
+
+  <block wx:else>
   <view class="toolbar card">
     <view class="tip-text">轻触通知可标记已读</view>
     <button size="mini" class="btn-ghost" bindtap="markAll">全部已读</button>
@@ -18,4 +25,5 @@
     <view class="msg">{{item.message}}</view>
     <view class="muted time">{{item.timeText}}</view>
   </view>
+  </block>
 </view>

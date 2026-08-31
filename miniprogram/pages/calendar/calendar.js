@@ -1,5 +1,5 @@
 const { api } = require("../../utils/api");
-const { requireLogin } = require("../../utils/auth");
+const { isLoggedIn, goLogin } = require("../../utils/auth");
 const { formatDateTime } = require("../../utils/format");
 const { monthLabel, buildMonthRows, pad } = require("../../utils/calendar");
 
@@ -11,6 +11,7 @@ const TYPE_LABEL = {
 
 Page({
   data: {
+    guestMode: true,
     year: 0,
     month: 0,
     monthText: "",
@@ -37,11 +38,21 @@ Page({
   },
 
   onShow() {
-    if (!requireLogin()) return;
+    const loggedIn = isLoggedIn();
+    this.setData({ guestMode: !loggedIn });
+    if (!loggedIn) return;
     this.load();
   },
 
+  goLogin() {
+    goLogin();
+  },
+
   onPullDownRefresh() {
+    if (!isLoggedIn()) {
+      wx.stopPullDownRefresh();
+      return;
+    }
     this.load().finally(() => wx.stopPullDownRefresh());
   },
 
@@ -52,12 +63,17 @@ Page({
       const byDate = res.byDate || {};
       const marked = new Set(res.markedDates || Object.keys(byDate));
       this.setData({
+        guestMode: false,
         monthText: monthLabel(year, month),
         rows: buildMonthRows(year, month, marked, selected),
         byDate,
         dayEvents: this.mapEvents(byDate[selected] || []),
       });
     } catch (e) {
+      if (e && e.status === 401) {
+        this.setData({ guestMode: true });
+        return;
+      }
       wx.showToast({ title: "加载日志失败", icon: "none" });
     }
   },

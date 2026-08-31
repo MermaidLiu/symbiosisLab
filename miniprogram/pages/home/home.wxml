@@ -1,121 +1,190 @@
 <view class="page" wx:if="{{ready}}">
-  <view class="hero">
-    <view class="hero-glow"></view>
-    <view class="hello">你好，{{name}}</view>
-    <view class="roles">{{rolesText}}</view>
-    <view class="hero-chip">Symbiosis Lab · 手机端</view>
-  </view>
-
-  <view class="overview card">
-    <view class="section-title">今日概览</view>
-    <view class="metrics">
-      <view class="metric" bindtap="goInstruments">
-        <view class="metric-num c-grape">{{instrumentCount}}</view>
-        <view class="metric-label">仪器</view>
-      </view>
-      <view class="metric" bindtap="goAnimals">
-        <view class="metric-num c-mint">{{animalCount}}</view>
-        <view class="metric-label">动物</view>
-      </view>
-      <view class="metric" bindtap="goBookings">
-        <view class="metric-num c-sky">{{bookingCount}}</view>
-        <view class="metric-label">预约</view>
-      </view>
-      <view class="metric" bindtap="goNotices">
-        <view class="metric-num c-rose">{{unreadCount}}</view>
-        <view class="metric-label">未读</view>
-      </view>
-    </view>
-  </view>
-
-  <view class="card">
-    <view class="section-head">
-      <view class="section-title">快捷操作</view>
-      <view class="section-sub">常用入口</view>
-    </view>
-    <view class="grid">
-      <view class="tile" bindtap="goInstruments">
-        <view class="icon jelly-sky">
-          <view class="ali-icon ali-icon-lg ali-icon-instrument"></view>
-        </view>
-        <view class="tile-title">仪器列表</view>
-        <view class="tile-sub">浏览与预约</view>
-      </view>
-      <view class="tile" bindtap="goBookings">
-        <view class="icon jelly-lemon">
-          <view class="ali-icon ali-icon-lg ali-icon-calendar"></view>
-        </view>
-        <view class="tile-title">我的预约</view>
-        <view class="tile-sub">查看进度</view>
-      </view>
-      <view class="tile" bindtap="goAnimals">
-        <view class="icon jelly-mint">
-          <view class="ali-icon ali-icon-lg ali-icon-animal"></view>
-        </view>
-        <view class="tile-title">代管动物</view>
-        <view class="tile-sub">状态与阶段</view>
-      </view>
-      <view class="tile" bindtap="goNotices">
-        <view class="icon jelly-rose">
-          <view class="ali-icon ali-icon-lg ali-icon-bell"></view>
-        </view>
-        <view class="tile-title">通知中心</view>
-        <view class="tile-sub">待办提醒</view>
-      </view>
-      <view class="tile" bindtap="goInstruments">
-        <view class="icon jelly-peach">
-          <view class="ali-icon ali-icon-lg ali-icon-tool"></view>
-        </view>
-        <view class="tile-title">报修入口</view>
-        <view class="tile-sub">仪器详情内</view>
-      </view>
-      <view class="tile" bindtap="onLogout">
-        <view class="icon jelly-grape">
-          <view class="ali-icon ali-icon-lg ali-icon-logout"></view>
-        </view>
-        <view class="tile-title">退出登录</view>
-        <view class="tile-sub">切换账号</view>
-      </view>
-    </view>
-  </view>
-
-  <view class="card cal-card {{calExpanded ? 'expanded' : 'collapsed'}}">
-    <view class="cal-top" bindtap="toggleCalendar">
-      <view class="cal-top-left">
-        <view class="ali-icon ali-icon-sm ali-icon-calendar"></view>
-        <view>
-          <view class="section-title">日志日历</view>
-          <view class="section-sub">{{calExpanded ? '点击收起' : '点击展开 · 查看每日日志'}}</view>
-        </view>
-      </view>
-      <view class="cal-actions">
-        <view class="cal-entry" catchtap="goCalendar">详情</view>
-        <view class="chevron {{calExpanded ? 'up' : ''}}">›</view>
-      </view>
+  <!-- 未登录：可浏览服务介绍，不强制授权 -->
+  <block wx:if="{{guestMode}}">
+    <view class="hero">
+      <view class="hero-glow"></view>
+      <view class="hello">Symbiosis Lab</view>
+      <view class="roles">实验室资源 · 实验动物追溯</view>
+      <view class="hero-chip">可先浏览服务，登录后使用完整功能</view>
     </view>
 
-    <view class="mini-cal" wx:if="{{calExpanded}}">
-      <view class="mini-head">
-        <view class="mini-nav" catchtap="prevMonth">‹</view>
-        <view class="mini-month">{{monthText}}</view>
-        <view class="mini-nav" catchtap="nextMonth">›</view>
+    <view class="card guest-banner" wx:if="{{insecureApi}}">
+      <view class="guest-title">当前接口不可用</view>
+      <view class="guest-desc muted">体验版需配置 HTTPS 合法域名后，方可登录与同步数据。</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">服务介绍</view>
+      <view class="guest-desc muted">
+        本小程序提供仪器浏览与预约、代管动物状态查看、实验追溯（一鼠一 ID 闭环）及通知提醒等实验室服务。
       </view>
-      <view class="mini-weeks">
-        <view class="mw" wx:for="{{weeks}}" wx:key="*this">{{item}}</view>
+      <view class="guest-list">
+        <view class="guest-item">· 仪器列表与预约管理</view>
+        <view class="guest-item">· 代管动物状态与实验追溯</view>
+        <view class="guest-item">· 通知与工作日历</view>
       </view>
-      <view class="mini-row" wx:for="{{rows}}" wx:key="key">
-        <view
-          class="mc {{day.empty ? 'empty' : ''}} {{day.today ? 'today' : ''}} {{day.marked ? 'marked' : ''}}"
-          wx:for="{{item.days}}"
-          wx:for-item="day"
-          wx:key="key"
-          data-date="{{day.date}}"
-          catchtap="onPickDay"
-        >
-          <view class="mc-inner" wx:if="{{!day.empty}}">{{day.day}}</view>
-          <view class="m-dot" wx:if="{{day.marked}}"></view>
+      <button class="btn-primary login-cta" bindtap="goLogin">登录后使用</button>
+      <view class="guest-hint muted">浏览以上说明无需授权；仅在您点击登录后才进行账号验证。</view>
+    </view>
+
+    <view class="card">
+      <view class="section-head">
+        <view class="section-title">快捷入口</view>
+        <view class="section-sub">可先了解模块</view>
+      </view>
+      <view class="grid">
+        <view class="tile" bindtap="goInstruments">
+          <view class="icon jelly-sky">
+            <view class="ali-icon ali-icon-lg ali-icon-instrument"></view>
+          </view>
+          <view class="tile-title">仪器</view>
+          <view class="tile-sub">浏览模块</view>
+        </view>
+        <view class="tile" bindtap="goAnimals">
+          <view class="icon jelly-mint">
+            <view class="ali-icon ali-icon-lg ali-icon-animal"></view>
+          </view>
+          <view class="tile-title">动物</view>
+          <view class="tile-sub">浏览模块</view>
+        </view>
+        <view class="tile" bindtap="goNotices">
+          <view class="icon jelly-rose">
+            <view class="ali-icon ali-icon-lg ali-icon-bell"></view>
+          </view>
+          <view class="tile-title">通知</view>
+          <view class="tile-sub">浏览模块</view>
+        </view>
+        <view class="tile" bindtap="goLogin">
+          <view class="icon jelly-grape">
+            <view class="ali-icon ali-icon-lg ali-icon-logout"></view>
+          </view>
+          <view class="tile-title">去登录</view>
+          <view class="tile-sub">自愿授权</view>
         </view>
       </view>
     </view>
-  </view>
+  </block>
+
+  <!-- 已登录：原工作台 -->
+  <block wx:else>
+    <view class="hero">
+      <view class="hero-glow"></view>
+      <view class="hello">你好，{{name}}</view>
+      <view class="roles">{{rolesText}}</view>
+      <view class="hero-chip">Symbiosis Lab · 手机端</view>
+    </view>
+
+    <view class="overview card">
+      <view class="section-title">今日概览</view>
+      <view class="metrics">
+        <view class="metric" bindtap="goInstruments">
+          <view class="metric-num c-grape">{{instrumentCount}}</view>
+          <view class="metric-label">仪器</view>
+        </view>
+        <view class="metric" bindtap="goAnimals">
+          <view class="metric-num c-mint">{{animalCount}}</view>
+          <view class="metric-label">动物</view>
+        </view>
+        <view class="metric" bindtap="goBookings">
+          <view class="metric-num c-sky">{{bookingCount}}</view>
+          <view class="metric-label">预约</view>
+        </view>
+        <view class="metric" bindtap="goNotices">
+          <view class="metric-num c-rose">{{unreadCount}}</view>
+          <view class="metric-label">未读</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-head">
+        <view class="section-title">快捷操作</view>
+        <view class="section-sub">常用入口</view>
+      </view>
+      <view class="grid">
+        <view class="tile" bindtap="goInstruments">
+          <view class="icon jelly-sky">
+            <view class="ali-icon ali-icon-lg ali-icon-instrument"></view>
+          </view>
+          <view class="tile-title">仪器列表</view>
+          <view class="tile-sub">浏览与预约</view>
+        </view>
+        <view class="tile" bindtap="goBookings">
+          <view class="icon jelly-lemon">
+            <view class="ali-icon ali-icon-lg ali-icon-calendar"></view>
+          </view>
+          <view class="tile-title">我的预约</view>
+          <view class="tile-sub">查看进度</view>
+        </view>
+        <view class="tile" bindtap="goAnimals">
+          <view class="icon jelly-mint">
+            <view class="ali-icon ali-icon-lg ali-icon-animal"></view>
+          </view>
+          <view class="tile-title">代管动物</view>
+          <view class="tile-sub">状态与阶段</view>
+        </view>
+        <view class="tile" bindtap="goNotices">
+          <view class="icon jelly-rose">
+            <view class="ali-icon ali-icon-lg ali-icon-bell"></view>
+          </view>
+          <view class="tile-title">通知中心</view>
+          <view class="tile-sub">待办提醒</view>
+        </view>
+        <view class="tile" bindtap="goInstruments">
+          <view class="icon jelly-peach">
+            <view class="ali-icon ali-icon-lg ali-icon-tool"></view>
+          </view>
+          <view class="tile-title">报修入口</view>
+          <view class="tile-sub">仪器详情内</view>
+        </view>
+        <view class="tile" bindtap="onLogout">
+          <view class="icon jelly-grape">
+            <view class="ali-icon ali-icon-lg ali-icon-logout"></view>
+          </view>
+          <view class="tile-title">退出登录</view>
+          <view class="tile-sub">切换账号</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card cal-card {{calExpanded ? 'expanded' : 'collapsed'}}">
+      <view class="cal-top" bindtap="toggleCalendar">
+        <view class="cal-top-left">
+          <view class="ali-icon ali-icon-sm ali-icon-calendar"></view>
+          <view>
+            <view class="section-title">日志日历</view>
+            <view class="section-sub">{{calExpanded ? '点击收起' : '点击展开 · 查看每日日志'}}</view>
+          </view>
+        </view>
+        <view class="cal-actions">
+          <view class="cal-entry" catchtap="goCalendar">详情</view>
+          <view class="chevron {{calExpanded ? 'up' : ''}}">›</view>
+        </view>
+      </view>
+
+      <view class="mini-cal" wx:if="{{calExpanded}}">
+        <view class="mini-head">
+          <view class="mini-nav" catchtap="prevMonth">‹</view>
+          <view class="mini-month">{{monthText}}</view>
+          <view class="mini-nav" catchtap="nextMonth">›</view>
+        </view>
+        <view class="mini-weeks">
+          <view class="mw" wx:for="{{weeks}}" wx:key="*this">{{item}}</view>
+        </view>
+        <view class="mini-row" wx:for="{{rows}}" wx:key="key">
+          <view
+            class="mc {{day.empty ? 'empty' : ''}} {{day.today ? 'today' : ''}} {{day.marked ? 'marked' : ''}}"
+            wx:for="{{item.days}}"
+            wx:for-item="day"
+            wx:key="key"
+            data-date="{{day.date}}"
+            catchtap="onPickDay"
+          >
+            <view class="mc-inner" wx:if="{{!day.empty}}">{{day.day}}</view>
+            <view class="m-dot" wx:if="{{day.marked}}"></view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
 </view>

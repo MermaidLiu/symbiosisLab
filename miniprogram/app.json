@@ -1,7 +1,5 @@
 {
   "pages": [
-    "pages/login/login",
-    "pages/realname/realname",
     "pages/home/home",
     "pages/instruments/instruments",
     "pages/instrument-detail/instrument-detail",
@@ -9,7 +7,9 @@
     "pages/animals/animals",
     "pages/lifecycle/lifecycle",
     "pages/notices/notices",
-    "pages/calendar/calendar"
+    "pages/calendar/calendar",
+    "pages/login/login",
+    "pages/realname/realname"
   ],
   "window": {
     "navigationBarBackgroundColor": "#7B4DB8",

@@ -24,7 +24,10 @@ Page({
   },
 
   onShow() {
-    if (!requireLogin()) return;
+    if (!requireLogin()) {
+      wx.switchTab({ url: "/pages/home/home" });
+      return;
+    }
     const user = getUser();
     if (!user) return;
     const st = user.accountStatus || "active";
@@ -103,6 +106,6 @@ Page({
   onLogout() {
     clearSession();
     getApp().globalData.user = null;
-    wx.reLaunch({ url: "/pages/login/login" });
+    wx.switchTab({ url: "/pages/home/home" });
   },
 });

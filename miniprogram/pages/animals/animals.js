@@ -1,5 +1,5 @@
 const { api } = require("../../utils/api");
-const { requireLogin, getUser } = require("../../utils/auth");
+const { isLoggedIn, getUser, goLogin, promptLogin } = require("../../utils/auth");
 const {
   formatDate,
   trackingDays,
@@ -12,6 +12,7 @@ const {
 
 Page({
   data: {
+    guestMode: true,
     list: [],
     filtered: [],
     keyword: "",
@@ -26,15 +27,25 @@ Page({
   },
 
   onShow() {
-    if (!requireLogin()) return;
+    const loggedIn = isLoggedIn();
+    this.setData({ guestMode: !loggedIn });
+    if (!loggedIn) return;
     this.load();
   },
 
-  goLifecycle() {
+  goLogin() {
+    goLogin();
+  },
+
+  async goLifecycle() {
     wx.navigateTo({ url: "/pages/lifecycle/lifecycle" });
   },
 
   onPullDownRefresh() {
+    if (!isLoggedIn()) {
+      wx.stopPullDownRefresh();
+      return;
+    }
     this.load().finally(() => wx.stopPullDownRefresh());
   },
 
@@ -55,14 +66,22 @@ Page({
 
   async load() {
     const user = getUser();
+    if (!user) {
+      this.setData({ guestMode: true, list: [], filtered: [] });
+      return;
+    }
     try {
       const { managedAnimals } = await api.managedAnimals();
       const list = (managedAnimals || [])
         .filter((a) => a.claimantUserId === user.id || a.technicianUserId === user.id)
         .map((a) => this.mapRow(a));
-      this.setData({ list });
+      this.setData({ list, guestMode: false });
       this.applyFilter(this.data.keyword, list);
     } catch (e) {
+      if (e && e.status === 401) {
+        this.setData({ guestMode: true, list: [], filtered: [] });
+        return;
+      }
       wx.showToast({ title: "加载失败", icon: "none" });
     }
   },
@@ -79,7 +98,8 @@ Page({
     this.setData({ filtered });
   },
 
-  openEdit(e) {
+  async openEdit(e) {
+    if (!(await promptLogin("登录后可编辑动物状态。"))) return;
     const id = e.currentTarget.dataset.id;
     const row = this.data.list.find((a) => a.id === id);
     if (!row) return;

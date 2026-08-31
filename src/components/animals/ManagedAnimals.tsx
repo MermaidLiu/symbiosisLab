@@ -197,6 +197,10 @@ export function ManagedAnimals({
   const [uploading, setUploading] = useState(false);
   const [opAssignOpen, setOpAssignOpen] = useState(false);
   const [opTargetIds, setOpTargetIds] = useState<string[]>([]);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [enrollCageCode, setEnrollCageCode] = useState("");
+  const [enrollBusy, setEnrollBusy] = useState(false);
+  const [enrollMsg, setEnrollMsg] = useState("");
   const [forceOpen, setForceOpen] = useState(false);
   const [forceIds, setForceIds] = useState<string[]>([]);
   const [forceNote, setForceNote] = useState("");
@@ -706,6 +710,53 @@ export function ManagedAnimals({
     }
   }
 
+  function openEnrollModal() {
+    setEnrollCageCode("");
+    setEnrollMsg("");
+    setEnrollOpen(true);
+  }
+
+  async function submitManualEnroll() {
+    const cageCode = enrollCageCode.trim();
+    if (!cageCode) {
+      setEnrollMsg("请输入笼号，例如 ML0001");
+      return;
+    }
+    setEnrollBusy(true);
+    setEnrollMsg("");
+    try {
+      const res = await fetch("/api/animal-lifecycle", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "enroll_from_cage", cageCode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEnrollMsg(
+          data.error === "cage_occupied_or_invalid"
+            ? "该笼号无法录入（可能已被他人占用）"
+            : data.error || "录入失败"
+        );
+        return;
+      }
+      const id = data.animal?.id as string;
+      setEnrollMsg(
+        data.created
+          ? `录入成功：笼号 ${cageCode.toUpperCase()} → Animal ID ${id}`
+          : `已存在：${id}（笼号 ${cageCode.toUpperCase()}）`
+      );
+      setEnrollCageCode("");
+      showToast(data.created ? `已分配 ${id}` : `已确认 ${id}`);
+      const { managedAnimals: list } = await api.managedAnimals();
+      setAnimals(scopeList(list));
+    } catch {
+      setEnrollMsg("网络错误，请重试");
+    } finally {
+      setEnrollBusy(false);
+    }
+  }
+
   function openAssignFor(ids: string[]) {
     if (!ids.length) {
       showToast(m.selectRows);
@@ -1185,6 +1236,11 @@ export function ManagedAnimals({
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
+                {isClaimCatalog ? (
+                  <FluentButton size="sm" onClick={openEnrollModal}>
+                    录入小鼠
+                  </FluentButton>
+                ) : null}
                 <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                   {f.batchUpload}
                 </FluentButton>
@@ -1347,6 +1403,9 @@ export function ManagedAnimals({
                 </>
               ) : isClaimCatalog ? (
                 <>
+                  <FluentButton size="sm" onClick={openEnrollModal}>
+                    录入小鼠
+                  </FluentButton>
                   <FluentButton
                     size="sm"
                     disabled={selected.size === 0}
@@ -2048,6 +2107,88 @@ export function ManagedAnimals({
         {uploadMsg && <p className="mt-2 text-xs text-thu">{uploadMsg}</p>}
       </FluentModal>
 
+      <FluentModal
+        open={enrollOpen}
+        title="录入小鼠"
+        onClose={() => {
+          if (!enrollBusy) setEnrollOpen(false);
+        }}
+        footer={
+          <div className="flex justify-end gap-2">
+            <FluentButton
+              variant="outline"
+              disabled={enrollBusy}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const { managedAnimals: list } = await api.managedAnimals();
+                    setAnimals(scopeList(list));
+                    showToast("列表已刷新");
+                  } catch {
+                    /* ignore */
+                  }
+                })();
+              }}
+            >
+              刷新列表
+            </FluentButton>
+            <FluentButton disabled={enrollBusy} onClick={() => setEnrollOpen(false)}>
+              关闭
+            </FluentButton>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl bg-violet-50/80 p-3">
+            <p className="text-sm font-medium text-thu">测试：手动输入笼号</p>
+            <p className="mt-1 text-xs text-lab-muted">
+              二维码未到位前，可直接输入笼号（如 ML0001）完成录入，系统会分配唯一 Animal ID。
+            </p>
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <FluentInput
+                label="笼号"
+                className="min-w-[160px] flex-1"
+                value={enrollCageCode}
+                onChange={(e) => setEnrollCageCode(e.target.value)}
+                placeholder="例如 ML0001"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitManualEnroll();
+                }}
+              />
+              <FluentButton disabled={enrollBusy} onClick={() => void submitManualEnroll()}>
+                {enrollBusy ? "录入中…" : "确认录入"}
+              </FluentButton>
+            </div>
+            {enrollMsg ? (
+              <p className="mt-2 text-xs text-thu">{enrollMsg}</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col items-center gap-4 border-t border-white/40 pt-4 sm:flex-row sm:items-start">
+            <div className="min-w-0 flex-1 space-y-2 text-sm text-lab-text">
+              <p className="font-medium text-thu">正式流程：手机扫小程序码</p>
+              <ol className="list-decimal space-y-1.5 pl-5 text-lab-muted">
+                <li>微信扫一扫打开右侧小程序并登录</li>
+                <li>进入「动物 → 实验追溯」</li>
+                <li>扫描鼠笼二维码，或手动输入笼号（如 ML0001）</li>
+                <li>录入成功后刷新列表，再勾选派发</li>
+              </ol>
+            </div>
+            <div className="shrink-0 rounded-2xl bg-white/90 p-3 text-center shadow-sm ring-1 ring-black/5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/miniprogram-qrcode.png"
+                alt="小程序码"
+                width={140}
+                height={140}
+                className="mx-auto h-[140px] w-[140px] object-contain"
+              />
+              <p className="mt-2 text-[11px] text-lab-muted">微信扫码进入小程序</p>
+            </div>
+          </div>
+        </div>
+      </FluentModal>
+
       <AssignAnimalOpModal
         open={opAssignOpen}
         animalIds={opTargetIds}
@@ -2057,6 +2198,14 @@ export function ManagedAnimals({
         }}
         onCreated={() => {
           showToast(t.animalMgmt.animalOps.createOk);
+          void (async () => {
+            try {
+              const { managedAnimals: list } = await api.managedAnimals();
+              setAnimals(scopeList(list));
+            } catch {
+              /* ignore */
+            }
+          })();
         }}
       />
 

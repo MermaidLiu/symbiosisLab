@@ -87,6 +87,15 @@ Page({
     this.setData({ mode: this.data.mode === "phone" ? "password" : "phone" });
   },
 
+  backBrowse() {
+    const pages = getCurrentPages();
+    if (pages.length > 1) {
+      wx.navigateBack();
+      return;
+    }
+    wx.switchTab({ url: "/pages/home/home" });
+  },
+
   tickCountdown() {
     if (this.data.countdown <= 0) return;
     setTimeout(() => {

@@ -116,7 +116,12 @@ export function roleLabelV2(roles: Role[]): "student" | "technician" | "supervis
 }
 
 export function canViewAllAnimalLifecycle(roles: Role[]): boolean {
-  return canSuperviseAnimalFacility(roles) || hasRole(roles, "super_admin");
+  return (
+    canSuperviseAnimalFacility(roles) ||
+    hasRole(roles, "super_admin") ||
+    /** 技术员可查看各同学名下小鼠的处理流程 */
+    canReceiveAnimalOps(roles)
+  );
 }
 
 export function canViewResourceLogs(roles: Role[], type: "instrument" | "animal"): boolean {

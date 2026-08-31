@@ -1,73 +1,89 @@
 <view class="wrap">
+  <view class="card guest-card" wx:if="{{guestMode}}">
+    <view class="guest-title">实验追溯 · 扫码录入</view>
+    <view class="guest-desc muted">学生扫鼠笼二维码分配唯一 ID；技术员扫码后上传拍照记录。请先浏览，登录后再操作。</view>
+    <button class="btn primary block" bindtap="goLogin">登录后使用</button>
+  </view>
+
+  <block wx:else>
   <view class="hero card">
     <view class="title">一鼠一 ID · 一鼠一闭环</view>
-    <view class="sub">扫码确认 Animal ID，按角色完成建档与实验 Operation</view>
+    <view class="sub" wx:if="{{isStudent}}">扫描鼠笼二维码 → 分配唯一 ID → 回网页派发技术员</view>
+    <view class="sub" wx:else>扫笼码确认小鼠 → 上传拍照记录 → 完成后通知学生填 NAS</view>
   </view>
 
   <view class="card">
-    <view class="label">Animal ID</view>
-    <input class="input" placeholder="M202608310001" value="{{scanId}}" bindinput="onScanId" />
+    <view class="label">笼号（可手动输入测试）</view>
+    <input
+      class="input"
+      placeholder="例如 ML0001，或扫笼码"
+      value="{{scanId}}"
+      bindinput="onScanId"
+      confirm-type="done"
+      bindconfirm="onConfirmInput"
+    />
+    <view class="hint muted">二维码未到位前，直接输入笼号点「确认录入」即可分配 Animal ID。</view>
     <view class="row">
-      <button class="btn ghost" bindtap="onScan">扫码</button>
-      <button class="btn primary" loading="{{busy}}" bindtap="onLookup">确认</button>
+      <button class="btn ghost" bindtap="onScanEnroll" wx:if="{{isStudent}}">扫笼码</button>
+      <button class="btn ghost" bindtap="onScanLookup" wx:else>扫笼码</button>
+      <button class="btn primary" loading="{{busy}}" bindtap="onEnroll" wx:if="{{isStudent}}">确认录入</button>
+      <button class="btn primary" loading="{{busy}}" bindtap="onLookup" wx:else>确认</button>
     </view>
     <view wx:if="{{error}}" class="err">{{error}}</view>
+    <view wx:if="{{tip}}" class="ok">{{tip}}</view>
   </view>
 
   <block wx:if="{{animal}}">
     <view class="card">
       <view class="aid">{{animal.id}}</view>
       <view class="meta">{{animal.strain}} · {{animal.cageLocation}}</view>
-      <view class="pill">{{statusLabel}}{{animal.animalLock ? ' · 锁定' : ''}}</view>
+      <view class="pill">{{statusLabel}}{{animal.animalLock ? ' · 实验锁定中' : ''}}</view>
       <view class="meta">认领：{{animal.claimantName || '—'}} · 技术员：{{animal.technicianName || '—'}}</view>
     </view>
 
-    <view class="card" wx:if="{{isStudent && animal.registrationStatus === 'blank_claimed'}}">
-      <view class="section">学生 · 手术完成</view>
-      <input class="input" placeholder="笼牌备注" value="{{cageLabel}}" bindinput="onCageLabel" />
-      <button class="btn primary block" loading="{{busy}}" bindtap="completeSurgery">标记植入手术完成</button>
-    </view>
-
-    <view class="card" wx:if="{{isStudent && animal.registrationStatus === 'awaiting_register'}}">
-      <view class="section">学生 · 扫码建档</view>
-      <button class="btn primary block" loading="{{busy}}" bindtap="registerAnimal">确认建档 · 进入待实验</button>
-    </view>
-
+    <!-- 学生：待填 NAS -->
     <view class="card" wx:if="{{isStudent && pendingOp}}">
       <view class="section">待闭环 · {{pendingOp.title}}</view>
-      <input class="input" placeholder="NAS 数据路径" value="{{nasPath}}" bindinput="onNasPath" />
-      <button class="btn primary block" loading="{{busy}}" bindtap="studentClose">完成实验</button>
+      <view class="meta muted">技术员已提交拍照记录，请填写本地 NAS 文件夹路径</view>
+      <input class="input" placeholder="\\\\NAS\\lab\\project\\..." value="{{nasPath}}" bindinput="onNasPath" />
+      <button class="btn primary block" loading="{{busy}}" bindtap="studentClose">完成闭环</button>
     </view>
 
-    <view class="card" wx:if="{{isTech && animal.registrationStatus === 'awaiting_experiment' && !animal.animalLock}}">
-      <view class="section">技术员 · 创建 Operation（自动绑定本人）</view>
-      <picker mode="selector" range="{{kinds}}" range-key="l" bindchange="onKindChange">
-        <view class="picker">实验类型</view>
+    <!-- 技术员：无进行中实验时可创建 -->
+    <view class="card" wx:if="{{isTech && animal.registrationStatus === 'awaiting_experiment' && !animal.animalLock && !openOp}}">
+      <view class="section">开始本次实验</view>
+      <picker range="{{kinds}}" range-key="l" bindchange="onKindChange">
+        <view class="input">类型：{{expTitle}}</view>
       </picker>
       <input class="input" placeholder="实验标题" value="{{expTitle}}" bindinput="onExpTitle" />
-      <button class="btn primary block" loading="{{busy}}" bindtap="createOp">开始实验</button>
+      <button class="btn primary block" loading="{{busy}}" bindtap="createOp">开始处理</button>
     </view>
 
+    <!-- 技术员：上传照片并完成 -->
     <view class="card" wx:if="{{isTech && openOp}}">
-      <view class="section">提交实验结果</view>
-      <input class="input" placeholder="结果说明" value="{{resultNote}}" bindinput="onResultNote" />
-      <input class="input" placeholder="结果图片路径/链接" value="{{resultUrl}}" bindinput="onResultUrl" />
-      <button class="btn primary block" loading="{{busy}}" bindtap="techSubmit">技术员提交</button>
+      <view class="section">处理中 · {{openOp.title}}</view>
+      <input class="input" placeholder="结果说明（可选）" value="{{resultNote}}" bindinput="onResultNote" />
+      <button class="btn ghost block" bindtap="choosePhotos">拍照 / 上传记录图（{{photoUrls.length}}）</button>
+      <view class="photos" wx:if="{{photoUrls.length}}">
+        <image wx:for="{{photoUrls}}" wx:key="*this" src="{{item}}" mode="aspectFill" class="thumb" />
+      </view>
+      <button class="btn primary block" loading="{{busy}}" bindtap="techSubmit">完成数据采集</button>
     </view>
 
     <view class="card" wx:if="{{operations.length}}">
-      <view class="section">Operation 记录</view>
+      <view class="section">实验记录</view>
       <block wx:for="{{operations}}" wx:key="id">
-        <view class="op">{{item.title}} · {{item.status}} · {{item.technicianName}}</view>
+        <view class="op">{{item.title}} · {{item.statusText}} · {{item.technicianName}}</view>
         <view wx:if="{{item.nasDataPath}}" class="meta">NAS: {{item.nasDataPath}}</view>
       </block>
     </view>
 
     <view class="card" wx:if="{{traces.length}}">
-      <view class="section">追溯</view>
+      <view class="section">操作日志</view>
       <block wx:for="{{traces}}" wx:key="id">
         <view class="trace">{{item.timestamp}} · {{item.userName}} · {{item.details}}</view>
       </block>
     </view>
+  </block>
   </block>
 </view>

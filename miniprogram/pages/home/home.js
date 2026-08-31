@@ -1,12 +1,15 @@
 const { api } = require("../../utils/api");
-const { requireLogin, getUser, clearSession } = require("../../utils/auth");
+const { isLoggedIn, getUser, clearSession, goLogin, promptLogin } = require("../../utils/auth");
 const { isInsecureApiBase } = require("../../utils/config");
 const { displayName } = require("../../utils/format");
 const { monthLabel, buildMonthRows, pad } = require("../../utils/calendar");
 
 Page({
   data: {
-    ready: false,
+    loggedIn: false,
+    ready: true,
+    guestMode: true,
+    insecureApi: false,
     name: "",
     rolesText: "",
     instrumentCount: 0,
@@ -22,14 +25,23 @@ Page({
   },
 
   onShow() {
-    // HTTP/IP 在体验版不可用：直接回登录说明页，避免「加载失败」弹窗循环
     if (isInsecureApiBase()) {
       clearSession();
       getApp().globalData.user = null;
-      wx.reLaunch({ url: "/pages/login/login?force=1" });
+      this.setData({
+        insecureApi: true,
+        guestMode: true,
+        loggedIn: false,
+        ready: true,
+      });
       return;
     }
-    if (!requireLogin()) return;
+
+    const loggedIn = isLoggedIn();
+    this.setData({ loggedIn, guestMode: !loggedIn, insecureApi: false, ready: true });
+
+    if (!loggedIn) return;
+
     const now = new Date();
     if (!this.data.year) {
       this.setData({
@@ -41,11 +53,27 @@ Page({
   },
 
   onPullDownRefresh() {
+    if (!isLoggedIn()) {
+      wx.stopPullDownRefresh();
+      return;
+    }
     this.load().finally(() => wx.stopPullDownRefresh());
+  },
+
+  goLogin() {
+    goLogin();
+  },
+
+  async ensureLogin() {
+    return promptLogin("登录后可查看个人数据与进行预约、实验操作。");
   },
 
   async load() {
     const user = getUser();
+    if (!user) {
+      this.setData({ guestMode: true, loggedIn: false });
+      return;
+    }
     const { year, month } = this.data;
     try {
       const [inst, animals, bookings, notices, log] = await Promise.all([
@@ -61,9 +89,9 @@ Page({
       const myBookings = (bookings.bookings || []).filter((b) => b.userId === user.id);
       const unread = (notices.notifications || []).filter((n) => !n.read).length;
       const marked = new Set(log.markedDates || []);
-      const today = `${nowKey()}`;
       this.setData({
-        ready: true,
+        guestMode: false,
+        loggedIn: true,
         name: displayName(user),
         rolesText: (user.roles || []).join(" · "),
         instrumentCount: (inst.instruments || []).length,
@@ -71,28 +99,30 @@ Page({
         bookingCount: myBookings.length,
         unreadCount: unread,
         monthText: monthLabel(year, month),
-        rows: buildMonthRows(year, month, marked, today),
+        rows: buildMonthRows(year, month, marked, nowKey()),
       });
     } catch (e) {
       const detail = (e && (e.detail || e.errMsg || e.code)) || "";
       const isDomain =
         String(detail).includes("domain list") || String(detail).includes("url not in");
-      clearSession();
-      getApp().globalData.user = null;
+      if (e && e.status === 401) {
+        clearSession();
+        getApp().globalData.user = null;
+        this.setData({ guestMode: true, loggedIn: false });
+        return;
+      }
       wx.showModal({
         title: "加载失败",
         content: isDomain
-          ? `体验版无法访问 HTTP/IP 接口。\n请先配置 HTTPS 域名。\n\n${detail}`
-          : `数据请求失败，请重新登录。\n${detail}`,
+          ? `无法访问接口，请检查合法域名。\n${detail}`
+          : `数据请求失败。\n${detail}`,
         showCancel: false,
-        success() {
-          wx.reLaunch({ url: "/pages/login/login?force=1" });
-        },
       });
     }
   },
 
   async reloadCalendar() {
+    if (!isLoggedIn()) return;
     const { year, month } = this.data;
     try {
       const log = await api.dailyLog(year, month);
@@ -127,6 +157,10 @@ Page({
   },
 
   toggleCalendar() {
+    if (!isLoggedIn()) {
+      void this.ensureLogin();
+      return;
+    }
     const next = !this.data.calExpanded;
     this.setData({ calExpanded: next });
     if (next && (!this.data.rows || this.data.rows.length === 0)) {
@@ -134,14 +168,16 @@ Page({
     }
   },
 
-  goCalendar() {
+  async goCalendar() {
+    if (!(await this.ensureLogin())) return;
     const { year, month } = this.data;
     wx.navigateTo({
       url: `/pages/calendar/calendar?year=${year}&month=${month}`,
     });
   },
 
-  onPickDay(e) {
+  async onPickDay(e) {
+    if (!(await this.ensureLogin())) return;
     const date = e.currentTarget.dataset.date;
     if (!date) return;
     wx.navigateTo({
@@ -158,17 +194,34 @@ Page({
   goNotices() {
     wx.switchTab({ url: "/pages/notices/notices" });
   },
-  goBookings() {
+  async goBookings() {
+    if (!(await this.ensureLogin())) return;
     wx.navigateTo({ url: "/pages/bookings/bookings" });
   },
 
   async onLogout() {
+    if (!isLoggedIn()) {
+      this.goLogin();
+      return;
+    }
     try {
       await api.logout();
     } catch (_) {}
     clearSession();
     getApp().globalData.user = null;
-    wx.reLaunch({ url: "/pages/login/login" });
+    this.setData({
+      guestMode: true,
+      loggedIn: false,
+      name: "",
+      rolesText: "",
+      instrumentCount: 0,
+      animalCount: 0,
+      bookingCount: 0,
+      unreadCount: 0,
+      rows: [],
+      calExpanded: false,
+    });
+    wx.showToast({ title: "已退出", icon: "none" });
   },
 });
 

@@ -1,7 +1,14 @@
 <view class="page">
+  <view class="card guest-card" wx:if="{{guestMode}}">
+    <view class="guest-title">动物与实验追溯</view>
+    <view class="guest-desc muted">登录后可扫码录入小鼠（分配唯一 ID），并查看名下代管动物；网页端可派发技术员。</view>
+    <button class="btn-primary" bindtap="goLogin">登录后使用</button>
+  </view>
+
+  <block wx:else>
   <view class="search card lifecycle-entry" bindtap="goLifecycle">
-    <view class="entry-title">实验追溯 · 扫码建档 / Operation</view>
-    <view class="entry-sub muted">一鼠一 ID · 一鼠一闭环</view>
+    <view class="entry-title">扫码录入 / 实验追溯</view>
+    <view class="entry-sub muted">扫鼠笼二维码分配 Animal ID · 一鼠一闭环</view>
   </view>
 
   <view class="search card">
@@ -48,4 +55,5 @@
       </view>
     </view>
   </view>
+  </block>
 </view>

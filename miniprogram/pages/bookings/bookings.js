@@ -1,5 +1,5 @@
 const { api } = require("../../utils/api");
-const { requireLogin, getUser } = require("../../utils/auth");
+const { isLoggedIn, getUser, goLogin } = require("../../utils/auth");
 const { formatDateTime } = require("../../utils/format");
 
 const STATUS_TEXT = {
@@ -11,19 +11,36 @@ const STATUS_TEXT = {
 };
 
 Page({
-  data: { list: [] },
+  data: {
+    guestMode: true,
+    list: [],
+  },
 
   onShow() {
-    if (!requireLogin()) return;
+    const loggedIn = isLoggedIn();
+    this.setData({ guestMode: !loggedIn });
+    if (!loggedIn) return;
     this.load();
   },
 
+  goLogin() {
+    goLogin();
+  },
+
   onPullDownRefresh() {
+    if (!isLoggedIn()) {
+      wx.stopPullDownRefresh();
+      return;
+    }
     this.load().finally(() => wx.stopPullDownRefresh());
   },
 
   async load() {
     const user = getUser();
+    if (!user) {
+      this.setData({ guestMode: true, list: [] });
+      return;
+    }
     try {
       const [{ bookings }, { instruments }] = await Promise.all([
         api.bookings(),
@@ -42,8 +59,12 @@ Page({
           statusText: STATUS_TEXT[b.status] || b.status,
           timeRange: `${formatDateTime(b.startTime)} ~ ${formatDateTime(b.endTime)}`,
         }));
-      this.setData({ list });
+      this.setData({ list, guestMode: false });
     } catch (e) {
+      if (e && e.status === 401) {
+        this.setData({ guestMode: true, list: [] });
+        return;
+      }
       wx.showToast({ title: "加载失败", icon: "none" });
     }
   },

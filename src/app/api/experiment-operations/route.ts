@@ -12,6 +12,7 @@ import { pushNotificationToUsers } from "@/server/notify";
 import {
   canSuperviseAnimalFacility,
   canViewAllAnimalLifecycle,
+  isAnimalClaimantStudent,
   isAnimalExperimentTechnician,
 } from "@/lib/roles";
 import { getStore, mutateStore, uid } from "@/server/store";
@@ -20,9 +21,16 @@ import {
   ExperimentKind,
   ExperimentOperation,
 } from "@/types/animal-lifecycle";
+import { displayName } from "@/lib/users";
 
 function isKind(v: unknown): v is ExperimentKind {
   return EXPERIMENT_KINDS.includes(v as ExperimentKind);
+}
+
+function mapOpTypeToKind(opType: string): ExperimentKind {
+  if (opType === "signal_collection") return "ephys";
+  if (opType === "surgery") return "other";
+  return "other";
 }
 
 /** GET /api/experiment-operations?animalId= */
@@ -46,25 +54,53 @@ export async function GET(req: NextRequest) {
   return jsonOk({ operations: ops, statusLabels: OPERATION_STATUS_LABELS });
 }
 
-/** POST — 技术员扫码后创建 Operation（自动绑定当前账号） */
+/**
+ * POST — 创建实验 Operation
+ * - 技术员扫码后自行创建（绑定自己）
+ * - 或学生派发时指定 technicianUserId
+ */
 export async function POST(req: NextRequest) {
   const auth = await requireActiveUser();
   if ("error" in auth) return auth.error;
   const user = auth.user;
-  if (!isAnimalExperimentTechnician(user.roles)) {
-    return jsonError("forbidden", 403);
-  }
 
   const body = await req.json().catch(() => ({}));
   const animalId = String(body.animalId ?? "").trim();
-  const kind = isKind(body.kind) ? body.kind : "other";
+  const kind = isKind(body.kind)
+    ? body.kind
+    : body.opType
+      ? mapOpTypeToKind(String(body.opType))
+      : "other";
   const title = String(body.title ?? "").trim() || "实验操作";
+  const assigneeId = String(body.technicianUserId ?? "").trim();
 
   if (!animalId) return jsonError("invalid_body", 400);
 
   const store = getStore();
   const animal = findAnimal(store, animalId);
   if (!animal) return jsonError("not_found", 404);
+
+  let tech = user;
+  if (assigneeId && assigneeId !== user.id) {
+    // 学生派发：指定技术员
+    if (
+      !isAnimalClaimantStudent(user.roles) &&
+      !canSuperviseAnimalFacility(user.roles) &&
+      animal.claimantUserId !== user.id
+    ) {
+      return jsonError("forbidden", 403);
+    }
+    if (animal.claimantUserId !== user.id && !canSuperviseAnimalFacility(user.roles)) {
+      return jsonError("forbidden", 403);
+    }
+    const assignee = store.users.find((u) => u.id === assigneeId);
+    if (!assignee || !isAnimalExperimentTechnician(assignee.roles)) {
+      return jsonError("invalid_assignee", 400);
+    }
+    tech = assignee;
+  } else if (!isAnimalExperimentTechnician(user.roles) && !canSuperviseAnimalFacility(user.roles)) {
+    return jsonError("forbidden", 403);
+  }
 
   const block = assertCanCreateOperation(animal, store);
   if (block) return jsonError(block, 409);
@@ -76,10 +112,10 @@ export async function POST(req: NextRequest) {
     status: "open",
     kind,
     title,
-    technicianUserId: user.id,
-    technicianName: user.name,
-    studentUserId: animal.claimantUserId ?? "",
-    studentName: animal.claimantName ?? "",
+    technicianUserId: tech.id,
+    technicianName: displayName(tech),
+    studentUserId: animal.claimantUserId ?? user.id,
+    studentName: animal.claimantName ?? displayName(user),
     startedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -91,16 +127,26 @@ export async function POST(req: NextRequest) {
     if (assertCanCreateOperation(a, s)) return;
     s.experimentOperations = [op, ...(s.experimentOperations ?? [])];
     setRegistrationStatus(a, "in_experiment");
-    a.technicianUserId = user.id;
-    a.technicianName = user.name;
+    a.technicianUserId = tech.id;
+    a.technicianName = displayName(tech);
     appendLifecycleTrace(s, {
       animalId,
       timestamp: now,
       action: "operation_created",
       userId: user.id,
       userName: user.name,
-      details: `创建实验 Operation：${title}（${kind}）`,
+      details: `${displayName(user)} 派发/创建实验：${title}（${kind}）→ 技术员 ${displayName(tech)}`,
       operationId: op.id,
+    });
+    pushNotificationToUsers(s, [tech.id], {
+      title: "新的实验处理任务",
+      titleEn: "New experiment task",
+      message: `${displayName(user)} 派发小鼠 ${animalId}，请用小程序扫笼码并上传拍照记录后完成。`,
+      messageEn: `${displayName(user)} assigned ${animalId}. Scan cage QR in mini-program and upload photos.`,
+      link: `/animals/lifecycle?animalId=${animalId}`,
+      kind: "experiment_operation",
+      operationId: op.id,
+      animalId,
     });
   });
 
@@ -114,7 +160,7 @@ export async function POST(req: NextRequest) {
     action: "create_operation",
     entityType: "experiment_operation",
     entityId: op.id,
-    details: `${animalId} · ${title}`,
+    details: `${animalId} · ${title} → ${displayName(tech)}`,
   });
 
   return jsonOk({ operation: op }, { status: 201 });

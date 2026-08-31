@@ -75,8 +75,8 @@ function request(path, options = {}) {
         if (res.statusCode === 401) {
           clearSession();
           if (!silent) {
-            wx.showToast({ title: "请重新登录", icon: "none" });
-            setTimeout(() => wx.reLaunch({ url: "/pages/login/login" }), 400);
+            wx.showToast({ title: "登录已失效，可继续浏览", icon: "none" });
+            // 不强制跳登录页（审核要求：先浏览再自愿登录）
           }
           reject(
             Object.assign(new Error("unauthorized"), {

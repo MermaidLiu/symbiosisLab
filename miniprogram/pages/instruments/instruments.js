@@ -1,5 +1,5 @@
 const { api } = require("../../utils/api");
-const { requireLogin } = require("../../utils/auth");
+const { isLoggedIn, goLogin, promptLogin } = require("../../utils/auth");
 
 const STATUS_TEXT = {
   available: "可用",
@@ -9,18 +9,29 @@ const STATUS_TEXT = {
 
 Page({
   data: {
+    guestMode: true,
     list: [],
     filtered: [],
     keyword: "",
   },
 
   onShow() {
-    if (!requireLogin()) return;
+    const loggedIn = isLoggedIn();
+    this.setData({ guestMode: !loggedIn });
+    if (!loggedIn) return;
     this.load();
   },
 
   onPullDownRefresh() {
+    if (!isLoggedIn()) {
+      wx.stopPullDownRefresh();
+      return;
+    }
     this.load().finally(() => wx.stopPullDownRefresh());
+  },
+
+  goLogin() {
+    goLogin();
   },
 
   async load() {
@@ -30,9 +41,13 @@ Page({
         ...i,
         statusText: STATUS_TEXT[i.status] || i.status,
       }));
-      this.setData({ list });
+      this.setData({ list, guestMode: false });
       this.applyFilter(this.data.keyword, list);
     } catch (e) {
+      if (e && e.status === 401) {
+        this.setData({ guestMode: true, list: [], filtered: [] });
+        return;
+      }
       wx.showToast({ title: "加载失败", icon: "none" });
     }
   },
@@ -49,14 +64,14 @@ Page({
       ? list
       : list.filter(
           (i) =>
-            (i.name || "").toLowerCase().includes(q) ||
-            (i.nameEn || "").toLowerCase().includes(q) ||
-            (i.model || "").toLowerCase().includes(q)
+            String(i.name || "").toLowerCase().includes(q) ||
+            String(i.model || "").toLowerCase().includes(q)
         );
     this.setData({ filtered });
   },
 
-  goDetail(e) {
+  async goDetail(e) {
+    if (!(await promptLogin("登录后可查看仪器详情与预约。"))) return;
     const id = e.currentTarget.dataset.id;
     wx.navigateTo({
       url: `/pages/instrument-detail/instrument-detail?id=${encodeURIComponent(id)}`,

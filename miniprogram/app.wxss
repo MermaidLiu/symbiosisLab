@@ -90,3 +90,20 @@ page {
   font-size: 22rpx;
   color: var(--muted);
 }
+
+.guest-card .guest-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--brand-deep);
+}
+
+.guest-card .guest-desc {
+  margin: 12rpx 0 28rpx;
+  font-size: 26rpx;
+  line-height: 1.55;
+}
+
+.guest-card .btn-primary,
+.guest-card .btn.primary {
+  margin-top: 8rpx;
+}

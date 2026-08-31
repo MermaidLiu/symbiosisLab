@@ -1,16 +1,29 @@
 const { api } = require("../../utils/api");
-const { requireLogin } = require("../../utils/auth");
+const { isLoggedIn, goLogin } = require("../../utils/auth");
 const { formatDateTime } = require("../../utils/format");
 
 Page({
-  data: { list: [] },
+  data: {
+    guestMode: true,
+    list: [],
+  },
 
   onShow() {
-    if (!requireLogin()) return;
+    const loggedIn = isLoggedIn();
+    this.setData({ guestMode: !loggedIn });
+    if (!loggedIn) return;
     this.load();
   },
 
+  goLogin() {
+    goLogin();
+  },
+
   onPullDownRefresh() {
+    if (!isLoggedIn()) {
+      wx.stopPullDownRefresh();
+      return;
+    }
     this.load().finally(() => wx.stopPullDownRefresh());
   },
 
@@ -21,8 +34,12 @@ Page({
         ...n,
         timeText: formatDateTime(n.createdAt),
       }));
-      this.setData({ list });
+      this.setData({ list, guestMode: false });
     } catch (e) {
+      if (e && e.status === 401) {
+        this.setData({ guestMode: true, list: [] });
+        return;
+      }
       wx.showToast({ title: "加载失败", icon: "none" });
     }
   },

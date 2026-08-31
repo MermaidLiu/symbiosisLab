@@ -27,6 +27,7 @@
       {{checking ? "检查登录中…" : "登录"}}
     </button>
     <view class="hint muted" bindtap="toggleMode">演示账号：邮箱密码登录</view>
+    <view class="hint muted browse-back" bindtap="backBrowse">暂不登录，返回浏览</view>
     <view class="api muted">{{apiBase}}</view>
   </view>
 
@@ -39,6 +40,7 @@
       邮箱密码登录
     </button>
     <view class="hint muted" bindtap="toggleMode">返回手机号登录</view>
+    <view class="hint muted browse-back" bindtap="backBrowse">暂不登录，返回浏览</view>
     <view class="api muted">{{apiBase}}</view>
   </view>
 </view>
