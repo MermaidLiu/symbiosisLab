@@ -55,3 +55,36 @@ export function rolesForAppliedRole(applied: AppliedBusinessRole): Role[] {
 export function phoneToEmail(phone: string): string {
   return `${phone}@phone.symbiosis.local`;
 }
+
+/** 是否需要强制进入完善资料页（实名 / 学号等） */
+export function needsProfileCompletion(user: {
+  accountStatus?: AccountStatus | null;
+  name?: string;
+  employeeId?: string;
+  phone?: string;
+}): boolean {
+  const st = user.accountStatus ?? "active";
+  if (st === "pending_profile" || st === "rejected") return true;
+  if (st === "pending_review" || st === "disabled") return true;
+  // 有手机号但姓名为空 → 未完成实名
+  if (user.phone && !String(user.name ?? "").trim()) return true;
+  // 学号/工号缺失或占位
+  const emp = String(user.employeeId ?? "").trim();
+  if (user.phone && (!emp || emp.startsWith("LEGACY-"))) {
+    if (st !== "active") return true;
+  }
+  return false;
+}
+
+/** 仅「待填资料 / 被拒重填」时显示表单；审核中/停用只展示状态 */
+export function canEditRealnameForm(user: {
+  accountStatus?: AccountStatus | null;
+  name?: string;
+  phone?: string;
+}): boolean {
+  const st = user.accountStatus ?? "active";
+  if (st === "pending_profile" || st === "rejected") return true;
+  if (user.phone && !String(user.name ?? "").trim()) return true;
+  return false;
+}
+

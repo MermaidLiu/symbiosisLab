@@ -7,6 +7,8 @@ import { useLocale } from "@/components/providers/LocaleProvider";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { needsProfileCompletion } from "@/lib/account-status";
+import type { PublicUser } from "@/lib/api/client";
 
 function LoginForm() {
   const { login, phoneLogin, sendSms, user } = useAuth();
@@ -23,15 +25,19 @@ function LoginForm() {
   const [email, setEmail] = useState("admin@lab.edu.cn");
   const [password, setPassword] = useState("admin123");
 
-  useEffect(() => {
-    if (!user) return;
-    const st = user.accountStatus ?? "active";
-    if (st === "pending_profile") {
+  function goAfterLogin(u: PublicUser) {
+    if (needsProfileCompletion(u)) {
       router.replace("/auth/realname");
       return;
     }
     router.replace(params.get("redirect") ?? "/");
-  }, [user, router, params]);
+  }
+
+  useEffect(() => {
+    if (!user) return;
+    goAfterLogin(user);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -68,7 +74,9 @@ function LoginForm() {
       setError(
         t.auth.errors[result.error as keyof typeof t.auth.errors] ?? result.error ?? ""
       );
+      return;
     }
+    if (result.user) goAfterLogin(result.user);
   }
 
   async function onPasswordLogin(e: React.FormEvent) {

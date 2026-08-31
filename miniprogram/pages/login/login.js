@@ -5,11 +5,13 @@ const { API_BASE, isInsecureApiBase } = require("../../utils/config");
 function afterLogin(user) {
   getApp().globalData.user = user;
   const st = (user && user.accountStatus) || "active";
-  if (st === "pending_profile" || st === "rejected") {
-    wx.redirectTo({ url: "/pages/realname/realname" });
-    return;
-  }
-  if (st === "pending_review" || st === "disabled") {
+  if (
+    st === "pending_profile" ||
+    st === "rejected" ||
+    st === "pending_review" ||
+    st === "disabled" ||
+    (user.phone && !(user.name || "").trim())
+  ) {
     wx.redirectTo({ url: "/pages/realname/realname" });
     return;
   }

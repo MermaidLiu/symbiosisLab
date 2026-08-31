@@ -9,7 +9,11 @@ interface AuthContextValue {
   user: PublicUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  phoneLogin: (phone: string, code: string) => Promise<{ ok: boolean; error?: string }>;
+  phoneLogin: (phone: string, code: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    user?: PublicUser;
+  }>;
   sendSms: (phone: string) => Promise<{ ok: boolean; error?: string; mockCode?: string }>;
   submitRealname: (data: {
     name: string;
@@ -101,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         /* pending users may still hydrate partially */
       }
-      return { ok: true };
+      return { ok: true, user: loggedIn };
     } catch (e) {
       return { ok: false, error: (e as { code?: string }).code ?? "invalid_code" };
     }

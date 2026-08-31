@@ -226,6 +226,34 @@ export function AnimalLifecycleHub() {
           </p>
         </GlassPanel>
 
+        <GlassPanel className="mb-4">
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-thu">微信扫码 · 打开小程序绑定小鼠</h3>
+              <p className="mt-2 text-sm leading-relaxed text-lab-muted">
+                学生请使用微信扫描右侧小程序码，进入「实验追溯」完成扫码建档与小鼠绑定。
+                技术员亦可扫码确认 Animal ID 后创建实验 Operation。
+              </p>
+              <ol className="mt-3 list-decimal space-y-1 pl-5 text-xs text-lab-muted">
+                <li>微信扫一扫打开小程序并登录（实名审核通过后）</li>
+                <li>在小程序「动物 → 实验追溯」中扫笼位码或输入 Animal ID</li>
+                <li>按流程完成认领 / 建档 / 实验闭环</li>
+              </ol>
+            </div>
+            <div className="shrink-0 rounded-2xl bg-white/80 p-3 text-center shadow-sm ring-1 ring-black/5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/miniprogram-qrcode.png"
+                alt="实验追溯小程序码"
+                width={168}
+                height={168}
+                className="mx-auto h-[168px] w-[168px] object-contain"
+              />
+              <p className="mt-2 text-[11px] text-lab-muted">微信扫码进入小程序</p>
+            </div>
+          </div>
+        </GlassPanel>
+
         {error ? (
           <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>
         ) : null}

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { needsProfileCompletion } from "@/lib/account-status";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -15,8 +16,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
-    const st = user.accountStatus ?? "active";
-    if (st === "pending_profile" && !pathname.startsWith("/auth/realname")) {
+    if (needsProfileCompletion(user) && !pathname.startsWith("/auth/realname")) {
       router.replace("/auth/realname");
     }
   }, [user, loading, router, pathname]);

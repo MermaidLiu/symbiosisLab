@@ -1,7 +1,7 @@
 <view class="wrap">
   <view class="card">
-    <view class="title">实名认证 / 人员登记</view>
-    <view class="sub">手机号已绑定，最终角色由动物房主管审核</view>
+    <view class="title">完善个人资料</view>
+    <view class="sub">手机号登录后请填写姓名、学号/工号等实名信息；角色由主管审核</view>
     <view class="status">{{statusText}}</view>
     <view wx:if="{{rejectReason}}" class="err">原因：{{rejectReason}}</view>
   </view>
