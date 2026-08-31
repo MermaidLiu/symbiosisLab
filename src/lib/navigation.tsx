@@ -66,6 +66,7 @@ export const NAV_ENTRIES: NavEntry[] = [
         show: (roles) => !isAnimalOpsStaff(roles),
       },
       { href: "/animals/vet-care", labelKey: "vetCare", show: canProcessVeterinary },
+      { href: "/animals/lifecycle", labelKey: "animalLifecycle" },
     ],
   },
   {

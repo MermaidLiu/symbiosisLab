@@ -21,7 +21,7 @@ AppID：`wxb4ad423abf19b61f`
 npm run dev
 ```
 
-默认 API：见 `utils/config.js`（当前部署示例：`http://122.51.204.136/symbiosis/lab`）。
+默认 API：见 `utils/config.js`（当前正式地址：`https://www.dailab.online/symbiosis/lab`）。
 
 > **重要**：小程序登录依赖接口返回 `token` 字段。请确保服务器已部署包含 Bearer 登录的最新后端；仅更新小程序不够。
 
@@ -41,11 +41,10 @@ npm run dev
 
 摘要：
 
-1. 腾讯云/阿里云购买域名（约几十元/年）并完成实名  
-2. A 记录解析到 `122.51.204.136`，完成 ICP 备案  
-3. 申请免费 SSL，按 `deploy/nginx-symbiosis-https.conf.example` 配 Nginx  
-4. 微信后台添加 request 合法域名 `https://你的域名`  
-5. 将 `utils/config.js` 的 `API_BASE` 改为 `https://你的域名/symbiosis/lab` 后重新上传
+1. 域名 `www.dailab.online` 已备案并配置 HTTPS  
+2. 微信公众平台 → 开发管理 → 开发设置 → **request 合法域名** 添加：`https://www.dailab.online`（不要带路径）  
+3. `utils/config.js` 的 `API_BASE` 已为：`https://www.dailab.online/symbiosis/lab`  
+4. 开发者工具重新编译 → **上传** → 设为体验版 / 提交审核
 
 ## 演示账号
 

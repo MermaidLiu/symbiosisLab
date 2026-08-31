@@ -173,6 +173,24 @@ const api = {
   dailyLog(year, month) {
     return request(`/api/daily-log?year=${year}&month=${month}`);
   },
+  lifecycleLookup(animalId) {
+    return request(`/api/animal-lifecycle?animalId=${encodeURIComponent(animalId)}`);
+  },
+  lifecycleAction(action, payload) {
+    return request("/api/animal-lifecycle", {
+      method: "POST",
+      data: { action, ...payload },
+    });
+  },
+  createExperimentOperation(payload) {
+    return request("/api/experiment-operations", { method: "POST", data: payload });
+  },
+  patchExperimentOperation(id, action, extra) {
+    return request("/api/experiment-operations", {
+      method: "PATCH",
+      data: { id, action, ...extra },
+    });
+  },
 };
 
 module.exports = { api, request, extractToken };

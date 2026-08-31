@@ -92,6 +92,33 @@ export function canAccessResearchAssistant(roles: Role[]): boolean {
   return roles.includes("super_admin") || roles.includes("research_assistant");
 }
 
+/** 学生（小动物认领员）：非动物房一线人员 */
+export function isAnimalClaimantStudent(roles: Role[]): boolean {
+  return (
+    roles.includes("user") &&
+    !canReceiveAnimalOps(roles) &&
+    !canSuperviseAnimalFacility(roles) &&
+    !hasRole(roles, "super_admin")
+  );
+}
+
+/** 技术员（小动物实验人员） */
+export function isAnimalExperimentTechnician(roles: Role[]): boolean {
+  return canReceiveAnimalOps(roles);
+}
+
+/** V2 业务角色别名（映射现有 Role 枚举） */
+export function roleLabelV2(roles: Role[]): "student" | "technician" | "supervisor" | "admin" {
+  if (hasRole(roles, "super_admin")) return "admin";
+  if (canSuperviseAnimalFacility(roles)) return "supervisor";
+  if (canReceiveAnimalOps(roles)) return "technician";
+  return "student";
+}
+
+export function canViewAllAnimalLifecycle(roles: Role[]): boolean {
+  return canSuperviseAnimalFacility(roles) || hasRole(roles, "super_admin");
+}
+
 export function canViewResourceLogs(roles: Role[], type: "instrument" | "animal"): boolean {
   if (hasRole(roles, "super_admin")) return true;
   if (type === "instrument") return canManageInstruments(roles);

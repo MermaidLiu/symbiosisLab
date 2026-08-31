@@ -135,6 +135,7 @@ export interface AppNotification {
     | "application_pending"
     | "animal_task"
     | "animal_task_receipt"
+    | "experiment_operation"
     | "instrument_training"
     | "instrument_repair";
   bookingId?: string;
@@ -143,6 +144,8 @@ export interface AppNotification {
   instrumentId?: string;
   trainingRequestId?: string;
   repairTicketId?: string;
+  operationId?: string;
+  animalId?: string;
   handled?: boolean;
   createdAt: string;
 }

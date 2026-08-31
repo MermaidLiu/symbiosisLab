@@ -1,4 +1,9 @@
 <view class="page">
+  <view class="search card lifecycle-entry" bindtap="goLifecycle">
+    <view class="entry-title">实验追溯 · 扫码建档 / Operation</view>
+    <view class="entry-sub muted">一鼠一 ID · 一鼠一闭环</view>
+  </view>
+
   <view class="search card">
     <view class="ali-icon ali-icon-sm ali-icon-search"></view>
     <input class="search-input" placeholder="按动物 ID 筛选" value="{{keyword}}" bindinput="onSearch" />

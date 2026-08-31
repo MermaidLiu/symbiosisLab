@@ -52,9 +52,11 @@ export function pushNotificationToUsers(
     message: string;
     messageEn: string;
     link?: string;
-    kind?: "info" | "booking_pending" | "booking_status" | "application_status" | "application_pending";
+    kind?: "info" | "booking_pending" | "booking_status" | "application_status" | "application_pending" | "experiment_operation";
     bookingId?: string;
     applicationId?: string;
+    operationId?: string;
+    animalId?: string;
   },
   excludeUserId?: string
 ): void {
@@ -75,6 +77,8 @@ export function pushNotificationToUsers(
       applicationId: payload.applicationId,
       handled: false,
       createdAt: now,
+      operationId: payload.operationId,
+      animalId: payload.animalId,
     });
   }
 }

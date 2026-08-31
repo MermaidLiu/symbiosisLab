@@ -1,0 +1,114 @@
+.wrap {
+  padding: 24rpx;
+  padding-bottom: 48rpx;
+  background: linear-gradient(165deg, #ede0ff 0%, #f5fbff 100%);
+  min-height: 100vh;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(91, 58, 158, 0.08);
+}
+
+.hero .title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #5b3a9e;
+}
+
+.hero .sub {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #7a7190;
+}
+
+.label,
+.section {
+  font-size: 24rpx;
+  color: #7a7190;
+  margin-bottom: 12rpx;
+}
+
+.section {
+  font-weight: 600;
+  color: #5b3a9e;
+}
+
+.input {
+  background: #f7f2ff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  font-size: 28rpx;
+}
+
+.row {
+  display: flex;
+  gap: 16rpx;
+}
+
+.btn {
+  font-size: 26rpx;
+  border-radius: 16rpx;
+  padding: 0 32rpx;
+}
+
+.btn.primary {
+  background: #7b4db8;
+  color: #fff;
+}
+
+.btn.ghost {
+  background: #fff;
+  color: #7b4db8;
+  border: 2rpx solid #d8c8f5;
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.aid {
+  font-size: 36rpx;
+  font-weight: 800;
+  color: #5b3a9e;
+}
+
+.meta {
+  font-size: 24rpx;
+  color: #7a7190;
+  margin-top: 8rpx;
+}
+
+.pill {
+  display: inline-block;
+  margin-top: 12rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+  background: #e8f5ef;
+  color: #1b7a5a;
+  font-size: 22rpx;
+}
+
+.err {
+  color: #b91c1c;
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+
+.op,
+.trace {
+  font-size: 24rpx;
+  color: #444;
+  padding: 8rpx 0;
+  border-bottom: 1rpx solid #eee;
+}
+
+.picker {
+  padding: 16rpx 0;
+  color: #5b3a9e;
+  font-size: 26rpx;
+}

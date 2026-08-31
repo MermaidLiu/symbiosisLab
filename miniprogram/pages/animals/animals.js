@@ -30,6 +30,10 @@ Page({
     this.load();
   },
 
+  goLifecycle() {
+    wx.navigateTo({ url: "/pages/lifecycle/lifecycle" });
+  },
+
   onPullDownRefresh() {
     this.load().finally(() => wx.stopPullDownRefresh());
   },

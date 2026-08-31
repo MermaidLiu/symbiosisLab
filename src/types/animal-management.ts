@@ -110,6 +110,18 @@ export interface ManagedAnimal {
   nextCollectionAt?: string;
   /** 特殊实验备注 */
   specialExperiment?: string;
+
+  // --- V2 全生命周期 ---
+  /** 建档/实验就绪状态 */
+  registrationStatus?: import("./animal-lifecycle").AnimalRegistrationStatus;
+  /** Animal Lock：存在未闭环 Operation 时为 true */
+  animalLock?: boolean;
+  /** 正式建档时间 */
+  registeredAt?: string;
+  /** 植入手术完成时间 */
+  surgeryCompletedAt?: string;
+  /** 笼牌备注（学生填写） */
+  cageLabelNote?: string;
 }
 
 /** 状态 tip 果冻色（7 种） */

@@ -28,6 +28,10 @@ import {
 } from "@/types/animal-management";
 import { AnimalOpTask } from "@/types/animal-ops";
 import {
+  AnimalLifecycleTraceEvent,
+  ExperimentOperation,
+} from "@/types/animal-lifecycle";
+import {
   InstrumentRepairTicket,
   InstrumentTrainingRequest,
 } from "@/types/instrument-ops";
@@ -86,6 +90,12 @@ export interface DbStore {
   animalDayActivities: AnimalDayActivity[];
   /** Student-assigned animal ops (禁食/采集/手术等) */
   animalOpTasks: AnimalOpTask[];
+  /** V2: 一次实验一条 Operation */
+  experimentOperations: ExperimentOperation[];
+  /** V2: 小鼠全生命周期追溯事件 */
+  animalLifecycleTraces: AnimalLifecycleTraceEvent[];
+  /** V2: 已退役永久 Animal ID（不可复用） */
+  retiredAnimalIds: string[];
   /** Instrument training applications */
   instrumentTrainingRequests: InstrumentTrainingRequest[];
   /** Instrument repair tickets */
@@ -127,6 +137,9 @@ function emptyStore(): DbStore {
     raTopicItems: [],
     animalDayActivities: [],
     animalOpTasks: [],
+    experimentOperations: [],
+    animalLifecycleTraces: [],
+    retiredAnimalIds: [],
     instrumentTrainingRequests: [],
     instrumentRepairTickets: [],
   };
@@ -171,6 +184,9 @@ function seedStore(): DbStore {
     raTopicItems: [],
     animalDayActivities: buildSeedAnimalDayActivities(),
     animalOpTasks: [],
+    experimentOperations: [],
+    animalLifecycleTraces: [],
+    retiredAnimalIds: [],
     instrumentTrainingRequests: [],
     instrumentRepairTickets: [],
   };
@@ -268,6 +284,18 @@ function readFromDisk(): DbStore {
     }
     if (!Array.isArray(parsed.animalDayActivities) || parsed.animalDayActivities.length === 0) {
       parsed.animalDayActivities = buildSeedAnimalDayActivities();
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.experimentOperations)) {
+      parsed.experimentOperations = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.animalLifecycleTraces)) {
+      parsed.animalLifecycleTraces = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.retiredAnimalIds)) {
+      parsed.retiredAnimalIds = [];
       dirty = true;
     }
     // Default purpose / lifecycle on managed animals
@@ -445,6 +473,15 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.animalOpTasks)) {
       globalThis.__symbiosisDb.animalOpTasks = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.experimentOperations)) {
+      globalThis.__symbiosisDb.experimentOperations = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.animalLifecycleTraces)) {
+      globalThis.__symbiosisDb.animalLifecycleTraces = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.retiredAnimalIds)) {
+      globalThis.__symbiosisDb.retiredAnimalIds = [];
     }
     if (!Array.isArray(globalThis.__symbiosisDb.instrumentTrainingRequests)) {
       globalThis.__symbiosisDb.instrumentTrainingRequests = [];

@@ -6,6 +6,7 @@
     "pages/instrument-detail/instrument-detail",
     "pages/bookings/bookings",
     "pages/animals/animals",
+    "pages/lifecycle/lifecycle",
     "pages/notices/notices",
     "pages/calendar/calendar"
   ],

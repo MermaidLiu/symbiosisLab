@@ -1,0 +1,73 @@
+<view class="wrap">
+  <view class="hero card">
+    <view class="title">一鼠一 ID · 一鼠一闭环</view>
+    <view class="sub">扫码确认 Animal ID，按角色完成建档与实验 Operation</view>
+  </view>
+
+  <view class="card">
+    <view class="label">Animal ID</view>
+    <input class="input" placeholder="M202608310001" value="{{scanId}}" bindinput="onScanId" />
+    <view class="row">
+      <button class="btn ghost" bindtap="onScan">扫码</button>
+      <button class="btn primary" loading="{{busy}}" bindtap="onLookup">确认</button>
+    </view>
+    <view wx:if="{{error}}" class="err">{{error}}</view>
+  </view>
+
+  <block wx:if="{{animal}}">
+    <view class="card">
+      <view class="aid">{{animal.id}}</view>
+      <view class="meta">{{animal.strain}} · {{animal.cageLocation}}</view>
+      <view class="pill">{{statusLabel}}{{animal.animalLock ? ' · 锁定' : ''}}</view>
+      <view class="meta">认领：{{animal.claimantName || '—'}} · 技术员：{{animal.technicianName || '—'}}</view>
+    </view>
+
+    <view class="card" wx:if="{{isStudent && animal.registrationStatus === 'blank_claimed'}}">
+      <view class="section">学生 · 手术完成</view>
+      <input class="input" placeholder="笼牌备注" value="{{cageLabel}}" bindinput="onCageLabel" />
+      <button class="btn primary block" loading="{{busy}}" bindtap="completeSurgery">标记植入手术完成</button>
+    </view>
+
+    <view class="card" wx:if="{{isStudent && animal.registrationStatus === 'awaiting_register'}}">
+      <view class="section">学生 · 扫码建档</view>
+      <button class="btn primary block" loading="{{busy}}" bindtap="registerAnimal">确认建档 · 进入待实验</button>
+    </view>
+
+    <view class="card" wx:if="{{isStudent && pendingOp}}">
+      <view class="section">待闭环 · {{pendingOp.title}}</view>
+      <input class="input" placeholder="NAS 数据路径" value="{{nasPath}}" bindinput="onNasPath" />
+      <button class="btn primary block" loading="{{busy}}" bindtap="studentClose">完成实验</button>
+    </view>
+
+    <view class="card" wx:if="{{isTech && animal.registrationStatus === 'awaiting_experiment' && !animal.animalLock}}">
+      <view class="section">技术员 · 创建 Operation（自动绑定本人）</view>
+      <picker mode="selector" range="{{kinds}}" range-key="l" bindchange="onKindChange">
+        <view class="picker">实验类型</view>
+      </picker>
+      <input class="input" placeholder="实验标题" value="{{expTitle}}" bindinput="onExpTitle" />
+      <button class="btn primary block" loading="{{busy}}" bindtap="createOp">开始实验</button>
+    </view>
+
+    <view class="card" wx:if="{{isTech && openOp}}">
+      <view class="section">提交实验结果</view>
+      <input class="input" placeholder="结果说明" value="{{resultNote}}" bindinput="onResultNote" />
+      <input class="input" placeholder="结果图片路径/链接" value="{{resultUrl}}" bindinput="onResultUrl" />
+      <button class="btn primary block" loading="{{busy}}" bindtap="techSubmit">技术员提交</button>
+    </view>
+
+    <view class="card" wx:if="{{operations.length}}">
+      <view class="section">Operation 记录</view>
+      <block wx:for="{{operations}}" wx:key="id">
+        <view class="op">{{item.title}} · {{item.status}} · {{item.technicianName}}</view>
+        <view wx:if="{{item.nasDataPath}}" class="meta">NAS: {{item.nasDataPath}}</view>
+      </block>
+    </view>
+
+    <view class="card" wx:if="{{traces.length}}">
+      <view class="section">追溯</view>
+      <block wx:for="{{traces}}" wx:key="id">
+        <view class="trace">{{item.timestamp}} · {{item.userName}} · {{item.details}}</view>
+      </block>
+    </view>
+  </block>
+</view>

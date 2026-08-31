@@ -22,6 +22,7 @@ const zh = {
     myCages: "我的笼位",
     applications: "操作申请",
     vetCare: "兽医处理",
+    animalLifecycle: "实验追溯",
     researchAssistant: "科研助理",
     raWorkbench: "工作台",
     raThesis: "博士论文进度一览",

@@ -22,6 +22,7 @@ const en = {
     myCages: "My Cages",
     applications: "Applications",
     vetCare: "Vet Care",
+    animalLifecycle: "Experiment Trace",
     researchAssistant: "Research Assistant",
     raWorkbench: "Workbench",
     raThesis: "PhD Thesis Progress",
