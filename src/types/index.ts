@@ -10,6 +10,17 @@ export type Role =
   | "research_assistant"
   | "user";
 
+/** 实名账号状态（业务操作仅 active 可用） */
+export type AccountStatus =
+  | "pending_profile"
+  | "pending_review"
+  | "active"
+  | "rejected"
+  | "disabled";
+
+/** 用户首次登记时可申请的业务角色（最终由主管审核） */
+export type AppliedBusinessRole = "student" | "technician" | "supervisor";
+
 export type ResourceStatus = "available" | "maintenance" | "retired" | "in_use" | "quarantine";
 
 export type BookingStatus = "pending" | "approved" | "rejected" | "cancelled" | "completed";
@@ -22,8 +33,27 @@ export interface User {
   nickname?: string;
   password: string;
   roles: Role[];
+  /** 登录唯一凭证：中国大陆手机号 11 位 */
   phone?: string;
   department?: string;
+  /** 工号 / 学号（全库唯一） */
+  employeeId?: string;
+  /** 人员类型（学生/技术员/教职工等，登记用） */
+  personType?: string;
+  /** 其他联系方式 */
+  contactExtra?: string;
+  /** 申请角色（审核前） */
+  appliedRole?: AppliedBusinessRole;
+  /** 账号状态 */
+  accountStatus?: AccountStatus;
+  /** 拒绝原因 */
+  rejectReason?: string;
+  /** 实名资料提交时间 */
+  profileSubmittedAt?: string;
+  /** 审核通过时间 */
+  approvedAt?: string;
+  /** 审核人 */
+  approvedBy?: string;
   /** Instrument IDs the user has completed training for */
   trainedInstrumentIds?: string[];
   createdAt: string;

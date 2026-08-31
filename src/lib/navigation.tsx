@@ -67,6 +67,11 @@ export const NAV_ENTRIES: NavEntry[] = [
       },
       { href: "/animals/vet-care", labelKey: "vetCare", show: canProcessVeterinary },
       { href: "/animals/lifecycle", labelKey: "animalLifecycle" },
+      {
+        href: "/animals/staff-review",
+        labelKey: "staffReview",
+        show: canSuperviseAnimalFacility,
+      },
     ],
   },
   {

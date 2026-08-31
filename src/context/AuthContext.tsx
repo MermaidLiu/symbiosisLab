@@ -9,6 +9,16 @@ interface AuthContextValue {
   user: PublicUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  phoneLogin: (phone: string, code: string) => Promise<{ ok: boolean; error?: string }>;
+  sendSms: (phone: string) => Promise<{ ok: boolean; error?: string; mockCode?: string }>;
+  submitRealname: (data: {
+    name: string;
+    department: string;
+    employeeId: string;
+    personType: string;
+    contactExtra?: string;
+    appliedRole: "student" | "technician" | "supervisor";
+  }) => Promise<{ ok: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUserRoles: (userId: string, roles: Role[]) => Promise<void>;
@@ -72,6 +82,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const sendSms = useCallback(async (phone: string) => {
+    try {
+      const res = await api.sendSms(phone);
+      return { ok: true, mockCode: res.mockCode };
+    } catch (e) {
+      return { ok: false, error: (e as { code?: string }).code ?? "sms_failed" };
+    }
+  }, []);
+
+  const phoneLogin = useCallback(async (phone: string, code: string) => {
+    try {
+      const { user: loggedIn } = await api.phoneLogin(phone, code);
+      setUser(loggedIn);
+      try {
+        const data = await api.bootstrap();
+        applyBootstrap(data);
+      } catch {
+        /* pending users may still hydrate partially */
+      }
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as { code?: string }).code ?? "invalid_code" };
+    }
+  }, []);
+
+  const submitRealname = useCallback(
+    async (data: {
+      name: string;
+      department: string;
+      employeeId: string;
+      personType: string;
+      contactExtra?: string;
+      appliedRole: "student" | "technician" | "supervisor";
+    }) => {
+      try {
+        const { user: updated } = await api.submitRealname(data);
+        setUser(updated);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: (e as { code?: string }).code ?? "submit_failed" };
+      }
+    },
+    []
+  );
+
   const register = useCallback(async (data: RegisterData) => {
     try {
       const { user: created } = await api.register(data);
@@ -99,23 +154,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!user?.roles.includes("super_admin")) return;
       const { users } = await api.updateUserRoles(userId, roles);
       setCachePartial({ users });
-      if (userId === user.id) {
-        const me = users.find((u) => u.id === userId);
-        if (me) setUser(me);
-      }
     },
     [user]
   );
 
   const updateNickname = useCallback(async (nickname: string) => {
     try {
-      const { user: next, warning } = await api.updateProfile({ nickname });
-      setUser(next);
-      await hydrateFromApi();
-      return { ok: true as const, warning };
+      const res = await api.updateProfile({ nickname });
+      setUser(res.user);
+      return { ok: true, warning: res.warning };
     } catch (e) {
-      const code = (e as { code?: string }).code ?? "update_failed";
-      return { ok: false as const, error: code };
+      return { ok: false, error: (e as { code?: string }).code ?? "save_failed" };
     }
   }, []);
 
@@ -125,6 +174,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         login,
+        phoneLogin,
+        sendSms,
+        submitRealname,
         register,
         logout,
         updateUserRoles,

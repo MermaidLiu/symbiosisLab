@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
+import { getCurrentUser, jsonError, jsonOk, requireActiveUser } from "@/server/auth";
 import { appendAuditLog } from "@/server/audit";
 import {
   appendLifecycleTrace,
   assertCanCreateOperation,
   findAnimal,
-  openOperationForAnimal,
   OPERATION_STATUS_LABELS,
   setRegistrationStatus,
 } from "@/server/animal-lifecycle";
@@ -13,7 +12,6 @@ import { pushNotificationToUsers } from "@/server/notify";
 import {
   canSuperviseAnimalFacility,
   canViewAllAnimalLifecycle,
-  isAnimalClaimantStudent,
   isAnimalExperimentTechnician,
 } from "@/lib/roles";
 import { getStore, mutateStore, uid } from "@/server/store";
@@ -50,8 +48,9 @@ export async function GET(req: NextRequest) {
 
 /** POST — 技术员扫码后创建 Operation（自动绑定当前账号） */
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return jsonError("unauthorized", 401);
+  const auth = await requireActiveUser();
+  if ("error" in auth) return auth.error;
+  const user = auth.user;
   if (!isAnimalExperimentTechnician(user.roles)) {
     return jsonError("forbidden", 403);
   }
@@ -128,8 +127,9 @@ export async function POST(req: NextRequest) {
  * - force_close: 主管强制关闭
  */
 export async function PATCH(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return jsonError("unauthorized", 401);
+  const auth = await requireActiveUser();
+  if ("error" in auth) return auth.error;
+  const user = auth.user;
 
   const body = await req.json().catch(() => ({}));
   const id = String(body.id ?? "");

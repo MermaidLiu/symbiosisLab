@@ -1,8 +1,10 @@
 import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { Role, User } from "@/types";
+import { AccountStatus, AppliedBusinessRole, Role, User } from "@/types";
 import { getStore, mutateStore, publicUser, SessionRecord, uid } from "@/server/store";
 import { hashPassword, verifyPassword } from "@/server/crypto";
+import { phoneToEmail, rolesForAppliedRole } from "@/lib/account-status";
+import { isValidCnMobile, normalizePhone, verifySmsCode } from "@/server/sms";
 
 export const SESSION_COOKIE = "symbiosis_session";
 const SESSION_DAYS = 7;
@@ -75,6 +77,24 @@ export async function requireUser(): Promise<{ user: User } | { error: NextRespo
   return { user };
 }
 
+/** 业务接口：必须已实名审核通过 */
+export async function requireActiveUser(): Promise<{ user: User } | { error: NextResponse }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  }
+  const status = user.accountStatus ?? "active";
+  if (status !== "active") {
+    return {
+      error: NextResponse.json(
+        { error: "account_not_active", accountStatus: status },
+        { status: 403 }
+      ),
+    };
+  }
+  return { user };
+}
+
 export function requireRole(user: User, ...roles: Role[]): boolean {
   if (user.roles.includes("super_admin")) return true;
   return roles.some((r) => user.roles.includes(r));
@@ -84,8 +104,26 @@ export function jsonOk<T>(data: T, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
 
-export function jsonError(error: string, status = 400) {
-  return NextResponse.json({ error }, { status });
+export function jsonError(error: string, status = 400, extra?: Record<string, unknown>) {
+  return NextResponse.json({ error, ...extra }, { status });
+}
+
+async function issueSession(user: User) {
+  const session = createSessionToken(user.id);
+  await mutateStore((s) => {
+    s.sessions = [session, ...s.sessions.filter((x) => x.userId !== user.id)].slice(0, 200);
+    s.logs.unshift({
+      id: uid("log"),
+      userId: user.id,
+      userName: user.name || user.phone || user.email,
+      action: "login",
+      entityType: "auth",
+      details: `用户登录: ${user.phone || user.email}`,
+      timestamp: new Date().toISOString(),
+    });
+    s.logs = s.logs.slice(0, 500);
+  });
+  return session;
 }
 
 export async function loginUser(email: string, password: string) {
@@ -96,7 +134,6 @@ export async function loginUser(email: string, password: string) {
     return { ok: false as const, error: "invalid_credentials" };
   }
 
-  // Upgrade legacy plaintext password
   if (!found.password.startsWith("sha256$")) {
     await mutateStore((s) => {
       const u = s.users.find((x) => x.id === found.id);
@@ -104,25 +141,167 @@ export async function loginUser(email: string, password: string) {
     });
   }
 
-  const session = createSessionToken(found.id);
+  const session = await issueSession(found);
+  return { ok: true as const, user: publicUser(found), session };
+}
+
+/** 手机号 + 验证码登录；无账号则建 pending_profile 账号 */
+export async function loginWithPhone(phoneRaw: string, code: string) {
+  const phone = normalizePhone(phoneRaw);
+  if (!isValidCnMobile(phone)) {
+    return { ok: false as const, error: "invalid_phone" };
+  }
+  const verified = await verifySmsCode(phone, code);
+  if (!verified.ok) return { ok: false as const, error: verified.error };
+
+  const store = getStore();
+  let user = store.users.find((u) => normalizePhone(u.phone ?? "") === phone);
+
+  if (!user) {
+    const now = new Date().toISOString();
+    const newUser: User = {
+      id: uid("u"),
+      email: phoneToEmail(phone),
+      name: "",
+      password: hashPassword(uid("pwd")),
+      roles: ["user"],
+      phone,
+      accountStatus: "pending_profile",
+      createdAt: now,
+    };
+    await mutateStore((s) => {
+      if (s.users.some((u) => normalizePhone(u.phone ?? "") === phone)) return;
+      s.users.push(newUser);
+    });
+    user = getStore().users.find((u) => normalizePhone(u.phone ?? "") === phone);
+    if (!user) return { ok: false as const, error: "create_failed" };
+  }
+
+  if ((user.accountStatus ?? "active") === "disabled") {
+    return { ok: false as const, error: "account_disabled" };
+  }
+
+  const session = await issueSession(user);
+  return { ok: true as const, user: publicUser(user), session };
+}
+
+export async function submitRealNameProfile(
+  userId: string,
+  input: {
+    name: string;
+    department: string;
+    employeeId: string;
+    personType: string;
+    contactExtra?: string;
+    appliedRole: AppliedBusinessRole;
+  }
+) {
+  const name = String(input.name ?? "").trim();
+  const department = String(input.department ?? "").trim();
+  const employeeId = String(input.employeeId ?? "").trim();
+  const personType = String(input.personType ?? "").trim();
+  const appliedRole = input.appliedRole;
+  if (!name || !department || !employeeId || !personType) {
+    return { ok: false as const, error: "invalid_body" };
+  }
+  if (!["student", "technician", "supervisor"].includes(appliedRole)) {
+    return { ok: false as const, error: "invalid_applied_role" };
+  }
+
+  const store = getStore();
+  const me = store.users.find((u) => u.id === userId);
+  if (!me) return { ok: false as const, error: "not_found" };
+  if (!me.phone) return { ok: false as const, error: "no_phone" };
+
+  const dupEmp = store.users.some(
+    (u) => u.id !== userId && u.employeeId && u.employeeId.toLowerCase() === employeeId.toLowerCase()
+  );
+  if (dupEmp) return { ok: false as const, error: "employee_id_exists" };
+
+  const now = new Date().toISOString();
+  let updated: User | null = null;
   await mutateStore((s) => {
-    s.sessions = [session, ...s.sessions.filter((x) => x.userId !== found.id)].slice(0, 200);
+    const u = s.users.find((x) => x.id === userId);
+    if (!u) return;
+    u.name = name;
+    u.department = department;
+    u.employeeId = employeeId;
+    u.personType = personType;
+    u.contactExtra = String(input.contactExtra ?? "").trim();
+    u.appliedRole = appliedRole;
+    u.accountStatus = "pending_review";
+    u.profileSubmittedAt = now;
+    u.rejectReason = undefined;
+    u.roles = ["user"];
+    updated = { ...u };
     s.logs.unshift({
       id: uid("log"),
-      userId: found.id,
-      userName: found.name,
-      action: "login",
-      entityType: "auth",
-      details: `用户登录: ${found.email}`,
-      timestamp: new Date().toISOString(),
+      userId,
+      userName: name,
+      action: "submit_realname",
+      entityType: "user",
+      entityId: userId,
+      details: `提交实名建档，申请角色: ${appliedRole}`,
+      timestamp: now,
     });
     s.logs = s.logs.slice(0, 500);
   });
 
-  return { ok: true as const, user: publicUser(found), session };
+  if (!updated) return { ok: false as const, error: "not_found" };
+  return { ok: true as const, user: publicUser(updated) };
 }
 
-export async function registerUser(input: {
+export async function reviewStaffAccount(input: {
+  targetUserId: string;
+  action: "approve" | "reject" | "disable" | "enable";
+  reason?: string;
+  actorId: string;
+  actorName: string;
+}) {
+  let updated: User | null = null;
+  const now = new Date().toISOString();
+
+  await mutateStore((s) => {
+    const u = s.users.find((x) => x.id === input.targetUserId);
+    if (!u) return;
+
+    if (input.action === "approve") {
+      const applied = u.appliedRole ?? "student";
+      u.roles = rolesForAppliedRole(applied);
+      u.accountStatus = "active";
+      u.approvedAt = now;
+      u.approvedBy = input.actorId;
+      u.rejectReason = undefined;
+    } else if (input.action === "reject") {
+      u.accountStatus = "rejected";
+      u.rejectReason = String(input.reason ?? "").trim() || "审核未通过";
+      u.roles = ["user"];
+    } else if (input.action === "disable") {
+      u.accountStatus = "disabled";
+    } else if (input.action === "enable") {
+      if (u.accountStatus === "disabled") {
+        u.accountStatus = "active";
+      }
+    }
+    updated = { ...u };
+    s.logs.unshift({
+      id: uid("log"),
+      userId: input.actorId,
+      userName: input.actorName,
+      action: `staff_${input.action}`,
+      entityType: "user",
+      entityId: u.id,
+      details: `${input.action} ${u.name}(${u.phone}) ${input.reason ?? ""}`.trim(),
+      timestamp: now,
+    });
+    s.logs = s.logs.slice(0, 500);
+  });
+
+  if (!updated) return { ok: false as const, error: "not_found" };
+  return { ok: true as const, user: publicUser(updated as User) };
+}
+
+export async function registerUser(_input: {
   email: string;
   password: string;
   name: string;
@@ -130,7 +309,6 @@ export async function registerUser(input: {
   department?: string;
   roles?: Role[];
 }) {
-  // Public self-registration is disabled — only admins may create accounts.
   return { ok: false as const, error: "register_disabled" };
 }
 
@@ -141,6 +319,7 @@ export async function createUserByAdmin(input: {
   name: string;
   phone?: string;
   department?: string;
+  employeeId?: string;
   roles: Role[];
   actorId: string;
   actorName: string;
@@ -150,6 +329,18 @@ export async function createUserByAdmin(input: {
   if (store.users.some((u) => u.email === email)) {
     return { ok: false as const, error: "email_exists" };
   }
+  const phone = input.phone ? normalizePhone(input.phone) : undefined;
+  if (phone) {
+    if (!isValidCnMobile(phone)) return { ok: false as const, error: "invalid_phone" };
+    if (store.users.some((u) => normalizePhone(u.phone ?? "") === phone)) {
+      return { ok: false as const, error: "phone_exists" };
+    }
+  }
+  const employeeId = input.employeeId?.trim();
+  if (employeeId && store.users.some((u) => u.employeeId?.toLowerCase() === employeeId.toLowerCase())) {
+    return { ok: false as const, error: "employee_id_exists" };
+  }
+
   let roles: Role[] = input.roles.includes("user") ? input.roles : [...input.roles, "user"];
   roles = Array.from(new Set(roles)) as Role[];
 
@@ -159,8 +350,12 @@ export async function createUserByAdmin(input: {
     name: input.name,
     password: hashPassword(input.password),
     roles,
-    phone: input.phone,
+    phone,
     department: input.department,
+    employeeId: employeeId || `ADM-${Date.now()}`,
+    accountStatus: "active" as AccountStatus,
+    approvedAt: new Date().toISOString(),
+    approvedBy: input.actorId,
     createdAt: new Date().toISOString(),
   };
 

@@ -70,6 +70,27 @@
   margin-top: 40rpx;
 }
 
+.row-code {
+  display: flex;
+  gap: 12rpx;
+  align-items: center;
+}
+
+.row-code .flex1 {
+  flex: 1;
+}
+
+.btn-sms {
+  flex-shrink: 0;
+  font-size: 24rpx;
+  padding: 0 20rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  background: #f7f2ff;
+  color: #5b3a9e;
+  border-radius: 18rpx;
+}
+
 .warn-title {
   font-size: 32rpx;
   font-weight: 700;

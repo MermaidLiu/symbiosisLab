@@ -35,6 +35,7 @@ import {
   InstrumentRepairTicket,
   InstrumentTrainingRequest,
 } from "@/types/instrument-ops";
+import type { SmsCodeRecord } from "@/server/sms";
 import { SEED_USERS, SEED_INSTRUMENTS, SEED_ANIMALS } from "@/lib/storage/seed";
 import { normalizeInstrument } from "@/lib/instruments";
 import {
@@ -96,6 +97,8 @@ export interface DbStore {
   animalLifecycleTraces: AnimalLifecycleTraceEvent[];
   /** V2: 已退役永久 Animal ID（不可复用） */
   retiredAnimalIds: string[];
+  /** 短信验证码（短时） */
+  smsCodes: SmsCodeRecord[];
   /** Instrument training applications */
   instrumentTrainingRequests: InstrumentTrainingRequest[];
   /** Instrument repair tickets */
@@ -140,6 +143,7 @@ function emptyStore(): DbStore {
     experimentOperations: [],
     animalLifecycleTraces: [],
     retiredAnimalIds: [],
+    smsCodes: [],
     instrumentTrainingRequests: [],
     instrumentRepairTickets: [],
   };
@@ -187,6 +191,7 @@ function seedStore(): DbStore {
     experimentOperations: [],
     animalLifecycleTraces: [],
     retiredAnimalIds: [],
+    smsCodes: [],
     instrumentTrainingRequests: [],
     instrumentRepairTickets: [],
   };
@@ -297,6 +302,21 @@ function readFromDisk(): DbStore {
     if (!Array.isArray(parsed.retiredAnimalIds)) {
       parsed.retiredAnimalIds = [];
       dirty = true;
+    }
+    if (!Array.isArray(parsed.smsCodes)) {
+      parsed.smsCodes = [];
+      dirty = true;
+    }
+    for (const u of parsed.users ?? []) {
+      if (!u.accountStatus) {
+        u.accountStatus = "active";
+        dirty = true;
+      }
+      if (u.phone && !u.employeeId) {
+        // seed-friendly unique placeholder for legacy accounts
+        u.employeeId = `LEGACY-${u.id}`;
+        dirty = true;
+      }
     }
     // Default purpose / lifecycle on managed animals
     for (const a of parsed.managedAnimals ?? []) {
@@ -482,6 +502,13 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.retiredAnimalIds)) {
       globalThis.__symbiosisDb.retiredAnimalIds = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.smsCodes)) {
+      globalThis.__symbiosisDb.smsCodes = [];
+    }
+    for (const u of globalThis.__symbiosisDb.users ?? []) {
+      if (!u.accountStatus) u.accountStatus = "active";
+      if (u.phone && !u.employeeId) u.employeeId = `LEGACY-${u.id}`;
     }
     if (!Array.isArray(globalThis.__symbiosisDb.instrumentTrainingRequests)) {
       globalThis.__symbiosisDb.instrumentTrainingRequests = [];

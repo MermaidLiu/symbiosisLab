@@ -2,12 +2,32 @@ const { api } = require("../../utils/api");
 const { setSession, getToken, clearSession } = require("../../utils/auth");
 const { API_BASE, isInsecureApiBase } = require("../../utils/config");
 
+function afterLogin(user) {
+  getApp().globalData.user = user;
+  const st = (user && user.accountStatus) || "active";
+  if (st === "pending_profile" || st === "rejected") {
+    wx.redirectTo({ url: "/pages/realname/realname" });
+    return;
+  }
+  if (st === "pending_review" || st === "disabled") {
+    wx.redirectTo({ url: "/pages/realname/realname" });
+    return;
+  }
+  wx.switchTab({ url: "/pages/home/home" });
+}
+
 Page({
   data: {
+    mode: "phone",
+    phone: "",
+    code: "",
     email: "student@lab.edu.cn",
     password: "demo123",
     loading: false,
+    sending: false,
     checking: false,
+    countdown: 0,
+    smsHint: "",
     apiBase: API_BASE,
     insecureApi: isInsecureApiBase(),
   },
@@ -24,7 +44,6 @@ Page({
   },
 
   async onShow() {
-    // 体验版 + HTTP/IP：绝不过自动跳转，必须停在登录页提示
     if (isInsecureApiBase()) {
       clearSession();
       getApp().globalData.user = null;
@@ -40,8 +59,7 @@ Page({
       const res = await api.me();
       if (res && res.user) {
         setSession(token, res.user);
-        getApp().globalData.user = res.user;
-        wx.switchTab({ url: "/pages/home/home" });
+        afterLogin(res.user);
       }
     } catch (_) {
       clearSession();
@@ -51,26 +69,84 @@ Page({
     }
   },
 
+  onPhone(e) {
+    this.setData({ phone: e.detail.value });
+  },
+  onCode(e) {
+    this.setData({ code: e.detail.value });
+  },
   onEmail(e) {
     this.setData({ email: e.detail.value });
   },
-
   onPassword(e) {
     this.setData({ password: e.detail.value });
   },
+  toggleMode() {
+    this.setData({ mode: this.data.mode === "phone" ? "password" : "phone" });
+  },
 
-  async onLogin() {
+  tickCountdown() {
+    if (this.data.countdown <= 0) return;
+    setTimeout(() => {
+      this.setData({ countdown: this.data.countdown - 1 });
+      this.tickCountdown();
+    }, 1000);
+  },
+
+  async onSendSms() {
+    if (isInsecureApiBase()) return;
+    this.setData({ sending: true, smsHint: "" });
+    try {
+      const res = await api.sendSms(this.data.phone);
+      this.setData({
+        countdown: 60,
+        smsHint: res.mockCode ? `演示验证码：${res.mockCode}` : "验证码已发送",
+        code: res.mockCode || this.data.code,
+      });
+      this.tickCountdown();
+    } catch (e) {
+      wx.showToast({ title: e.code || "发送失败", icon: "none" });
+    } finally {
+      this.setData({ sending: false });
+    }
+  },
+
+  async onPhoneLogin() {
     if (isInsecureApiBase()) {
       wx.showModal({
         title: "无法登录",
-        content:
-          "当前 API 仍是 HTTP/IP，体验版和正式版都不能访问。\n请先配置 HTTPS 域名，再修改 utils/config.js 后重新上传。\n\n" +
-          API_BASE,
+        content: `请使用 HTTPS 域名。\n${API_BASE}`,
         showCancel: false,
       });
       return;
     }
+    const phone = (this.data.phone || "").trim();
+    const code = (this.data.code || "").trim();
+    if (!phone || !code) {
+      wx.showToast({ title: "请输入手机号和验证码", icon: "none" });
+      return;
+    }
+    this.setData({ loading: true });
+    try {
+      const res = await api.phoneLogin(phone, code);
+      const token = (res && res.token) || "";
+      if (!token) throw Object.assign(new Error("no_token"), { code: "no_token" });
+      setSession(token, res.user);
+      wx.showToast({ title: "登录成功", icon: "success" });
+      setTimeout(() => afterLogin(res.user), 300);
+    } catch (err) {
+      wx.showModal({
+        title: "登录失败",
+        content: String(err.code || err.message || "unknown"),
+        showCancel: false,
+      });
+    } finally {
+      this.setData({ loading: false });
+    }
+  },
 
+  async onLogin() {
+    if (isInsecureApiBase()) return;
     const email = (this.data.email || "").trim();
     const password = this.data.password || "";
     if (!email || !password) {
@@ -81,31 +157,13 @@ Page({
     try {
       const res = await api.login(email, password);
       const token = (res && res.token) || "";
-      if (!token) {
-        wx.showModal({
-          title: "登录异常",
-          content: `接口未返回 token。\nAPI: ${API_BASE}\n响应: ${JSON.stringify(res).slice(0, 180)}`,
-          showCancel: false,
-        });
-        return;
-      }
+      if (!token) throw Object.assign(new Error("no_token"), { code: "no_token" });
       setSession(token, res.user);
-      getApp().globalData.user = res.user;
-      wx.showToast({ title: "登录成功", icon: "success" });
-      setTimeout(() => wx.switchTab({ url: "/pages/home/home" }), 300);
+      setTimeout(() => afterLogin(res.user), 300);
     } catch (err) {
-      const detail = err.detail || err.errMsg || err.code || "";
-      const isDomain =
-        String(detail).includes("domain list") || String(detail).includes("url not in");
-      const content =
-        err.code === "invalid_credentials"
-          ? "邮箱或密码错误"
-          : isDomain || err.code === "network_error"
-            ? `无法连接服务器（体验版必须用 HTTPS 域名）。\n\n${detail}\n${API_BASE}`
-            : `登录失败：${err.code || "unknown"}\n${detail}\n${API_BASE}`;
       wx.showModal({
         title: "登录失败",
-        content: content.slice(0, 500),
+        content: String(err.code || err.message || "unknown"),
         showCancel: false,
       });
     } finally {

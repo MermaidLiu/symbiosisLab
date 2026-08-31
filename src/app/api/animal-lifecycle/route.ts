@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
+import { getCurrentUser, jsonError, jsonOk, requireActiveUser } from "@/server/auth";
 import { appendAuditLog } from "@/server/audit";
 import {
   appendLifecycleTrace,
@@ -77,8 +77,9 @@ export async function GET(req: NextRequest) {
  * action: create_blank | claim_blank | complete_surgery | register | lookup
  */
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return jsonError("unauthorized", 401);
+  const auth = await requireActiveUser();
+  if ("error" in auth) return auth.error;
+  const user = auth.user;
 
   const body = await req.json().catch(() => ({}));
   const action = String(body.action ?? "");

@@ -10,8 +10,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (loading) return;
+    if (!user) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+      return;
+    }
+    const st = user.accountStatus ?? "active";
+    if (st === "pending_profile" && !pathname.startsWith("/auth/realname")) {
+      router.replace("/auth/realname");
     }
   }, [user, loading, router, pathname]);
 

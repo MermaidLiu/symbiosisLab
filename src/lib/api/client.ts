@@ -58,6 +58,44 @@ export const api = {
       body: JSON.stringify({ action: "login", email, password }),
     }),
 
+  sendSms: (phone: string) =>
+    request<{ ok: boolean; mockCode?: string }>("/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ action: "send_sms", phone }),
+    }),
+
+  phoneLogin: (phone: string, code: string) =>
+    request<{ user: PublicUser; token?: string }>("/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ action: "phone_login", phone, code }),
+    }),
+
+  submitRealname: (data: {
+    name: string;
+    department: string;
+    employeeId: string;
+    personType: string;
+    contactExtra?: string;
+    appliedRole: "student" | "technician" | "supervisor";
+  }) =>
+    request<{ user: PublicUser }>("/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ action: "submit_realname", ...data }),
+    }),
+
+  staffReviewList: () =>
+    request<{ pending: PublicUser[]; users: PublicUser[] }>("/api/staff-review"),
+
+  staffReviewAction: (data: {
+    userId: string;
+    action: "approve" | "reject" | "disable" | "enable";
+    reason?: string;
+  }) =>
+    request<{ user: PublicUser; pending: PublicUser[] }>("/api/staff-review", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   register: (data: {
     email: string;
     password: string;

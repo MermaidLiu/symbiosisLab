@@ -128,6 +128,26 @@ const api = {
       silent: true,
     });
   },
+  sendSms(phone) {
+    return request("/api/auth", {
+      method: "POST",
+      data: { action: "send_sms", phone },
+      silent: true,
+    });
+  },
+  phoneLogin(phone, code) {
+    return request("/api/auth", {
+      method: "POST",
+      data: { action: "phone_login", phone, code },
+      silent: true,
+    });
+  },
+  submitRealname(payload) {
+    return request("/api/auth", {
+      method: "POST",
+      data: { action: "submit_realname", ...payload },
+    });
+  },
   me() {
     return request("/api/auth");
   },
