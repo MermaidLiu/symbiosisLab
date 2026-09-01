@@ -14,12 +14,21 @@ function formatDate(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function trackingDays(collectionAt, lastCollectionAt, implantAt) {
-  const start = collectionAt || lastCollectionAt || implantAt;
+function trackingDays(collectionAt, lastCollectionAt, implantAt, opts) {
+  const deceased = opts && opts.deceased;
+  const asOfIso =
+    (opts && opts.asOf) ||
+    (deceased && lastCollectionAt) ||
+    (deceased && collectionAt) ||
+    new Date().toISOString();
+  const start = implantAt || lastCollectionAt || collectionAt;
   if (!start) return null;
-  const t = new Date(start).getTime();
-  if (Number.isNaN(t)) return null;
-  return Math.max(0, Math.floor((Date.now() - t) / 86400000));
+  const a = new Date(asOfIso);
+  const b = new Date(start);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  const aDay = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const bDay = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((aDay - bDay) / 86400000);
 }
 
 function trackingStageFromDays(days) {

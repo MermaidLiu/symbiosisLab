@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { formatTrackingDays, trackingDays, trackingStageFromDays } from "@/lib/animals/facility-board";
+import { formatTrackingDays, trackingDaysForAnimal, trackingStageFromDays } from "@/lib/animals/facility-board";
 import { JELLY_TIP_STYLE, resolveStatusColor } from "@/lib/animals/status-tip";
 import {
   ManagedAnimal,
@@ -220,7 +220,7 @@ export function StudentDashboard() {
 
   function stageForRow(row: ManagedAnimal) {
     return trackingStageFromDays(
-      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt)
+      trackingDaysForAnimal(row)
     );
   }
 
@@ -413,7 +413,7 @@ export function StudentDashboard() {
                           <td className="px-2 py-2 text-xs">{formatDateOnly(row.implantAt)}</td>
                           <td className="px-2 py-2 text-xs">
                             {formatTrackingDays(
-                              trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                              trackingDaysForAnimal(row),
                               m.trackingUnit
                             )}
                           </td>

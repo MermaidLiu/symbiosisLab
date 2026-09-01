@@ -376,9 +376,12 @@ export function AnimalOpSchedule({
                             width: "calc(44% - 4px)",
                             backgroundColor: URGENCY_COLORS[task.urgency],
                           }}
-                          title={`${o.types[task.opType]} · ${task.note || task.createdByName}`}
+                          title={`${task.backfill ? (isZh ? "【补录】" : "[Backfill] ") : ""}${o.types[task.opType]} · ${task.note || task.createdByName}`}
                         >
-                          <div className="truncate font-semibold">{o.types[task.opType]}</div>
+                          <div className="truncate font-semibold">
+                            {task.backfill ? (isZh ? "补录 · " : "BF · ") : ""}
+                            {o.types[task.opType]}
+                          </div>
                           <div className="truncate opacity-90">
                             {task.animalIds.length} · {task.createdByName}
                           </div>
@@ -451,6 +454,7 @@ export function AnimalOpSchedule({
                         <div className="truncate font-medium">
                           {new Date(task.startTime).getHours()}:
                           {String(new Date(task.startTime).getMinutes()).padStart(2, "0")}{" "}
+                          {task.backfill ? (isZh ? "补录·" : "BF·") : ""}
                           {o.types[task.opType]}
                         </div>
                         <button

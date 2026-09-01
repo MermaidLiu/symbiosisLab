@@ -122,6 +122,11 @@ export interface ManagedAnimal {
   surgeryCompletedAt?: string;
   /** 笼牌备注（学生填写） */
   cageLabelNote?: string;
+  /**
+   * 当前/最近一次实验是否为「补录」：
+   * 技术员提交日与 Operation 开始日不是同一自然日
+   */
+  lastOpBackfill?: boolean;
 }
 
 /** 状态 tip 果冻色（7 种） */

@@ -23,6 +23,18 @@
       </button>
     </view>
     <view wx:if="{{smsHint}}" class="hint muted">{{smsHint}}</view>
+
+    <view class="consent" bindtap="toggleAgree">
+      <view class="check {{agreed ? 'on' : ''}}">{{agreed ? '✓' : ''}}</view>
+      <view class="consent-text">
+        我已阅读并同意
+        <text class="link" catchtap="openTerms">《用户服务协议》</text>
+        和
+        <text class="link" catchtap="openPrivacy">《隐私政策》</text>
+        ，知悉本小程序将收集、使用与存储手机号等用户信息，用于登录核验、实名审核与实验室业务管理。
+      </view>
+    </view>
+
     <button class="btn-primary login-btn" loading="{{loading}}" disabled="{{checking}}" bindtap="onPhoneLogin">
       {{checking ? "检查登录中…" : "登录"}}
     </button>
@@ -36,6 +48,17 @@
     <input class="input" type="text" placeholder="student@lab.edu.cn" value="{{email}}" bindinput="onEmail" />
     <view class="label">密码</view>
     <input class="input" password placeholder="demo123" value="{{password}}" bindinput="onPassword" />
+
+    <view class="consent" bindtap="toggleAgree">
+      <view class="check {{agreed ? 'on' : ''}}">{{agreed ? '✓' : ''}}</view>
+      <view class="consent-text">
+        我已阅读并同意
+        <text class="link" catchtap="openTerms">《用户服务协议》</text>
+        和
+        <text class="link" catchtap="openPrivacy">《隐私政策》</text>
+      </view>
+    </view>
+
     <button class="btn-primary login-btn" loading="{{loading}}" disabled="{{checking}}" bindtap="onLogin">
       邮箱密码登录
     </button>

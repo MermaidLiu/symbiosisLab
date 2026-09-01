@@ -9,7 +9,9 @@
     "pages/notices/notices",
     "pages/calendar/calendar",
     "pages/login/login",
-    "pages/realname/realname"
+    "pages/realname/realname",
+    "pages/legal/privacy",
+    "pages/legal/terms"
   ],
   "window": {
     "navigationBarBackgroundColor": "#7B4DB8",

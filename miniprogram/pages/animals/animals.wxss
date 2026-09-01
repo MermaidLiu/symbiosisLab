@@ -50,6 +50,27 @@
   font-weight: 800;
   color: #5b3a9e;
   font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.lock {
+  font-size: 26rpx;
+}
+
+.backfill {
+  padding: 2rpx 10rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+  color: #9a3412;
+  background: #ffedd5;
+  border-radius: 8rpx;
+}
+
+.animal.locked {
+  border: 2rpx solid rgba(245, 158, 11, 0.45);
+  background: rgba(255, 247, 237, 0.9);
 }
 
 .line {

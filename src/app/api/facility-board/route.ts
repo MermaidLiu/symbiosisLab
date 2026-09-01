@@ -1,14 +1,22 @@
 import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore } from "@/server/store";
-import { canSuperviseAnimalFacility, canManageAnimals } from "@/lib/roles";
+import {
+  canSuperviseAnimalFacility,
+  canManageAnimals,
+  canReceiveAnimalOps,
+} from "@/lib/roles";
 import { buildFacilityCageCells } from "@/lib/animals/facility-board";
 import { publicUser } from "@/server/store";
 
-/** GET /api/facility-board — supervisor cage Excel board data */
+/** GET /api/facility-board — 动物房笼位总览（技术员只读 / 主管可操作） */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!canSuperviseAnimalFacility(user.roles) && !canManageAnimals(user.roles)) {
+  if (
+    !canSuperviseAnimalFacility(user.roles) &&
+    !canManageAnimals(user.roles) &&
+    !canReceiveAnimalOps(user.roles)
+  ) {
     return jsonError("forbidden", 403);
   }
 

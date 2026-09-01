@@ -51,9 +51,14 @@ Page({
 
   mapRow(row) {
     const color = resolveStatusColor(row.statusColor, row.recordingStatus);
-    const days = trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt);
+    const deceased = row.recordingStatus === "dead" || row.status === "deceased";
+    const days = trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt, {
+      deceased,
+    });
+    const locked = Boolean(row.animalLock) || row.registrationStatus === "in_experiment";
     return {
       ...row,
+      locked,
       label: statusLabel(row),
       tipBg: JELLY[color].bg,
       tipFg: JELLY[color].fg,
@@ -103,6 +108,14 @@ Page({
     const id = e.currentTarget.dataset.id;
     const row = this.data.list.find((a) => a.id === id);
     if (!row) return;
+    if (row.locked) {
+      wx.showModal({
+        title: "实验锁定中",
+        content: "该小鼠实验未闭环，不可改状态或派发，以保护一生记录。请先在实验追溯完成 NAS 闭环。",
+        showCancel: false,
+      });
+      return;
+    }
     this.setData({
       editing: true,
       editId: id,

@@ -114,6 +114,16 @@ export async function POST(req: NextRequest) {
     let created = false;
 
     await mutateStore((s) => {
+      const ensureImplant = (animal: ManagedAnimal, at: string) => {
+        // 录入成功时间即植入时间
+        if (!animal.implantAt) {
+          animal.implantAt = animal.registeredAt || at;
+        }
+        if (animal.lifecycleStatus === "entered" || !animal.lifecycleStatus) {
+          animal.lifecycleStatus = "electrode_implant";
+        }
+      };
+
       // 已有永久 ID：若空白则认领建档；若已是本人名下则直接返回
       if (idMatch) {
         const existingId = idMatch[1].toUpperCase();
@@ -139,6 +149,7 @@ export async function POST(req: NextRequest) {
                 details: `扫码录入，确认建档 ${animal.id}`,
               });
             }
+            ensureImplant(animal, now);
             result = { ...animal };
             return;
           }
@@ -147,8 +158,10 @@ export async function POST(req: NextRequest) {
             animal.claimantName = user.name;
             animal.registrationStatus = "awaiting_experiment";
             animal.registeredAt = now;
+            animal.implantAt = now;
             animal.animalLock = false;
             animal.purpose = "signal_processing";
+            animal.lifecycleStatus = "electrode_implant";
             if (cageIdMatch) animal.cageId = cageCode;
             appendLifecycleTrace(s, {
               animalId: animal.id,
@@ -165,7 +178,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 同笼码已录入过（本人）→ 返回已有记录
+      // 同笼码已录入过（本人）→ 返回已有记录（补写缺失的植入时间）
       const byCage = s.managedAnimals.find(
         (a) =>
           a.claimantUserId === user.id &&
@@ -173,6 +186,7 @@ export async function POST(req: NextRequest) {
       );
       if (byCage) {
         normalizeLegacyRegistration(byCage);
+        ensureImplant(byCage, now);
         result = { ...byCage };
         return;
       }
@@ -196,10 +210,11 @@ export async function POST(req: NextRequest) {
         weaningStatus: "weaned",
         genotypeStatus: "unidentified",
         purpose: "signal_processing",
-        lifecycleStatus: "entered",
+        lifecycleStatus: "electrode_implant",
         registrationStatus: "awaiting_experiment",
         animalLock: false,
         registeredAt: now,
+        implantAt: now,
         cageId: cageCode,
         claimantUserId: user.id,
         claimantName: user.name,
@@ -240,6 +255,37 @@ export async function POST(req: NextRequest) {
     if (!animal) return jsonError("not_found", 404);
     normalizeLegacyRegistration(animal);
     return jsonOk({ animal, label: REGISTRATION_LABELS[animal.registrationStatus ?? "blank_available"] });
+  }
+
+  /** 技术员按笼号/笼码查找小鼠（核验是否与派发 ID 一致） */
+  if (action === "lookup_cage") {
+    const raw = String(body.cageCode ?? body.animalId ?? "").trim();
+    if (!raw) return jsonError("invalid_body", 400);
+    const code = raw.toUpperCase();
+    const store = getStore();
+    const idMatch = code.match(/\b(M\d{12})\b/);
+    let animal =
+      (idMatch && findAnimal(store, idMatch[1])) ||
+      store.managedAnimals.find(
+        (a) =>
+          a.id.toUpperCase() === code ||
+          (a.cageId && a.cageId.toUpperCase() === code) ||
+          (a.cageLocation && a.cageLocation.toUpperCase() === code)
+      );
+    if (!animal) return jsonError("not_found", 404);
+    normalizeLegacyRegistration(animal);
+    const canView =
+      canViewAllAnimalLifecycle(user.roles) ||
+      animal.claimantUserId === user.id ||
+      animal.technicianUserId === user.id ||
+      canManageAnimals(user.roles);
+    if (!canView) return jsonError("forbidden", 403);
+    const operations = (store.experimentOperations ?? []).filter((op) => op.animalId === animal!.id);
+    return jsonOk({
+      animal,
+      operations,
+      label: REGISTRATION_LABELS[animal.registrationStatus ?? "blank_available"],
+    });
   }
 
   if (action === "create_blank") {

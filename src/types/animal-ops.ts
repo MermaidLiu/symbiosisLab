@@ -56,6 +56,8 @@ export interface AnimalOpTask {
   createdByName: string;
   createdAt: string;
   completedAt?: string;
+  /** 补录：完成日与计划开始日不是同一自然日 */
+  backfill?: boolean;
   /** Receipt note sent back to the student when done */
   receiptNote?: string;
 }

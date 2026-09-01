@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { GlassPanel } from "@/components/fluent/GlassPanel";
@@ -172,9 +172,11 @@ export function AnimalLifecycleHub() {
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
   const [resultNote, setResultNote] = useState("");
-  const [resultUrl, setResultUrl] = useState("");
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [nasPath, setNasPath] = useState("");
   const [forceReason, setForceReason] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const role = user ? roleLabelV2(user.roles) : "student";
   const isStudent = user ? isAnimalClaimantStudent(user.roles) : false;
@@ -249,7 +251,7 @@ export function AnimalLifecycleHub() {
       }
       setNasPath("");
       setResultNote("");
-      setResultUrl("");
+      setPhotoUrls([]);
       await lookup(selected?.id || scanId);
       await load();
     } catch (e) {
@@ -257,6 +259,39 @@ export function AnimalLifecycleHub() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function uploadResultPhotos(files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(true);
+    setError("");
+    const next = [...photoUrls];
+    try {
+      for (const file of Array.from(files)) {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch("/api/experiment-uploads", {
+          method: "POST",
+          credentials: "same-origin",
+          body: form,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) {
+          throw new Error(data.error || "upload_failed");
+        }
+        next.push(String(data.url));
+      }
+      setPhotoUrls(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "照片上传失败");
+    } finally {
+      setUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  }
+
+  function removePhoto(url: string) {
+    setPhotoUrls((prev) => prev.filter((u) => u !== url));
   }
 
   async function createOperation() {
@@ -497,29 +532,72 @@ export function AnimalLifecycleHub() {
             ) : null}
 
             {isTech && openOp?.status === "open" && openOp.technicianUserId === user.id ? (
-              <div className="mb-4 space-y-2 border-t border-white/40 pt-3">
-                <p className="text-xs font-medium text-lab-muted">
-                  提交拍照记录（建议在小程序上传图片；亦可粘贴已上传 URL）
-                </p>
+              <div className="mb-4 space-y-3 border-t border-white/40 pt-3">
+                <p className="text-xs font-medium text-lab-muted">提交结果照片与说明</p>
                 <FluentInput
                   label="结果说明"
                   value={resultNote}
                   onChange={(e) => setResultNote(e.target.value)}
+                  placeholder="例如：行为学完成，鼠状态正常"
                 />
-                <FluentInput
-                  label="结果图片 URL"
-                  value={resultUrl}
-                  onChange={(e) => setResultUrl(e.target.value)}
-                  placeholder="/uploads/experiments/..."
-                />
+                <div>
+                  <p className="mb-1 text-[11px] font-medium text-lab-muted">结果照片（可多张）</p>
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => void uploadResultPhotos(e.target.files)}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <FluentButton
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={busy || uploading}
+                      onClick={() => photoInputRef.current?.click()}
+                    >
+                      {uploading ? "上传中…" : "选择 / 拍照上传"}
+                    </FluentButton>
+                    <span className="text-xs text-lab-muted">已选 {photoUrls.length} 张</span>
+                  </div>
+                  {photoUrls.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {photoUrls.map((url) => (
+                        <div key={url} className="relative">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={url}
+                            alt=""
+                            className="h-20 w-20 rounded-lg object-cover ring-1 ring-black/10"
+                          />
+                          <button
+                            type="button"
+                            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-[10px] text-white"
+                            onClick={() => removePhoto(url)}
+                            aria-label="移除"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 <FluentButton
-                  disabled={busy}
-                  onClick={() =>
+                  disabled={busy || uploading || (!photoUrls.length && !resultNote.trim())}
+                  onClick={() => {
+                    if (!photoUrls.length) {
+                      setError("请至少上传一张结果照片");
+                      return;
+                    }
                     void patchOperation(openOp.id, "tech_submit", {
                       resultNote,
-                      resultImageUrl: resultUrl,
-                    })
-                  }
+                      resultImageUrls: photoUrls,
+                    });
+                  }}
                 >
                   完成数据采集 · 通知学生填 NAS
                 </FluentButton>
@@ -558,7 +636,17 @@ export function AnimalLifecycleHub() {
                       <span className="font-semibold text-thu">{op.title}</span> · {KIND_LABEL[op.kind]} ·{" "}
                       {OP_STATUS[op.status]} · 技术员 {op.technicianName}
                       {op.resultImageUrls?.length ? (
-                        <p className="mt-1 text-lab-muted">照片 {op.resultImageUrls.length} 张</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {op.resultImageUrls.map((url) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              key={url}
+                              src={url}
+                              alt=""
+                              className="h-14 w-14 rounded object-cover ring-1 ring-black/10"
+                            />
+                          ))}
+                        </div>
                       ) : null}
                       {op.nasDataPath ? (
                         <p className="mt-1 text-lab-muted">NAS: {op.nasDataPath}</p>

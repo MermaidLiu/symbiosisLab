@@ -65,6 +65,10 @@ export interface ExperimentOperation {
   nasDataPath?: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * 补录：技术员提交（或闭环）不在 Operation 开始的同一自然日
+   */
+  backfill?: boolean;
   forceClosedBy?: string;
   forceClosedByName?: string;
   forceCloseReason?: string;

@@ -23,6 +23,9 @@ Page({
   data: {
     guestMode: true,
     mode: "student", // student | tech
+    expectedAnimalId: "",
+    expectedHint: "",
+    pendingTasks: [],
     scanId: "",
     animal: null,
     operations: [],
@@ -50,8 +53,27 @@ Page({
   },
 
   onLoad(query) {
-    if (query && query.animalId) {
-      this.setData({ scanId: query.animalId });
+    const expected =
+      (query && (query.animalId || query.expectedId || query.expectedAnimalId)) || "";
+    if (expected) {
+      this.setData({
+        expectedAnimalId: String(expected).trim().toUpperCase(),
+        expectedHint: `本任务要求核验：${String(expected).trim().toUpperCase()}`,
+        scanId: String(expected).trim(),
+      });
+      try {
+        wx.setStorageSync("symbiosis_expected_animal", String(expected).trim().toUpperCase());
+      } catch (_) {}
+    } else {
+      try {
+        const cached = wx.getStorageSync("symbiosis_expected_animal") || "";
+        if (cached) {
+          this.setData({
+            expectedAnimalId: cached,
+            expectedHint: `待核验派发 ID：${cached}`,
+          });
+        }
+      } catch (_) {}
     }
   },
 
@@ -75,9 +97,48 @@ Page({
       guestMode: false,
       mode: isTech && !isStudent ? "tech" : "student",
     });
+    if (isTech) void this.loadPendingTasks();
     if (this.data.scanId && !this.data.animal) {
+      if (isStudent) return;
       this.lookup(this.data.scanId);
     }
+  },
+
+  async loadPendingTasks() {
+    try {
+      const { request } = require("../../utils/api");
+      const res = await request("/api/experiment-operations");
+      const ops = (res.operations || []).filter((o) => o.status === "open");
+      this.setData({
+        pendingTasks: ops.map((o) => ({
+          id: o.id,
+          animalId: o.animalId,
+          title: o.title,
+          studentName: o.studentName || "",
+        })),
+      });
+      if (!this.data.expectedAnimalId && ops[0]) {
+        this.setData({
+          expectedAnimalId: ops[0].animalId,
+          expectedHint: `待处理：${ops[0].animalId}（${ops[0].title}）`,
+        });
+      }
+    } catch (_) {
+      this.setData({ pendingTasks: [] });
+    }
+  },
+
+  pickPending(e) {
+    const animalId = e.currentTarget.dataset.animalid;
+    this.setData({
+      expectedAnimalId: animalId,
+      expectedHint: `待核验派发 ID：${animalId}`,
+      scanId: animalId,
+    });
+    try {
+      wx.setStorageSync("symbiosis_expected_animal", animalId);
+    } catch (_) {}
+    this.lookup(animalId);
   },
 
   goLogin() {
@@ -202,26 +263,39 @@ Page({
   async lookup(id) {
     let animalId = String(id || this.data.scanId).trim();
     if (!animalId) return;
-    // 若扫的是笼码而非 M ID，尝试按 enroll 已有逻辑查询
     this.setData({ busy: true, error: "" });
     try {
       let data;
       try {
         data = await api.lifecycleLookup(animalId);
       } catch (_) {
-        // 尝试用笼码匹配：先 enroll（本人已有则返回）
         if (this.data.isStudent) {
           const enrolled = await api.lifecycleAction("enroll_from_cage", { cageCode: animalId });
           data = await api.lifecycleLookup(enrolled.animal.id);
         } else {
-          throw _;
+          // 技术员：按笼号查找
+          data = await api.lifecycleAction("lookup_cage", { cageCode: animalId });
         }
+      }
+      const foundId = data.animal.id;
+      const expected = (this.data.expectedAnimalId || "").toUpperCase();
+      if (this.data.isTech && expected && foundId.toUpperCase() !== expected) {
+        this.setData({
+          animal: null,
+          error: `笼码与派发不一致：扫到 ${foundId}，要求 ${expected}`,
+          tip: "",
+        });
+        wx.showModal({
+          title: "核验失败",
+          content: `请扫描学生派发的那只鼠。要求 ${expected}，当前扫到 ${foundId}`,
+          showCancel: false,
+        });
+        return;
       }
       const ops = (data.operations || []).map((o) => ({
         ...o,
         statusText: OP_STATUS[o.status] || o.status,
       }));
-      animalId = data.animal.id;
       this.setData({
         animal: data.animal,
         operations: ops,
@@ -229,11 +303,21 @@ Page({
         statusLabel: STATUS[data.animal.registrationStatus] || data.animal.registrationStatus || "",
         pendingOp: ops.find((o) => o.status === "tech_submitted") || null,
         openOp: ops.find((o) => o.status === "open") || null,
-        scanId: animalId,
+        scanId: foundId,
         photoUrls: [],
+        tip: expected ? `已核验通过：${foundId}` : "",
+        error: "",
       });
+      if (expected) {
+        try {
+          wx.removeStorageSync("symbiosis_expected_animal");
+        } catch (_) {}
+      }
     } catch (e) {
-      this.setData({ animal: null, error: "未找到该小鼠，学生请先扫码录入" });
+      this.setData({
+        animal: null,
+        error: this.data.isTech ? "未找到该笼号小鼠" : "未找到该小鼠，学生请先扫码录入",
+      });
     } finally {
       this.setData({ busy: false });
     }
@@ -261,7 +345,7 @@ Page({
       sourceType: ["album", "camera"],
       success: async (res) => {
         const files = res.tempFiles || [];
-        this.setData({ busy: true });
+        this.setData({ busy: true, error: "" });
         const urls = [...this.data.photoUrls];
         try {
           for (const f of files) {
@@ -269,12 +353,35 @@ Page({
             if (url) urls.push(url);
           }
           this.setData({ photoUrls: urls });
-          wx.showToast({ title: `已上传 ${urls.length} 张`, icon: "none" });
+          wx.showToast({ title: `已上传 ${urls.length} 张结果图`, icon: "success" });
         } catch (e) {
+          const msg = (e && e.message) || "上传失败";
+          this.setData({ error: `照片上传失败：${msg}` });
           wx.showToast({ title: "上传失败", icon: "none" });
         } finally {
           this.setData({ busy: false });
         }
+      },
+    });
+  },
+
+  previewPhoto(e) {
+    const url = e.currentTarget.dataset.url;
+    const urls = this.data.photoUrls || [];
+    if (!url || !urls.length) return;
+    wx.previewImage({ current: url, urls });
+  },
+
+  removePhoto(e) {
+    const url = e.currentTarget.dataset.url;
+    wx.showModal({
+      title: "删除照片",
+      content: "确定删除这张结果图？",
+      success: (res) => {
+        if (!res.confirm) return;
+        this.setData({
+          photoUrls: (this.data.photoUrls || []).filter((u) => u !== url),
+        });
       },
     });
   },
@@ -333,8 +440,8 @@ Page({
     if (!(await promptLogin("登录后可提交。"))) return;
     const op = this.data.openOp;
     if (!op) return;
-    if (!this.data.photoUrls.length && !this.data.resultNote.trim()) {
-      wx.showToast({ title: "请先拍照上传或填写说明", icon: "none" });
+    if (!this.data.photoUrls.length) {
+      wx.showToast({ title: "请先上传至少一张结果照片", icon: "none" });
       return;
     }
     this.setData({ busy: true });

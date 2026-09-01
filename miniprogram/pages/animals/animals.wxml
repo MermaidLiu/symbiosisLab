@@ -18,9 +18,13 @@
 
   <view wx:if="{{filtered.length === 0}}" class="empty">暂无名下动物</view>
 
-  <view class="card animal" wx:for="{{filtered}}" wx:key="id">
+  <view class="card animal {{item.locked ? 'locked' : ''}}" wx:for="{{filtered}}" wx:key="id">
     <view class="row">
-      <view class="id">{{item.id}}</view>
+      <view class="id">
+        <text wx:if="{{item.locked}}" class="lock">🔒</text>
+        {{item.id}}
+        <text wx:if="{{item.lastOpBackfill}}" class="backfill">补录</text>
+      </view>
       <view
         class="tip"
         style="background:{{item.tipBg}};color:{{item.tipFg}};"
@@ -31,7 +35,8 @@
     <view class="muted line">植入：{{item.implantText}}</view>
     <view class="muted line">追踪：{{item.trackingText}} · 阶段 {{item.stage}}</view>
     <view class="muted line">下次采集：{{item.nextText}}</view>
-    <view class="edit-hint">轻触状态可改文案与果冻色</view>
+    <view class="edit-hint" wx:if="{{item.locked}}">实验未闭环 · 已锁定，不可改状态/派发</view>
+    <view class="edit-hint" wx:else>轻触状态可改文案与果冻色</view>
   </view>
 
   <view class="mask" wx:if="{{editing}}" bindtap="closeEdit">

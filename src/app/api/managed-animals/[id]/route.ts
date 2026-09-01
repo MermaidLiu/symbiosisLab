@@ -3,6 +3,8 @@ import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore, uid } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { canSuperviseAnimalFacility, canManageAnimals, hasRole } from "@/lib/roles";
+import { isAnimalExperimentLocked } from "@/lib/animals/experiment-lock";
+import { normalizeLegacyRegistration } from "@/server/animal-lifecycle";
 import {
   AnimalPurpose,
   ANIMAL_PURPOSES,
@@ -40,6 +42,12 @@ export async function PATCH(
   const isClaimant = existing.claimantUserId === user.id;
   const fullEdit = canFullEdit(user);
   if (!fullEdit && !isClaimant) return jsonError("forbidden", 403);
+
+  normalizeLegacyRegistration(existing);
+  // 学生：实验未闭环不可改状态等，防止篡改一生记录
+  if (!fullEdit && isClaimant && isAnimalExperimentLocked(existing)) {
+    return jsonError("animal_locked", 409);
+  }
 
   // Claimants may only edit status tip fields
   const claimantOnlyKeys = new Set(["statusLabel", "statusColor", "recordingStatus"]);

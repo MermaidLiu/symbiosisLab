@@ -115,20 +115,45 @@ export function cageFillStyle(purpose: FacilityCageCell["dominantPurpose"]): {
   };
 }
 
-/** Calendar-day difference. Prefer WSY convention: Previous date − Implantation Day. */
+/**
+ * 追踪天数：优先「今天 − 植入日」，随日历日自动增长（与是否实验锁定无关）。
+ * 无植入日时退回采集相关日期。死亡鼠用上次采集日作为截止，避免继续累加。
+ */
 export function trackingDays(
   collectionAt?: string,
   lastCollectionAt?: string,
-  implantAt?: string
+  implantAt?: string,
+  opts?: { asOf?: string; deceased?: boolean }
 ): number | null {
-  // Surgery & Recording: Tracking Days ≈ Previous date − Implantation Day
-  if (implantAt && lastCollectionAt) {
-    return calendarDayDiff(lastCollectionAt, implantAt);
+  const asOf =
+    opts?.asOf ||
+    (opts?.deceased && lastCollectionAt
+      ? lastCollectionAt
+      : opts?.deceased && collectionAt
+        ? collectionAt
+        : new Date().toISOString());
+
+  if (implantAt) {
+    return calendarDayDiff(asOf, implantAt);
   }
-  if (collectionAt && lastCollectionAt) {
-    return calendarDayDiff(collectionAt, lastCollectionAt);
+  if (lastCollectionAt) {
+    return calendarDayDiff(asOf, lastCollectionAt);
+  }
+  if (collectionAt) {
+    return calendarDayDiff(asOf, collectionAt);
   }
   return null;
+}
+
+/** 从动物行计算追踪天数（锁定不影响；死亡则冻结） */
+export function trackingDaysForAnimal(
+  row: Pick<
+    ManagedAnimal,
+    "collectionAt" | "lastCollectionAt" | "implantAt" | "recordingStatus" | "status"
+  >
+): number | null {
+  const deceased = row.recordingStatus === "dead" || row.status === "deceased";
+  return trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt, { deceased });
 }
 
 function calendarDayDiff(aIso: string, bIso: string): number | null {

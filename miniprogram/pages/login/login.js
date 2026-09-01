@@ -32,6 +32,7 @@ Page({
     smsHint: "",
     apiBase: API_BASE,
     insecureApi: isInsecureApiBase(),
+    agreed: false,
   },
 
   onLoad(query) {
@@ -86,6 +87,29 @@ Page({
   toggleMode() {
     this.setData({ mode: this.data.mode === "phone" ? "password" : "phone" });
   },
+  toggleAgree() {
+    this.setData({ agreed: !this.data.agreed });
+  },
+  openPrivacy() {
+    wx.navigateTo({ url: "/pages/legal/privacy" });
+  },
+  openTerms() {
+    wx.navigateTo({ url: "/pages/legal/terms" });
+  },
+
+  ensureAgreed() {
+    if (this.data.agreed) return true;
+    wx.showModal({
+      title: "请先同意协议",
+      content:
+        "本小程序涉及收集、使用和存储用户信息（含手机号）。请先阅读并同意《用户服务协议》及《隐私政策》后，再获取验证码或登录。",
+      confirmText: "去阅读",
+      success: (res) => {
+        if (res.confirm) wx.navigateTo({ url: "/pages/legal/privacy" });
+      },
+    });
+    return false;
+  },
 
   backBrowse() {
     const pages = getCurrentPages();
@@ -106,6 +130,7 @@ Page({
 
   async onSendSms() {
     if (isInsecureApiBase()) return;
+    if (!this.ensureAgreed()) return;
     this.setData({ sending: true, smsHint: "" });
     try {
       const res = await api.sendSms(this.data.phone);
@@ -131,6 +156,7 @@ Page({
       });
       return;
     }
+    if (!this.ensureAgreed()) return;
     const phone = (this.data.phone || "").trim();
     const code = (this.data.code || "").trim();
     if (!phone || !code) {
@@ -158,6 +184,7 @@ Page({
 
   async onLogin() {
     if (isInsecureApiBase()) return;
+    if (!this.ensureAgreed()) return;
     const email = (this.data.email || "").trim();
     const password = this.data.password || "";
     if (!email || !password) {

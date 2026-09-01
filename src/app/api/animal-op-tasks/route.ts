@@ -3,6 +3,7 @@ import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore, uid } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { canReceiveAnimalOps } from "@/lib/roles";
+import { isBackfillProcessing } from "@/lib/animals/experiment-lock";
 import { displayName } from "@/lib/users";
 import {
   ANIMAL_OP_TYPES,
@@ -96,9 +97,21 @@ export async function POST(req: NextRequest) {
 
   const urgency = urgencyFromFlags(necessary, urgent);
   const now = new Date().toISOString();
+
+  // 学生派发：跳过已锁定小鼠；若全部锁定则拒绝
+  const unlockedIds = animalIds.filter((id) => {
+    const a = findAnimal(store, id);
+    if (!a) return false;
+    return !assertCanCreateOperation(a, store);
+  });
+  if (EXPERIMENT_DISPATCH_TYPES.has(opTypeRaw) && unlockedIds.length === 0) {
+    return jsonError("animal_locked", 409);
+  }
+  const targetIds = EXPERIMENT_DISPATCH_TYPES.has(opTypeRaw) ? unlockedIds : animalIds;
+
   const task: AnimalOpTask = {
     id: uid("aot"),
-    animalIds,
+    animalIds: targetIds,
     opType: opTypeRaw,
     note,
     assigneeUserId: assignee.id,
@@ -120,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     const createdOps: string[] = [];
     if (EXPERIMENT_DISPATCH_TYPES.has(opTypeRaw)) {
-      for (const animalId of animalIds) {
+      for (const animalId of targetIds) {
         const a = findAnimal(s, animalId);
         if (!a) continue;
         if (assertCanCreateOperation(a, s)) continue;
@@ -147,6 +160,7 @@ export async function POST(req: NextRequest) {
         setRegistrationStatus(a, "in_experiment");
         a.technicianUserId = assignee.id;
         a.technicianName = displayName(assignee);
+        a.lastOpBackfill = false;
         appendLifecycleTrace(s, {
           animalId,
           timestamp: now,
@@ -161,24 +175,25 @@ export async function POST(req: NextRequest) {
     }
 
     const needScan = createdOps.length > 0;
+    const firstId = createdOps[0] || animalIds[0];
     s.notifications.unshift({
       id: uid("ntf"),
       userId: assignee.id,
       title: needScan ? "新的实验处理任务（需扫码）" : "新的动物操作任务",
       titleEn: needScan ? "New experiment task (scan required)" : "New animal operation task",
       message: needScan
-        ? `${displayName(user)} 派发 ${createdOps.length} 只小鼠：请打开小程序扫笼码，上传拍照记录后完成。`
-        : `${displayName(user)} 指派你处理 ${animalIds.length} 只小鼠的操作`,
+        ? `${displayName(user)} 派发 ${createdOps.length} 只小鼠：请打开通知进入处理页，扫小程序码与笼码后拍照提交。`
+        : `${displayName(user)} 指派你处理 ${targetIds.length} 只小鼠的操作`,
       messageEn: needScan
-        ? `${displayName(user)} assigned ${createdOps.length} mouse(es). Scan cage QR in mini-program and upload photos.`
-        : `${displayName(user)} assigned you an animal op on ${animalIds.length} mouse(es)`,
+        ? `${displayName(user)} assigned ${createdOps.length} mouse(es). Open handle page, scan QR codes, upload photos.`
+        : `${displayName(user)} assigned you an animal op on ${targetIds.length} mouse(es)`,
       read: false,
-      link: needScan
-        ? `/animals/lifecycle?animalId=${encodeURIComponent(createdOps[0])}`
+      link: firstId
+        ? `/animals/task-handle?animalId=${encodeURIComponent(firstId)}`
         : "/",
       kind: needScan ? "experiment_operation" : "animal_task",
       animalTaskId: task.id,
-      animalId: createdOps[0],
+      animalId: firstId,
       handled: false,
       createdAt: now,
     });
@@ -239,7 +254,10 @@ export async function PATCH(req: NextRequest) {
 
     const now = new Date().toISOString();
     const becameDone = prevStatus !== "done" && next.status === "done";
-    if (becameDone) next.completedAt = now;
+    if (becameDone) {
+      next.completedAt = now;
+      next.backfill = isBackfillProcessing(next.startTime || next.createdAt, now);
+    }
 
     s.animalOpTasks[idx] = next;
     updated = next;

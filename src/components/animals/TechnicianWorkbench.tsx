@@ -8,14 +8,17 @@ import { GlassPanel } from "@/components/fluent/GlassPanel";
 import { FluentButton } from "@/components/fluent/FluentButton";
 import { FluentModal } from "@/components/fluent/FluentModal";
 import { AnimalOpSchedule } from "@/components/animals/AnimalOpSchedule";
+import { FacilityCageBoard } from "@/components/animals/FacilityCageBoard";
+import { ManagedAnimals } from "@/components/animals/ManagedAnimals";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
 import { canUseAnimalStaffWorkbench } from "@/lib/roles";
 import { api } from "@/lib/api/client";
 import { AnimalOpTask, URGENCY_COLORS } from "@/types/animal-ops";
 import { ManagedAnimal } from "@/types/animal-management";
-import { trackingDays, trackingStageFromDays } from "@/lib/animals/facility-board";
+import { trackingDaysForAnimal, trackingStageFromDays } from "@/lib/animals/facility-board";
 import { JELLY_TIP_STYLE, resolveStatusColor } from "@/lib/animals/status-tip";
+import { ExperimentOperation } from "@/types/animal-lifecycle";
 
 function buildMonthGrid(monthStart: Date): (string | null)[] {
   const year = monthStart.getFullYear();
@@ -57,11 +60,14 @@ export function TechnicianWorkbench() {
   });
   const [calDay, setCalDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"facility" | "list">("facility");
 
   const todayStr = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
+
+  const [openOps, setOpenOps] = useState<ExperimentOperation[]>([]);
 
   const loadAnimals = useCallback(async () => {
     if (!user) return;
@@ -83,10 +89,24 @@ export function TechnicianWorkbench() {
       setLoading(true);
       await loadAnimals();
       try {
-        const { tasks: list } = await api.animalOpTasks({ mine: true });
+        const [{ tasks: list }, opsRes] = await Promise.all([
+          api.animalOpTasks({ mine: true }),
+          fetch("/api/experiment-operations", { credentials: "same-origin" }).then((r) =>
+            r.ok ? r.json() : { operations: [] }
+          ),
+        ]);
         setTasks(list.filter((x) => x.assigneeUserId === user.id));
+        const ops = (opsRes.operations || []) as ExperimentOperation[];
+        setOpenOps(
+          ops.filter(
+            (o) =>
+              o.technicianUserId === user.id &&
+              (o.status === "open" || o.status === "tech_submitted")
+          )
+        );
       } catch {
         setTasks([]);
+        setOpenOps([]);
       } finally {
         setLoading(false);
       }
@@ -139,7 +159,7 @@ export function TechnicianWorkbench() {
 
   function stageForRow(row: ManagedAnimal) {
     return trackingStageFromDays(
-      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt)
+      trackingDaysForAnimal(row)
     );
   }
 
@@ -194,9 +214,41 @@ export function TechnicianWorkbench() {
     );
   }
 
+  const modeToggle = (
+    <div className="flex rounded-lg border border-[#E0D4E8] bg-white/70 p-0.5 text-xs">
+      <button
+        type="button"
+        className={clsx(
+          "rounded-md px-3 py-1.5 font-medium transition",
+          viewMode === "facility" ? "bg-thu text-white" : "text-lab-muted hover:text-thu"
+        )}
+        onClick={() => setViewMode("facility")}
+      >
+        {tw.modeFacility}
+      </button>
+      <button
+        type="button"
+        className={clsx(
+          "rounded-md px-3 py-1.5 font-medium transition",
+          viewMode === "list" ? "bg-thu text-white" : "text-lab-muted hover:text-thu"
+        )}
+        onClick={() => setViewMode("list")}
+      >
+        {tw.modeList}
+        {pendingCount + openOps.filter((o) => o.status === "open").length > 0
+          ? ` (${pendingCount + openOps.filter((o) => o.status === "open").length})`
+          : ""}
+      </button>
+    </div>
+  );
+
+  if (viewMode === "facility") {
+    return <FacilityCageBoard mode="workbench" headerAction={modeToggle} />;
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <PageHeader title={t.dashboard.title} subtitle={tw.subtitle} />
+      <PageHeader title={t.dashboard.title} subtitle={tw.subtitleList} action={modeToggle} />
       <div className="fluent-mica-bg min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 pb-24 md:p-6">
         {loading ? (
           <GlassPanel>
@@ -207,8 +259,7 @@ export function TechnicianWorkbench() {
             <p className="text-sm text-red-600">{error}</p>
           </GlassPanel>
         ) : (
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="space-y-4">
+          <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-3">
                 {summaryCards.map((item) => (
                   <div
@@ -225,6 +276,44 @@ export function TechnicianWorkbench() {
                 ))}
               </div>
 
+              {openOps.filter((o) => o.status === "open").length > 0 ? (
+                <GlassPanel>
+                  <h3 className="mb-2 text-sm font-semibold text-thu">{tw.scanTasksTitle}</h3>
+                  <p className="mb-3 text-xs text-lab-muted">{tw.scanTasksHint}</p>
+                  <ul className="space-y-2">
+                    {openOps
+                      .filter((o) => o.status === "open")
+                      .map((op) => (
+                        <li
+                          key={op.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-2 text-sm"
+                        >
+                          <div>
+                            <span className="font-mono font-semibold text-thu">{op.animalId}</span>
+                            <span className="ml-2 text-lab-muted">
+                              {op.title} · {op.studentName || "—"}
+                            </span>
+                          </div>
+                          <Link
+                            href={`/animals/task-handle?animalId=${encodeURIComponent(op.animalId)}&operationId=${encodeURIComponent(op.id)}`}
+                            className="text-xs font-semibold text-thu hover:underline"
+                          >
+                            {tw.handleScan}
+                          </Link>
+                        </li>
+                      ))}
+                  </ul>
+                </GlassPanel>
+              ) : null}
+
+              <GlassPanel>
+                <h3 className="mb-1 text-sm font-semibold text-thu">{tw.animalListTitle}</h3>
+                <p className="mb-3 text-xs text-lab-muted">{tw.animalListHint}</p>
+                <ManagedAnimals embedded />
+              </GlassPanel>
+
+              <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="space-y-4">
               {user && (
                 <AnimalOpSchedule
                   userId={user.id}
@@ -238,9 +327,6 @@ export function TechnicianWorkbench() {
                     <h3 className="text-sm font-semibold text-thu">{tw.ledAnimalsTitle}</h3>
                     <p className="mt-0.5 text-[11px] text-lab-muted">{tw.ledAnimalsHint}</p>
                   </div>
-                  <Link href="/animals/managed" className="text-xs text-thu hover:underline">
-                    {tw.goManaged}
-                  </Link>
                 </div>
                 {ledAnimals.length === 0 ? (
                   <p className="text-sm text-lab-muted">{tw.noLedAnimals}</p>
@@ -376,15 +462,8 @@ export function TechnicianWorkbench() {
                 </div>
                 <p className="mt-2 text-[10px] leading-relaxed text-lab-muted">{tw.calendarHint}</p>
               </GlassPanel>
-
-              <Link
-                href="/animals/managed"
-                className="block rounded-xl border border-[#E0D4E8] bg-white/55 p-3 transition hover:bg-white/80 hover:shadow-sm"
-              >
-                <p className="text-sm font-semibold text-thu">{tw.goManaged}</p>
-                <p className="mt-1 text-xs text-lab-muted">{tw.goManagedDesc}</p>
-              </Link>
             </div>
+          </div>
           </div>
         )}
       </div>
@@ -430,6 +509,14 @@ export function TechnicianWorkbench() {
                   {task.createdByName} · {task.animalIds.length} {isZh ? "只" : "mice"}
                   {task.note ? ` · ${task.note}` : ""}
                 </p>
+                {task.animalIds[0] ? (
+                  <Link
+                    href={`/animals/task-handle?animalId=${encodeURIComponent(task.animalIds[0])}`}
+                    className="mt-1 inline-block text-xs font-semibold text-thu hover:underline"
+                  >
+                    {tw.handleScan}
+                  </Link>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -1,0 +1,53 @@
+<view class="page">
+  <view class="h1">用户服务协议</view>
+  <view class="meta">更新日期：2026-08-31 · 生效日期：2026-08-31</view>
+
+  <view class="card">
+    <view class="h2">一、总则</view>
+    <view class="p">本《用户服务协议》（以下简称「本协议」）是您与 Symbiosis Lab 小程序运营方之间就使用本小程序服务所订立的协议。您点击同意、登录或以其他方式使用本服务，即视为已阅读并同意受本协议约束。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">二、服务内容</view>
+    <view class="p">本小程序为实验室内部管理工具，提供包括但不限于：账号登录与实名认证、仪器预约与查看、动物与实验追溯、通知与排班相关功能。部分功能需登录并完成审核后方可使用；未登录时可浏览有限公开信息。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">三、账号与实名</view>
+    <view class="ul">
+      <view class="li">您应使用本人手机号登录，并如实填写姓名、学号/工号等资料；</view>
+      <view class="li">账号仅限本人使用，不得出借、转让或用于虚假身份；</view>
+      <view class="li">因资料不实、违规使用导致的后果由您自行承担。</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="h2">四、用户行为规范</view>
+    <view class="p">您承诺合法合规使用本服务，不得利用本小程序从事危害实验室安全、篡改实验记录、侵犯他人权益或违反法律法规的行为。我们有权对违规账号采取限制功能、停用等措施。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">五、个人信息</view>
+    <view class="p">我们依据《隐私政策》收集、使用与存储您的个人信息。使用登录等需要收集手机号等信息的功能前，须取得您的授权同意。详情见《隐私政策》。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">六、服务变更与中断</view>
+    <view class="p">我们可能因维护、升级或不可抗力等原因调整、中断或终止部分或全部服务，并将尽量提前告知。由此造成的不便，我们将在合理范围内予以说明。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">七、免责声明</view>
+    <view class="p">在法律允许范围内，对于非因我方故意或重大过失造成的间接损失，我们不承担责任。实验与动物相关操作须遵循实验室规章制度，线上记录不能替代现场安全规范。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">八、协议变更</view>
+    <view class="p">我们有权修订本协议，修订内容将在小程序内公示。若您继续使用服务，视为接受修订后的协议；若不同意，请停止使用并联系管理员处理账号。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">九、适用与争议</view>
+    <view class="p">本协议的解释与适用遵循中华人民共和国法律法规。争议应优先协商解决；协商不成的，提交有管辖权的人民法院处理。</view>
+  </view>
+</view>

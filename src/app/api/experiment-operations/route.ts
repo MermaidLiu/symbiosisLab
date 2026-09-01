@@ -8,6 +8,7 @@ import {
   OPERATION_STATUS_LABELS,
   setRegistrationStatus,
 } from "@/server/animal-lifecycle";
+import { isBackfillProcessing } from "@/lib/animals/experiment-lock";
 import { pushNotificationToUsers } from "@/server/notify";
 import {
   canSuperviseAnimalFacility,
@@ -129,6 +130,7 @@ export async function POST(req: NextRequest) {
     setRegistrationStatus(a, "in_experiment");
     a.technicianUserId = tech.id;
     a.technicianName = displayName(tech);
+    a.lastOpBackfill = false;
     appendLifecycleTrace(s, {
       animalId,
       timestamp: now,
@@ -143,7 +145,7 @@ export async function POST(req: NextRequest) {
       titleEn: "New experiment task",
       message: `${displayName(user)} 派发小鼠 ${animalId}，请用小程序扫笼码并上传拍照记录后完成。`,
       messageEn: `${displayName(user)} assigned ${animalId}. Scan cage QR in mini-program and upload photos.`,
-      link: `/animals/lifecycle?animalId=${animalId}`,
+      link: `/animals/task-handle?animalId=${animalId}&operationId=${op.id}`,
       kind: "experiment_operation",
       operationId: op.id,
       animalId,
@@ -198,6 +200,8 @@ export async function PATCH(req: NextRequest) {
       if (op.status !== "open") return;
       op.status = "tech_submitted";
       op.techSubmittedAt = now;
+      op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
+      animal.lastOpBackfill = op.backfill;
       op.resultNote = String(body.resultNote ?? "").trim();
       op.resultImageUrls = Array.isArray(body.resultImageUrls)
         ? body.resultImageUrls.map((u: unknown) => String(u)).filter(Boolean)
@@ -212,7 +216,7 @@ export async function PATCH(req: NextRequest) {
         action: "tech_submit",
         userId: user.id,
         userName: user.name,
-        details: `技术员提交实验结果：${op.resultNote || "—"}`,
+        details: `${op.backfill ? "【补录】" : ""}技术员提交实验结果：${op.resultNote || "—"}`,
         operationId: op.id,
       });
     } else if (action === "student_close") {
@@ -224,6 +228,10 @@ export async function PATCH(req: NextRequest) {
       op.status = "closed";
       op.closedAt = now;
       op.updatedAt = now;
+      if (!op.backfill) {
+        op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
+      }
+      animal.lastOpBackfill = op.backfill;
       setRegistrationStatus(animal, "awaiting_experiment");
       appendLifecycleTrace(s, {
         animalId: op.animalId,
@@ -231,7 +239,7 @@ export async function PATCH(req: NextRequest) {
         action: "student_close",
         userId: user.id,
         userName: user.name,
-        details: `学生完成闭环，NAS：${nas}`,
+        details: `${op.backfill ? "【补录】" : ""}学生完成闭环，NAS：${nas}`,
         operationId: op.id,
       });
     } else if (action === "force_close") {
@@ -243,6 +251,10 @@ export async function PATCH(req: NextRequest) {
       op.forceClosedByName = user.name;
       op.forceCloseReason = String(body.reason ?? "").trim() || "主管强制关闭";
       op.updatedAt = now;
+      if (!op.backfill) {
+        op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
+      }
+      animal.lastOpBackfill = op.backfill;
       setRegistrationStatus(animal, "awaiting_experiment");
       appendLifecycleTrace(s, {
         animalId: op.animalId,
@@ -250,7 +262,7 @@ export async function PATCH(req: NextRequest) {
         action: "force_close",
         userId: user.id,
         userName: user.name,
-        details: op.forceCloseReason,
+        details: `${op.backfill ? "【补录】" : ""}${op.forceCloseReason}`,
         operationId: op.id,
       });
     } else {

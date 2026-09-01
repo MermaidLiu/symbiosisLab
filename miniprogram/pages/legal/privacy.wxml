@@ -1,0 +1,62 @@
+<view class="page">
+  <view class="h1">隐私政策</view>
+  <view class="meta">更新日期：2026-08-31 · 生效日期：2026-08-31</view>
+
+  <view class="card">
+    <view class="h2">引言</view>
+    <view class="p">欢迎使用 Symbiosis Lab 小程序（以下简称「本小程序」）。本小程序由实验室管理团队运营，用于实验室仪器预约、动物管理与实验追溯等内部业务。</view>
+    <view class="p">我们深知个人信息对您的重要性。本《隐私政策》说明我们如何收集、使用、存储与保护您的个人信息，以及您享有的权利。请在使用前仔细阅读；点击同意或以其他方式确认后，即表示您已了解并同意本政策。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">一、我们收集的信息</view>
+    <view class="p">为实现登录与实名管理，我们可能收集：</view>
+    <view class="ul">
+      <view class="li">手机号码：用于短信验证码登录、账号识别与联系；</view>
+      <view class="li">短信验证码：仅用于完成登录身份核验，不用于其他用途；</view>
+      <view class="li">姓名、学号/工号、实验室/课题组、人员类型、申请角色等实名资料：用于账号审核与权限分配；</view>
+      <view class="li">业务操作数据：如仪器预约、动物与实验记录、上传的实验照片等，用于实验室业务留痕；</view>
+      <view class="li">设备与日志信息：如微信 openid、操作时间等，用于保障服务安全与排查故障。</view>
+    </view>
+    <view class="p">我们不会主动收集与上述目的无关的敏感信息。相机、相册等权限仅在您主动扫码或上传照片时按需申请。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">二、收集与使用目的、方式</view>
+    <view class="ul">
+      <view class="li">目的：身份验证与登录、实名审核、实验室业务办理、安全审计与合规留痕；</view>
+      <view class="li">方式：您主动填写或授权后，通过 HTTPS 接口提交至我们的服务器；短信验证码由合规短信通道发送；</view>
+      <view class="li">用途：仅为提供本小程序功能及实验室管理所需，不会出售您的个人信息。</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="h2">三、存储与保护</view>
+    <view class="p">您的信息存储于受控的服务器环境中，我们采取合理的技术与管理措施防止未经授权的访问、披露、篡改或丢失。存储期限以实现业务目的、满足法律法规及实验室管理要求为限；超出期限将删除或匿名化处理，法律法规另有规定的除外。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">四、共享、转让与公开披露</view>
+    <view class="p">除以下情形外，我们不会向第三方共享您的个人信息：获得您的明确同意；法律法规或监管要求；为实现短信发送等所必需、且经合同约束的服务商（仅限于完成该服务所需的最少信息）。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">五、您的权利</view>
+    <view class="p">您可查询、更正账号资料；可通过退出登录停止使用。如需删除账号或撤回同意，请联系实验室管理员。撤回同意不影响撤回前基于您的授权已开展的处理活动。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">六、未成年人</view>
+    <view class="p">本小程序主要面向实验室工作人员与学生。若您为未成年人，请在监护人指导下阅读本政策并取得同意后再使用。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">七、政策更新</view>
+    <view class="p">我们可能适时修订本政策。更新后将在小程序内公示；重大变更时，将再次征求您的授权同意。</view>
+  </view>
+
+  <view class="card">
+    <view class="h2">八、联系我们</view>
+    <view class="p">如对本政策有疑问，请通过实验室管理员或小程序内通知渠道联系我们。</view>
+  </view>
+</view>

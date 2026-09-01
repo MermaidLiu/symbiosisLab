@@ -9,11 +9,27 @@
   <view class="hero card">
     <view class="title">一鼠一 ID · 一鼠一闭环</view>
     <view class="sub" wx:if="{{isStudent}}">扫描鼠笼二维码 → 分配唯一 ID → 回网页派发技术员</view>
-    <view class="sub" wx:else>扫笼码确认小鼠 → 上传拍照记录 → 完成后通知学生填 NAS</view>
+    <view class="sub" wx:else>扫笼码核验派发 ID → 选择操作并拍照 → 提交给学生</view>
+  </view>
+
+  <view class="card" wx:if="{{isTech && pendingTasks.length}}">
+    <view class="section">待处理任务</view>
+    <view
+      class="op"
+      wx:for="{{pendingTasks}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      data-animalid="{{item.animalId}}"
+      bindtap="pickPending"
+    >{{item.animalId}} · {{item.title}} · {{item.studentName}}</view>
+  </view>
+
+  <view class="card tip-card" wx:if="{{isTech && expectedHint}}">
+    <view class="ok">{{expectedHint}}</view>
   </view>
 
   <view class="card">
-    <view class="label">笼号（可手动输入测试）</view>
+    <view class="label">{{isTech ? '扫笼码核验 / 手动输入笼号' : '笼号（可手动输入测试）'}}</view>
     <input
       class="input"
       placeholder="例如 ML0001，或扫笼码"
@@ -22,12 +38,13 @@
       confirm-type="done"
       bindconfirm="onConfirmInput"
     />
-    <view class="hint muted">二维码未到位前，直接输入笼号点「确认录入」即可分配 Animal ID。</view>
+    <view class="hint muted" wx:if="{{isStudent}}">二维码未到位前，直接输入笼号点「确认录入」即可分配 Animal ID。</view>
+    <view class="hint muted" wx:else>须与网页通知中的派发 Animal ID 为同一只鼠，否则无法继续。</view>
     <view class="row">
       <button class="btn ghost" bindtap="onScanEnroll" wx:if="{{isStudent}}">扫笼码</button>
-      <button class="btn ghost" bindtap="onScanLookup" wx:else>扫笼码</button>
+      <button class="btn ghost" bindtap="onScanLookup" wx:else>扫笼码核验</button>
       <button class="btn primary" loading="{{busy}}" bindtap="onEnroll" wx:if="{{isStudent}}">确认录入</button>
-      <button class="btn primary" loading="{{busy}}" bindtap="onLookup" wx:else>确认</button>
+      <button class="btn primary" loading="{{busy}}" bindtap="onLookup" wx:else>确认核验</button>
     </view>
     <view wx:if="{{error}}" class="err">{{error}}</view>
     <view wx:if="{{tip}}" class="ok">{{tip}}</view>
@@ -37,13 +54,13 @@
     <view class="card">
       <view class="aid">{{animal.id}}</view>
       <view class="meta">{{animal.strain}} · {{animal.cageLocation}}</view>
-      <view class="pill">{{statusLabel}}{{animal.animalLock ? ' · 实验锁定中' : ''}}</view>
+      <view class="pill">{{statusLabel}}{{animal.animalLock ? ' · 实验锁定中' : ''}}{{animal.lastOpBackfill ? ' · 补录' : ''}}</view>
       <view class="meta">认领：{{animal.claimantName || '—'}} · 技术员：{{animal.technicianName || '—'}}</view>
     </view>
 
     <!-- 学生：待填 NAS -->
     <view class="card" wx:if="{{isStudent && pendingOp}}">
-      <view class="section">待闭环 · {{pendingOp.title}}</view>
+      <view class="section">待闭环{{pendingOp.backfill ? ' · 补录' : ''}} · {{pendingOp.title}}</view>
       <view class="meta muted">技术员已提交拍照记录，请填写本地 NAS 文件夹路径</view>
       <input class="input" placeholder="\\\\NAS\\lab\\project\\..." value="{{nasPath}}" bindinput="onNasPath" />
       <button class="btn primary block" loading="{{busy}}" bindtap="studentClose">完成闭环</button>
@@ -62,12 +79,30 @@
     <!-- 技术员：上传照片并完成 -->
     <view class="card" wx:if="{{isTech && openOp}}">
       <view class="section">处理中 · {{openOp.title}}</view>
+      <view class="meta muted">请上传结果照片（可多张），再提交给学生</view>
       <input class="input" placeholder="结果说明（可选）" value="{{resultNote}}" bindinput="onResultNote" />
-      <button class="btn ghost block" bindtap="choosePhotos">拍照 / 上传记录图（{{photoUrls.length}}）</button>
+      <button class="btn ghost block" loading="{{busy}}" bindtap="choosePhotos">
+        📷 拍照 / 从相册上传结果图（已 {{photoUrls.length}} 张）
+      </button>
       <view class="photos" wx:if="{{photoUrls.length}}">
-        <image wx:for="{{photoUrls}}" wx:key="*this" src="{{item}}" mode="aspectFill" class="thumb" />
+        <image
+          wx:for="{{photoUrls}}"
+          wx:key="*this"
+          src="{{item}}"
+          mode="aspectFill"
+          class="thumb"
+          data-url="{{item}}"
+          bindtap="previewPhoto"
+          bindlongpress="removePhoto"
+        />
       </view>
-      <button class="btn primary block" loading="{{busy}}" bindtap="techSubmit">完成数据采集</button>
+      <view class="hint muted" wx:if="{{photoUrls.length}}">轻触预览，长按可删除</view>
+      <button
+        class="btn primary block"
+        loading="{{busy}}"
+        disabled="{{!photoUrls.length}}"
+        bindtap="techSubmit"
+      >完成数据采集 · 提交学生</button>
     </view>
 
     <view class="card" wx:if="{{operations.length}}">

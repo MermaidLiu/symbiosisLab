@@ -78,7 +78,18 @@ export function assertCanCreateOperation(animal: ManagedAnimal, store: DbStore):
 }
 
 export function normalizeLegacyRegistration(animal: ManagedAnimal): void {
-  if (animal.registrationStatus) return;
+  if (animal.registrationStatus) {
+    // 已建档但缺植入时间：用录入时间补齐
+    if (
+      !animal.implantAt &&
+      animal.registeredAt &&
+      (animal.registrationStatus === "awaiting_experiment" ||
+        animal.registrationStatus === "in_experiment")
+    ) {
+      animal.implantAt = animal.registeredAt;
+    }
+    return;
+  }
   if (animal.status === "deceased") {
     animal.registrationStatus = "deceased";
     return;
@@ -89,6 +100,7 @@ export function normalizeLegacyRegistration(animal: ManagedAnimal): void {
   }
   if (animal.claimantUserId && animal.registeredAt) {
     animal.registrationStatus = "awaiting_experiment";
+    if (!animal.implantAt) animal.implantAt = animal.registeredAt;
     return;
   }
   if (animal.claimantUserId && animal.surgeryCompletedAt) {

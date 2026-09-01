@@ -3,6 +3,8 @@ import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
 import { canManageAnimals } from "@/lib/roles";
 import { appendAuditLog } from "@/server/audit";
+import { normalizeLegacyRegistration } from "@/server/animal-lifecycle";
+import { isAnimalExperimentLocked } from "@/lib/animals/experiment-lock";
 import {
   AnimalPurpose,
   ANIMAL_PURPOSES,
@@ -13,6 +15,13 @@ import {
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
+
+  await mutateStore((s) => {
+    for (const a of s.managedAnimals) {
+      normalizeLegacyRegistration(a);
+    }
+  });
+
   return jsonOk({ managedAnimals: getStore().managedAnimals });
 }
 
@@ -100,6 +109,11 @@ export async function DELETE(req: NextRequest) {
   const isOwner = existing.claimantUserId === user.id;
   if (!canManageAnimals(user.roles) && !isOwner) {
     return jsonError("forbidden", 403);
+  }
+
+  normalizeLegacyRegistration(existing);
+  if (!canManageAnimals(user.roles) && isOwner && isAnimalExperimentLocked(existing)) {
+    return jsonError("animal_locked", 409);
   }
 
   await mutateStore((s) => {

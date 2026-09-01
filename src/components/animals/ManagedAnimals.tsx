@@ -20,7 +20,8 @@ import {
 import { exportToCsv } from "@/lib/export";
 import { api } from "@/lib/api/client";
 import { getApplications, getManagedAnimals, setCachePartial } from "@/lib/storage/db";
-import { formatTrackingDays, trackingDays, trackingStageFromDays, normalizePurpose } from "@/lib/animals/facility-board";
+import { formatTrackingDays, trackingDaysForAnimal, trackingStageFromDays, normalizePurpose } from "@/lib/animals/facility-board";
+import { isAnimalExperimentLocked } from "@/lib/animals/experiment-lock";
 import { JELLY_SWATCH, JELLY_TIP_STYLE, resolveStatusColor } from "@/lib/animals/status-tip";
 import {
   ManagedAnimal,
@@ -331,9 +332,9 @@ export function ManagedAnimals({
     rows.sort((a, b) => {
       if (sortKey === "tracking") {
         const av =
-          trackingDays(a.collectionAt, a.lastCollectionAt, a.implantAt) ?? -Infinity;
+          trackingDaysForAnimal(a) ?? -Infinity;
         const bv =
-          trackingDays(b.collectionAt, b.lastCollectionAt, b.implantAt) ?? -Infinity;
+          trackingDaysForAnimal(b) ?? -Infinity;
         const cmp = av < bv ? -1 : av > bv ? 1 : 0;
         return sortAsc ? cmp : -cmp;
       }
@@ -757,18 +758,31 @@ export function ManagedAnimals({
     }
   }
 
+  function canDeleteRow(row: ManagedAnimal) {
+    if (canEditAnimals) return true;
+    if (isAnimalExperimentLocked(row)) return false;
+    return Boolean(user && row.claimantUserId === user.id);
+  }
+
   function openAssignFor(ids: string[]) {
     if (!ids.length) {
       showToast(m.selectRows);
       return;
     }
-    setOpTargetIds(ids);
+    const unlocked = ids.filter((id) => {
+      const row = animals.find((a) => a.id === id);
+      return row && !isAnimalExperimentLocked(row);
+    });
+    const lockedCount = ids.length - unlocked.length;
+    if (lockedCount > 0) {
+      showToast(m.lockedSkipAssign.replace("{n}", String(lockedCount)));
+    }
+    if (!unlocked.length) {
+      showToast(m.lockedCannotOperate);
+      return;
+    }
+    setOpTargetIds(unlocked);
     setOpAssignOpen(true);
-  }
-
-  function canDeleteRow(row: ManagedAnimal) {
-    if (canEditAnimals) return true;
-    return Boolean(user && row.claimantUserId === user.id);
   }
 
   async function removeSelected() {
@@ -890,7 +904,7 @@ export function ManagedAnimals({
               stageForRow(row),
               formatDateOnly(row.implantAt),
               formatTrackingDays(
-                trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                trackingDaysForAnimal(row),
                 m.trackingUnit
               ),
               formatDateOnly(row.nextCollectionAt),
@@ -901,7 +915,7 @@ export function ManagedAnimals({
               row.id,
               formatDateOnly(row.implantAt),
               formatTrackingDays(
-                trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                trackingDaysForAnimal(row),
                 m.trackingUnit
               ),
               stageForRow(row),
@@ -1048,18 +1062,22 @@ export function ManagedAnimals({
 
   function stageForRow(row: ManagedAnimal) {
     return trackingStageFromDays(
-      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt)
+      trackingDaysForAnimal(row)
     );
   }
 
   function canEditStatusTip(row: ManagedAnimal) {
     if (!user) return false;
+    if (isAnimalExperimentLocked(row)) return false;
     if (canEditAnimals) return true;
     return row.claimantUserId === user.id;
   }
 
   function openStatusEdit(row: ManagedAnimal) {
-    if (!canEditStatusTip(row)) return;
+    if (!canEditStatusTip(row)) {
+      if (isAnimalExperimentLocked(row)) showToast(m.lockedCannotOperate);
+      return;
+    }
     setStatusEditId(row.id);
     setStatusEditText(recordingStatusLabel(row.recordingStatus, row.statusLabel));
     setStatusEditColor(resolveStatusColor(row.statusColor, row.recordingStatus));
@@ -1185,7 +1203,7 @@ export function ManagedAnimals({
     if (key === "nextCollectionAt") return formatDateOnly(row.nextCollectionAt);
     if (key === "tracking") {
       return formatTrackingDays(
-        trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+        trackingDaysForAnimal(row),
         m.trackingUnit
       );
     }
@@ -1591,7 +1609,24 @@ export function ManagedAnimals({
                         )}
                       >
                         <td className="px-3 py-2">
-                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
+                          <input
+                            type="checkbox"
+                            checked={selected.has(row.id)}
+                            disabled={isClaimCatalog && isAnimalExperimentLocked(row)}
+                            onChange={() => {
+                              if (isClaimCatalog && isAnimalExperimentLocked(row)) {
+                                showToast(m.lockedCannotOperate);
+                                return;
+                              }
+                              toggleRow(row.id);
+                            }}
+                            className="accent-thu"
+                            title={
+                              isClaimCatalog && isAnimalExperimentLocked(row)
+                                ? m.lockedHint
+                                : undefined
+                            }
+                          />
                         </td>
                         {COLUMN_KEYS.filter((k) => visibleColumns.has(k)).map((key) => (
                           <td
@@ -1601,7 +1636,28 @@ export function ManagedAnimals({
                               key === "id" && "font-mono font-medium text-thu"
                             )}
                           >
-                            {key === "recordingStatus" ? (
+                            {key === "id" ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                {isAnimalExperimentLocked(row) ? (
+                                  <span
+                                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[11px] text-amber-800"
+                                    title={m.lockedHint}
+                                    aria-label={m.lockedHint}
+                                  >
+                                    🔒
+                                  </span>
+                                ) : null}
+                                <span>{row.id}</span>
+                                {row.lastOpBackfill ? (
+                                  <span
+                                    className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold text-orange-800 ring-1 ring-inset ring-orange-300/80 bg-orange-50"
+                                    title={m.backfillHint}
+                                  >
+                                    {m.backfillBadge}
+                                  </span>
+                                ) : null}
+                              </span>
+                            ) : key === "recordingStatus" ? (
                               renderRecordingStatusTip(row)
                             ) : key === "status" ? (
                               <span
@@ -1639,6 +1695,13 @@ export function ManagedAnimals({
                                   {m.forceHandle}
                                 </FluentButton>
                               </>
+                            ) : isAnimalExperimentLocked(row) && isClaimCatalog ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-1 text-[11px] text-amber-800"
+                                title={m.lockedHint}
+                              >
+                                🔒 {m.lockedShort}
+                              </span>
                             ) : (
                               <>
                                 <FluentButton
@@ -1676,8 +1739,35 @@ export function ManagedAnimals({
               <GlassPanel key={row.id} className="flex flex-col">
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <label className="flex items-center gap-2">
-                    <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} className="accent-thu" />
-                    <span className="font-mono text-sm font-semibold text-thu">{row.id}</span>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      disabled={isClaimCatalog && isAnimalExperimentLocked(row)}
+                      onChange={() => {
+                        if (isClaimCatalog && isAnimalExperimentLocked(row)) {
+                          showToast(m.lockedCannotOperate);
+                          return;
+                        }
+                        toggleRow(row.id);
+                      }}
+                      className="accent-thu"
+                    />
+                    <span className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-thu">
+                      {isAnimalExperimentLocked(row) ? (
+                        <span title={m.lockedHint} aria-label={m.lockedHint}>
+                          🔒
+                        </span>
+                      ) : null}
+                      {row.id}
+                      {row.lastOpBackfill ? (
+                        <span
+                          className="rounded px-1.5 py-0.5 font-sans text-[10px] font-semibold text-orange-800 ring-1 ring-inset ring-orange-300/80 bg-orange-50"
+                          title={m.backfillHint}
+                        >
+                          {m.backfillBadge}
+                        </span>
+                      ) : null}
+                    </span>
                   </label>
                   {renderRecordingStatusTip(row)}
                 </div>
@@ -1700,7 +1790,7 @@ export function ManagedAnimals({
                   <div>
                     <span className="text-lab-muted">{m.colTracking}: </span>
                     {formatTrackingDays(
-                      trackingDays(row.collectionAt, row.lastCollectionAt, row.implantAt),
+                      trackingDaysForAnimal(row),
                       m.trackingUnit
                     )}
                   </div>
@@ -1727,6 +1817,10 @@ export function ManagedAnimals({
                         {m.forceHandle}
                       </FluentButton>
                     </>
+                  ) : isAnimalExperimentLocked(row) && isClaimCatalog ? (
+                    <span className="text-[11px] text-amber-800" title={m.lockedHint}>
+                      🔒 {m.lockedShort}
+                    </span>
                   ) : (
                     <>
                       <FluentButton variant="ghost" size="sm" onClick={() => openAssignFor([row.id])}>
@@ -1857,11 +1951,7 @@ export function ManagedAnimals({
               <DetailRow
                 label={m.colTracking}
                 value={formatTrackingDays(
-                  trackingDays(
-                    viewAnimal.collectionAt,
-                    viewAnimal.lastCollectionAt,
-                    viewAnimal.implantAt
-                  ),
+                  trackingDaysForAnimal(viewAnimal),
                   m.trackingUnit
                 )}
               />

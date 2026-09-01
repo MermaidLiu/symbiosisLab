@@ -9,7 +9,7 @@ import { FluentModal } from "@/components/fluent/FluentModal";
 import { FluentSelect } from "@/components/fluent/FluentField";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
-import { canSuperviseAnimalFacility, canManageAnimals, hasRole } from "@/lib/roles";
+import { canSuperviseAnimalFacility, canManageAnimals, canReceiveAnimalOps, hasRole } from "@/lib/roles";
 import { api, PublicUser } from "@/lib/api/client";
 import {
   PURPOSE_SWATCH,
@@ -30,12 +30,21 @@ import {
 
 type BoardMode = "workbench" | "board";
 
-export function FacilityCageBoard({ mode = "board" }: { mode?: BoardMode }) {
+export function FacilityCageBoard({
+  mode = "board",
+  headerAction,
+}: {
+  mode?: BoardMode;
+  /** 工作台顶部额外操作（如技术员模式切换） */
+  headerAction?: React.ReactNode;
+}) {
   const { t } = useLocale();
   const f = t.animalMgmt.facilityBoard;
   const { user } = useAuth();
   const allowed = user
-    ? canSuperviseAnimalFacility(user.roles) || canManageAnimals(user.roles)
+    ? canSuperviseAnimalFacility(user.roles) ||
+      canManageAnimals(user.roles) ||
+      canReceiveAnimalOps(user.roles)
     : false;
   const canOperate = user
     ? hasRole(user.roles, "super_admin") || canSuperviseAnimalFacility(user.roles)
@@ -270,20 +279,25 @@ export function FacilityCageBoard({ mode = "board" }: { mode?: BoardMode }) {
         title={isWorkbench ? t.dashboard.title : f.title}
         subtitle={isWorkbench ? f.workbenchSubtitle : f.subtitle}
         action={
-          canOperate ? (
-            <div className="flex items-center gap-2">
-              <FluentButton
-                size="sm"
-                onClick={() => {
-                  setAddCageMsg("");
-                  setAddCageOpen(true);
-                }}
-              >
-                {f.addCage}
-              </FluentButton>
-              <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
-                {f.batchUpload}
-              </FluentButton>
+          headerAction || canOperate ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {headerAction}
+              {canOperate ? (
+                <>
+                  <FluentButton
+                    size="sm"
+                    onClick={() => {
+                      setAddCageMsg("");
+                      setAddCageOpen(true);
+                    }}
+                  >
+                    {f.addCage}
+                  </FluentButton>
+                  <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
+                    {f.batchUpload}
+                  </FluentButton>
+                </>
+              ) : null}
             </div>
           ) : undefined
         }
