@@ -1,7 +1,7 @@
 <view class="page">
   <view class="card guest-card" wx:if="{{guestMode}}">
     <view class="guest-title">动物与实验追溯</view>
-    <view class="guest-desc muted">登录后可扫码录入小鼠（分配唯一 ID），并查看名下代管动物；网页端可派发技术员。</view>
+    <view class="guest-desc muted">登录后可扫码录入小鼠、派发技术员；派发后锁定直至闭环。</view>
     <button class="btn-primary" bindtap="goLogin">登录后使用</button>
   </view>
 
@@ -18,25 +18,69 @@
 
   <view wx:if="{{filtered.length === 0}}" class="empty">暂无名下动物</view>
 
-  <view class="card animal {{item.locked ? 'locked' : ''}}" wx:for="{{filtered}}" wx:key="id">
-    <view class="row">
-      <view class="id">
-        <text wx:if="{{item.locked}}" class="lock">🔒</text>
-        {{item.id}}
-        <text wx:if="{{item.lastOpBackfill}}" class="backfill">补录</text>
-      </view>
-      <view
-        class="tip"
-        style="background:{{item.tipBg}};color:{{item.tipFg}};"
-        data-id="{{item.id}}"
-        bindtap="openEdit"
-      >{{item.label}}</view>
+  <view class="swipe-wrap" wx:for="{{filtered}}" wx:key="id">
+    <view class="swipe-actions" wx:if="{{isStudent && item.canDelete}}">
+      <view class="swipe-del" data-id="{{item.id}}" catchtap="confirmDelete">删除</view>
     </view>
-    <view class="muted line">植入：{{item.implantText}}</view>
-    <view class="muted line">追踪：{{item.trackingText}} · 阶段 {{item.stage}}</view>
-    <view class="muted line">下次采集：{{item.nextText}}</view>
-    <view class="edit-hint" wx:if="{{item.locked}}">实验未闭环 · 已锁定，不可改状态/派发</view>
-    <view class="edit-hint" wx:else>轻触状态可改文案与果冻色</view>
+    <view
+      class="card animal {{item.locked ? 'locked' : ''}}"
+      style="transform: translateX({{item.offsetX || 0}}px);"
+      data-id="{{item.id}}"
+      bindtouchstart="onTouchStart"
+      bindtouchmove="onTouchMove"
+      bindtouchend="onTouchEnd"
+      bindtap="onCardTap"
+    >
+      <view class="row">
+        <view class="id">
+          <text wx:if="{{item.locked}}" class="lock">🔒</text>
+          {{item.id}}
+          <text wx:if="{{item.lastOpBackfill}}" class="backfill">补录</text>
+        </view>
+        <view
+          class="tip"
+          style="background:{{item.tipBg}};color:{{item.tipFg}};"
+          data-id="{{item.id}}"
+          catchtap="openEdit"
+        >{{item.label}}</view>
+      </view>
+      <view class="muted line">植入：{{item.implantText}}</view>
+      <view class="muted line">追踪：{{item.trackingText}} · 阶段 {{item.stage}}</view>
+      <view class="muted line">下次采集：{{item.nextText}}</view>
+      <view class="muted line" wx:if="{{item.technicianName}}">技术员：{{item.technicianName}}</view>
+      <view class="edit-hint" wx:if="{{item.locked}}">实验未闭环 · 已锁定，不可改状态/派发</view>
+      <view class="edit-hint" wx:elif="{{isStudent}}">点击卡片派发 · 左滑删除 · 轻触状态改文案</view>
+      <view class="edit-hint" wx:else>轻触状态可改文案与果冻色</view>
+      <button
+        wx:if="{{isStudent && item.canAssign}}"
+        class="assign-btn"
+        size="mini"
+        data-id="{{item.id}}"
+        catchtap="openAssign"
+      >派发</button>
+    </view>
+  </view>
+
+  <!-- 派发弹层 -->
+  <view class="mask" wx:if="{{assigning}}" bindtap="closeAssign">
+    <view class="editor assign-sheet" catchtap="noop">
+      <view class="editor-title">派发操作 · {{assignAnimalId}}</view>
+      <view class="color-label muted">操作类型</view>
+      <picker range="{{opTypes}}" range-key="l" value="{{opTypeIndex}}" bindchange="onOpType">
+        <view class="input">{{opTypes[opTypeIndex].l}}</view>
+      </picker>
+      <view class="color-label muted">技术员</view>
+      <picker range="{{staff}}" range-key="l" value="{{staffIndex}}" bindchange="onStaff">
+        <view class="input">{{staff.length ? staff[staffIndex].l : '暂无技术员'}}</view>
+      </picker>
+      <view class="color-label muted">备注</view>
+      <input class="input" value="{{assignNote}}" bindinput="onAssignNote" placeholder="选填" />
+      <view class="hint muted">派发采集/手术等类型后将锁定，需技术员拍照提交、学生填 NAS 闭环（与网页一致）。</view>
+      <view class="editor-actions">
+        <button size="mini" class="btn-ghost" bindtap="closeAssign">取消</button>
+        <button size="mini" class="btn-primary" loading="{{assignSaving}}" bindtap="submitAssign">确认派发</button>
+      </view>
+    </view>
   </view>
 
   <view class="mask" wx:if="{{editing}}" bindtap="closeEdit">

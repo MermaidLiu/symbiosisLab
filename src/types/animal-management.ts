@@ -127,6 +127,13 @@ export interface ManagedAnimal {
    * 技术员提交日与 Operation 开始日不是同一自然日
    */
   lastOpBackfill?: boolean;
+  /** 死亡时间 ISO（实验中死亡必须登记） */
+  deathAt?: string;
+  /** 死亡原因说明（实验中死亡必须登记） */
+  deathReason?: string;
+  /** 登记死亡的操作人 */
+  deathReportedByUserId?: string;
+  deathReportedByName?: string;
 }
 
 /** 状态 tip 果冻色（7 种） */

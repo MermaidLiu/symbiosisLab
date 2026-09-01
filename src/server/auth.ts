@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { AccountStatus, AppliedBusinessRole, Role, User } from "@/types";
 import { getStore, mutateStore, publicUser, SessionRecord, uid } from "@/server/store";
 import { hashPassword, verifyPassword } from "@/server/crypto";
-import { phoneToEmail, rolesForAppliedRole } from "@/lib/account-status";
+import { isPlaceholderEmail, phoneToEmail, rolesForAppliedRole } from "@/lib/account-status";
+import { displayName, normalizeNickname } from "@/lib/users";
 import { isValidCnMobile, normalizePhone, verifySmsCode } from "@/server/sms";
 
 export const SESSION_COOKIE = "symbiosis_session";
@@ -189,6 +190,8 @@ export async function submitRealNameProfile(
   userId: string,
   input: {
     name: string;
+    email?: string;
+    school: string;
     department: string;
     employeeId: string;
     personType: string;
@@ -197,15 +200,20 @@ export async function submitRealNameProfile(
   }
 ) {
   const name = String(input.name ?? "").trim();
+  const school = String(input.school ?? "").trim();
   const department = String(input.department ?? "").trim();
   const employeeId = String(input.employeeId ?? "").trim();
   const personType = String(input.personType ?? "").trim();
+  const emailRaw = String(input.email ?? "").trim().toLowerCase();
   const appliedRole = input.appliedRole;
-  if (!name || !department || !employeeId || !personType) {
+  if (!name || !school || !department || !employeeId || !personType) {
     return { ok: false as const, error: "invalid_body" };
   }
   if (!["student", "technician", "supervisor"].includes(appliedRole)) {
     return { ok: false as const, error: "invalid_applied_role" };
+  }
+  if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw) || isPlaceholderEmail(emailRaw)) {
+    return { ok: false as const, error: "invalid_email" };
   }
 
   const store = getStore();
@@ -218,21 +226,34 @@ export async function submitRealNameProfile(
   );
   if (dupEmp) return { ok: false as const, error: "employee_id_exists" };
 
+  const dupEmail = store.users.some(
+    (u) => u.id !== userId && u.email && u.email.toLowerCase() === emailRaw
+  );
+  if (dupEmail) return { ok: false as const, error: "email_exists" };
+
   const now = new Date().toISOString();
+  const wasActive = (me.accountStatus ?? "active") === "active";
   let updated: User | null = null;
   await mutateStore((s) => {
     const u = s.users.find((x) => x.id === userId);
     if (!u) return;
     u.name = name;
+    u.email = emailRaw;
+    u.school = school;
     u.department = department;
     u.employeeId = employeeId;
     u.personType = personType;
     u.contactExtra = String(input.contactExtra ?? "").trim();
     u.appliedRole = appliedRole;
-    u.accountStatus = "pending_review";
+    // 已激活账号补全资料：保持 active；新建/被拒：进入审核
+    if (wasActive && u.accountStatus === "active") {
+      u.accountStatus = "active";
+    } else {
+      u.accountStatus = "pending_review";
+      u.roles = ["user"];
+    }
     u.profileSubmittedAt = now;
     u.rejectReason = undefined;
-    u.roles = ["user"];
     updated = { ...u };
     s.logs.unshift({
       id: uid("log"),
@@ -241,7 +262,7 @@ export async function submitRealNameProfile(
       action: "submit_realname",
       entityType: "user",
       entityId: userId,
-      details: `提交实名建档，申请角色: ${appliedRole}`,
+      details: `提交/完善实名建档，申请角色: ${appliedRole}`,
       timestamp: now,
     });
     s.logs = s.logs.slice(0, 500);
@@ -249,6 +270,114 @@ export async function submitRealNameProfile(
 
   if (!updated) return { ok: false as const, error: "not_found" };
   return { ok: true as const, user: publicUser(updated) };
+}
+
+/** 个人信息可查看/修改，但必填项不可清空删除 */
+export async function updateIdentityProfile(
+  userId: string,
+  input: {
+    nickname?: string;
+    name?: string;
+    email?: string;
+    school?: string;
+    department?: string;
+    employeeId?: string;
+    personType?: string;
+    contactExtra?: string;
+  }
+) {
+  const store = getStore();
+  const me = store.users.find((u) => u.id === userId);
+  if (!me) return { ok: false as const, error: "not_found" };
+
+  const touchingIdentity =
+    input.name !== undefined ||
+    input.email !== undefined ||
+    input.school !== undefined ||
+    input.department !== undefined ||
+    input.employeeId !== undefined ||
+    input.personType !== undefined ||
+    input.contactExtra !== undefined;
+
+  const name =
+    input.name !== undefined ? String(input.name).trim() : String(me.name ?? "").trim();
+  const school =
+    input.school !== undefined ? String(input.school).trim() : String(me.school ?? "").trim();
+  const department =
+    input.department !== undefined
+      ? String(input.department).trim()
+      : String(me.department ?? "").trim();
+  const employeeId =
+    input.employeeId !== undefined
+      ? String(input.employeeId).trim()
+      : String(me.employeeId ?? "").trim();
+  const personType =
+    input.personType !== undefined
+      ? String(input.personType).trim()
+      : String(me.personType ?? "").trim();
+  const emailRaw =
+    input.email !== undefined
+      ? String(input.email).trim().toLowerCase()
+      : String(me.email ?? "").trim().toLowerCase();
+
+  if (touchingIdentity) {
+    if (!name || !school || !department || !employeeId || !personType) {
+      return { ok: false as const, error: "required_fields_cannot_clear" };
+    }
+    if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw) || isPlaceholderEmail(emailRaw)) {
+      return { ok: false as const, error: "invalid_email" };
+    }
+
+    const dupEmp = store.users.some(
+      (u) =>
+        u.id !== userId && u.employeeId && u.employeeId.toLowerCase() === employeeId.toLowerCase()
+    );
+    if (dupEmp) return { ok: false as const, error: "employee_id_exists" };
+    const dupEmail = store.users.some(
+      (u) => u.id !== userId && u.email && u.email.toLowerCase() === emailRaw
+    );
+    if (dupEmail) return { ok: false as const, error: "email_exists" };
+  }
+
+  const nickname =
+    input.nickname !== undefined ? normalizeNickname(input.nickname) : me.nickname;
+  let warning: string | undefined;
+  let updated: User | null = null;
+
+  await mutateStore((s) => {
+    const u = s.users.find((x) => x.id === userId);
+    if (!u) return;
+    if (nickname) {
+      const taken = s.users.some(
+        (x) =>
+          x.id !== u.id && x.nickname?.trim().toLowerCase() === nickname.toLowerCase()
+      );
+      if (taken) warning = "nickname_taken";
+    }
+    if (touchingIdentity) {
+      u.name = name;
+      u.email = emailRaw;
+      u.school = school;
+      u.department = department;
+      u.employeeId = employeeId;
+      u.personType = personType;
+      if (input.contactExtra !== undefined) {
+        u.contactExtra = String(input.contactExtra).trim();
+      }
+    }
+    if (input.nickname !== undefined) {
+      u.nickname = nickname;
+    }
+    const label = displayName(u);
+    for (const a of s.managedAnimals) {
+      if (a.claimantUserId === u.id) a.claimantName = label;
+      if (a.technicianUserId === u.id) a.technicianName = label;
+    }
+    updated = { ...u };
+  });
+
+  if (!updated) return { ok: false as const, error: "not_found" };
+  return { ok: true as const, user: publicUser(updated), warning };
 }
 
 export async function reviewStaffAccount(input: {

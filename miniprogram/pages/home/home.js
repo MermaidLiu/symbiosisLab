@@ -42,6 +42,26 @@ Page({
 
     if (!loggedIn) return;
 
+    const user = getUser();
+    if (user && user.phone) {
+      const st = user.accountStatus || "active";
+      const emp = (user.employeeId || "").trim();
+      const incomplete =
+        st === "pending_profile" ||
+        st === "rejected" ||
+        st === "pending_review" ||
+        !(user.name || "").trim() ||
+        !emp ||
+        emp.startsWith("LEGACY-") ||
+        !(user.school || "").trim() ||
+        !(user.department || "").trim() ||
+        (user.email || "").endsWith("@phone.symbiosis.local");
+      if (incomplete && st !== "disabled") {
+        wx.redirectTo({ url: "/pages/realname/realname" });
+        return;
+      }
+    }
+
     const now = new Date();
     if (!this.data.year) {
       this.setData({
@@ -62,6 +82,10 @@ Page({
 
   goLogin() {
     goLogin();
+  },
+
+  goProfile() {
+    wx.navigateTo({ url: "/pages/profile/profile" });
   },
 
   async ensureLogin() {

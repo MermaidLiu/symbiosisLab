@@ -1,0 +1,47 @@
+.page {
+  padding: 24rpx;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+}
+
+.aid {
+  font-family: monospace;
+  font-size: 36rpx;
+  font-weight: 800;
+  color: #5b3a9e;
+  margin-bottom: 24rpx;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-bottom: 16rpx;
+  font-size: 26rpx;
+}
+
+.k {
+  color: #8b7a90;
+  flex-shrink: 0;
+}
+
+.v {
+  text-align: right;
+  color: #2a2340;
+  font-weight: 600;
+}
+
+.hint {
+  margin-top: 20rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.err {
+  color: #b91c1c;
+}

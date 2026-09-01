@@ -2,16 +2,25 @@ const { api } = require("../../utils/api");
 const { setSession, getToken, clearSession } = require("../../utils/auth");
 const { API_BASE, isInsecureApiBase } = require("../../utils/config");
 
+function needsRealname(user) {
+  if (!user) return true;
+  const st = user.accountStatus || "active";
+  if (st === "pending_profile" || st === "rejected" || st === "pending_review" || st === "disabled") {
+    return true;
+  }
+  if (!user.phone) return false;
+  if (!(user.name || "").trim()) return true;
+  const emp = (user.employeeId || "").trim();
+  if (!emp || emp.startsWith("LEGACY-")) return true;
+  if (!(user.school || "").trim()) return true;
+  if (!(user.department || "").trim()) return true;
+  if ((user.email || "").endsWith("@phone.symbiosis.local")) return true;
+  return false;
+}
+
 function afterLogin(user) {
   getApp().globalData.user = user;
-  const st = (user && user.accountStatus) || "active";
-  if (
-    st === "pending_profile" ||
-    st === "rejected" ||
-    st === "pending_review" ||
-    st === "disabled" ||
-    (user.phone && !(user.name || "").trim())
-  ) {
+  if (needsRealname(user)) {
     wx.redirectTo({ url: "/pages/realname/realname" });
     return;
   }

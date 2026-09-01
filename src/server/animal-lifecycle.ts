@@ -61,12 +61,31 @@ export function setRegistrationStatus(
   animal.registrationStatus = status;
   if (status === "in_experiment") {
     animal.animalLock = true;
-  } else if (status === "awaiting_experiment") {
+  } else if (status === "awaiting_experiment" || status === "deceased") {
     animal.animalLock = false;
   }
 }
 
+/** 实验闭环结束后：若已登记死亡则进入 deceased，否则回到待实验 */
+export function finalizeRegistrationAfterClose(animal: ManagedAnimal): void {
+  const dead =
+    Boolean(animal.deathAt) ||
+    animal.recordingStatus === "dead" ||
+    animal.status === "deceased";
+  if (dead) {
+    animal.status = "deceased";
+    animal.recordingStatus = "dead";
+    animal.lifecycleStatus = "euthanasia";
+    setRegistrationStatus(animal, "deceased");
+  } else {
+    setRegistrationStatus(animal, "awaiting_experiment");
+  }
+}
+
 export function assertCanCreateOperation(animal: ManagedAnimal, store: DbStore): string | null {
+  if (animal.registrationStatus === "deceased" || animal.status === "deceased") {
+    return "animal_deceased";
+  }
   if (animal.animalLock || openOperationForAnimal(store, animal.id)) {
     return "animal_locked";
   }

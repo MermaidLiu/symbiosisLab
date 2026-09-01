@@ -10,10 +10,10 @@ import {
   registerUser,
   setSessionCookie,
   submitRealNameProfile,
+  updateIdentityProfile,
 } from "@/server/auth";
 import { publicUser, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
-import { displayName, normalizeNickname } from "@/lib/users";
 import { createAndSendSmsCode } from "@/server/sms";
 import { AppliedBusinessRole } from "@/types";
 
@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
     if (!user) return jsonError("unauthorized", 401);
     const result = await submitRealNameProfile(user.id, {
       name: String(body.name ?? ""),
+      email: body.email ? String(body.email) : undefined,
+      school: String(body.school ?? ""),
       department: String(body.department ?? ""),
       employeeId: String(body.employeeId ?? ""),
       personType: String(body.personType ?? ""),
@@ -119,52 +121,28 @@ export async function POST(req: NextRequest) {
     const user = await getCurrentUser();
     if (!user) return jsonError("unauthorized", 401);
 
-    const nickname = normalizeNickname(body.nickname);
-    let warning: string | undefined;
-    let updated = user;
-
-    await mutateStore((s) => {
-      const me = s.users.find((u) => u.id === user.id);
-      if (!me) return;
-
-      if (nickname) {
-        const taken = s.users.some(
-          (u) =>
-            u.id !== me.id &&
-            u.nickname?.trim().toLowerCase() === nickname.toLowerCase()
-        );
-        if (taken) warning = "nickname_taken";
-      }
-
-      me.nickname = nickname;
-      const label = displayName(me);
-
-      for (const a of s.managedAnimals) {
-        if (a.claimantUserId === me.id) a.claimantName = label;
-        if (a.technicianUserId === me.id) a.technicianName = label;
-      }
-      for (const app of s.applications) {
-        if (
-          app.applicantUserId === me.id &&
-          (app.status === "pending_receipt" || app.status === "received")
-        ) {
-          app.applicant = label;
-        }
-      }
-
-      updated = me;
+    const result = await updateIdentityProfile(user.id, {
+      nickname: body.nickname !== undefined ? String(body.nickname) : undefined,
+      name: body.name !== undefined ? String(body.name) : undefined,
+      email: body.email !== undefined ? String(body.email) : undefined,
+      school: body.school !== undefined ? String(body.school) : undefined,
+      department: body.department !== undefined ? String(body.department) : undefined,
+      employeeId: body.employeeId !== undefined ? String(body.employeeId) : undefined,
+      personType: body.personType !== undefined ? String(body.personType) : undefined,
+      contactExtra: body.contactExtra !== undefined ? String(body.contactExtra) : undefined,
     });
+    if (!result.ok) return jsonError(result.error, 400);
 
     await appendAuditLog({
       userId: user.id,
-      userName: user.name,
-      action: "update_nickname",
+      userName: result.user.name,
+      action: "update_profile",
       entityType: "user",
       entityId: user.id,
-      details: nickname ? `设置花名: ${nickname}` : "清除花名",
+      details: "更新个人实名信息",
     });
 
-    return jsonOk({ user: publicUser(updated), warning });
+    return jsonOk({ user: result.user, warning: result.warning });
   }
 
   return jsonError("unknown_action", 400);

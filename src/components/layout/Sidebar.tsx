@@ -89,6 +89,12 @@ export function Sidebar() {
         >
           {t.profile.editNickname}
         </button>
+        <Link
+          href="/settings/profile"
+          className="mt-1 block text-[10px] text-thu/80 underline-offset-2 hover:underline"
+        >
+          个人信息
+        </Link>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">

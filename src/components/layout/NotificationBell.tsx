@@ -87,7 +87,7 @@ export function NotificationBell() {
 
   async function onHandle(
     n: AppNotification,
-    action: "read" | "approve" | "reject" | "open"
+    action: "read" | "approve" | "reject" | "open" | "acknowledge"
   ) {
     if (action === "approve" || action === "reject") {
       if (n.kind === "application_pending" && n.applicationId) {
@@ -102,6 +102,20 @@ export function NotificationBell() {
         await refresh();
         return;
       }
+    }
+
+    if (action === "acknowledge") {
+      try {
+        await api.handleNotification(n.id, "acknowledge");
+      } catch {
+        await handleNotification(user!.id, user!.name, n.id, "read", isZh ? n.title : n.titleEn);
+      }
+      if (n.link) {
+        setOpen(false);
+        router.push(n.link);
+      }
+      await refresh();
+      return;
     }
 
     await handleNotification(
@@ -186,7 +200,17 @@ export function NotificationBell() {
                           </Button>
                         </>
                       )}
-                      {n.link && (
+                      {n.kind === "animal_death" && !n.handled ? (
+                        <Button size="sm" variant="secondary" onClick={() => void onHandle(n, "acknowledge")}>
+                          我已知晓
+                        </Button>
+                      ) : null}
+                      {n.kind === "animal_death" && n.handled && n.link ? (
+                        <Button size="sm" variant="ghost" onClick={() => void onHandle(n, "open")}>
+                          查看死亡详情
+                        </Button>
+                      ) : null}
+                      {n.link && n.kind !== "animal_death" && (
                         <Button size="sm" variant="ghost" onClick={() => void onHandle(n, "open")}>
                           {t.notifications.handle}
                         </Button>
@@ -194,6 +218,7 @@ export function NotificationBell() {
                       {!n.link &&
                         n.kind !== "booking_pending" &&
                         n.kind !== "application_pending" &&
+                        n.kind !== "animal_death" &&
                         !n.read && (
                           <Button size="sm" variant="ghost" onClick={() => void onHandle(n, "read")}>
                             {t.notifications.markRead}

@@ -219,6 +219,7 @@ export function ManagedAnimals({
   useEffect(() => {
     if (isOpsStaff) {
       setVisibleColumns(new Set(OPS_STAFF_COLUMNS));
+      setDisplayMode("grid");
     }
   }, [isOpsStaff]);
 
@@ -486,19 +487,55 @@ export function ManagedAnimals({
           ephysStatus: viewAnimal.ephysStatus === "ephys_no_signal" ? "ephys_has_signal" : viewAnimal.ephysStatus ?? "ephys_has_signal",
         };
       } else {
-        const deathMethod: DeathMethod | undefined =
+        const deathMethod: DeathMethod =
           opEuthMethod === "cervical"
             ? "cervical"
             : opEuthMethod === "perfusion"
               ? "perfusion"
-              : undefined;
-        patch = {
-          lifecycleStatus: "euthanasia",
-          status: "deceased",
-          euthanasiaMethod: opEuthMethod,
-          euthanasiaNote: opEuthMethod === "other" ? opEuthCustom.trim() : undefined,
-          deathMethod: deathMethod ?? viewAnimal.deathMethod,
-        };
+              : "found_dead";
+        const deathReason =
+          opEuthMethod === "other"
+            ? opEuthCustom.trim()
+            : opEuthMethod === "humane"
+              ? "安乐死"
+              : opEuthMethod === "brain_harvest"
+                ? "取脑"
+                : opEuthMethod === "cervical"
+                  ? "断颈"
+                  : opEuthMethod === "perfusion"
+                    ? "灌流"
+                    : "强制处死";
+        const deathRes = await fetch("/api/animal-lifecycle", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "report_death",
+            animalId: viewAnimal.id,
+            deathAt: now,
+            deathMethod,
+            deathReason,
+          }),
+        });
+        const deathData = await deathRes.json().catch(() => ({}));
+        if (!deathRes.ok) throw new Error(deathData.error || "death_fail");
+        if (deathData.animal) {
+          setAnimals((prev) => {
+            const next = prev.map((a) => (a.id === viewAnimal.id ? { ...a, ...deathData.animal } : a));
+            onAnimalsChange?.(next);
+            return next;
+          });
+        } else {
+          const res = await api.managedAnimals();
+          setCachePartial({ managedAnimals: res.managedAnimals });
+          setAnimals(scopeList(res.managedAnimals));
+        }
+        setViewAnimal(null);
+        setOpAction("");
+        setOpEuthMethod("");
+        setOpEuthCustom("");
+        showToast(m.opSuccessEuthanasia);
+        return;
       }
 
       const res = await api.updateManagedAnimal(viewAnimal.id, patch);

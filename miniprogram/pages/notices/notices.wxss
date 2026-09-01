@@ -39,6 +39,12 @@
   color: #2a2340;
 }
 
+.ack-btn {
+  margin-top: 16rpx;
+  background: #7b4db8 !important;
+  color: #fff !important;
+}
+
 .msg {
   color: #4b4560;
   line-height: 1.5;

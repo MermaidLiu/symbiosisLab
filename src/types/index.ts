@@ -38,6 +38,8 @@ export interface User {
   department?: string;
   /** 工号 / 学号（全库唯一） */
   employeeId?: string;
+  /** 学校 / 单位 */
+  school?: string;
   /** 人员类型（学生/技术员/教职工等，登记用） */
   personType?: string;
   /** 其他联系方式 */
@@ -165,6 +167,7 @@ export interface AppNotification {
     | "application_pending"
     | "animal_task"
     | "animal_task_receipt"
+    | "animal_death"
     | "experiment_operation"
     | "instrument_training"
     | "instrument_repair";

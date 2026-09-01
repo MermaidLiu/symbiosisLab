@@ -7,7 +7,9 @@ import {
   generateAnimalId,
   isPermanentAnimalId,
   normalizeLegacyRegistration,
+  openOperationForAnimal,
   REGISTRATION_LABELS,
+  setRegistrationStatus,
 } from "@/server/animal-lifecycle";
 import { pushNotificationToUsers } from "@/server/notify";
 import {
@@ -15,10 +17,12 @@ import {
   canSuperviseAnimalFacility,
   canViewAllAnimalLifecycle,
   isAnimalClaimantStudent,
+  isAnimalExperimentTechnician,
 } from "@/lib/roles";
 import { getStore, mutateStore, uid } from "@/server/store";
-import { ManagedAnimal } from "@/types/animal-management";
+import { DEATH_METHODS, DeathMethod, ManagedAnimal } from "@/types/animal-management";
 import { AnimalRegistrationStatus } from "@/types/animal-lifecycle";
+import { displayName } from "@/lib/users";
 
 /** GET /api/animal-lifecycle?animalId= — 查询小鼠 + 追溯 */
 export async function GET(req: NextRequest) {
@@ -471,6 +475,121 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonOk({ animal: updated, assignedId: newId });
+  }
+
+  /**
+   * 登记死亡：内页填写死亡时间与原因后直接终止实验流程，
+   * 并通知下一环节人员（学生/技术员）点击「我已知晓」查看详情。
+   */
+  if (action === "report_death") {
+    const animalId = String(body.animalId ?? "").trim();
+    const deathAt = String(body.deathAt ?? "").trim();
+    const deathReason = String(body.deathReason ?? "").trim();
+    const deathMethodRaw = String(body.deathMethod ?? "found_dead").trim();
+    if (!animalId || !deathAt || !deathReason) return jsonError("invalid_body", 400);
+    if (!DEATH_METHODS.includes(deathMethodRaw as DeathMethod)) {
+      return jsonError("invalid_death_method", 400);
+    }
+    const deathMethod = deathMethodRaw as DeathMethod;
+    if (Number.isNaN(new Date(deathAt).getTime())) return jsonError("invalid_death_at", 400);
+
+    let updated: ManagedAnimal | null = null;
+    const now = new Date().toISOString();
+
+    await mutateStore((s) => {
+      const animal = findAnimal(s, animalId);
+      if (!animal) return;
+      normalizeLegacyRegistration(animal);
+
+      const openOp = openOperationForAnimal(s, animalId);
+      const allowed =
+        animal.claimantUserId === user.id ||
+        animal.technicianUserId === user.id ||
+        canManageAnimals(user.roles) ||
+        canSuperviseAnimalFacility(user.roles) ||
+        (isAnimalExperimentTechnician(user.roles) && openOp?.technicianUserId === user.id);
+      if (!allowed) return;
+
+      if (animal.registrationStatus === "deceased" && animal.deathAt) return;
+
+      animal.deathAt = deathAt;
+      animal.deathReason = deathReason;
+      animal.deathMethod = deathMethod;
+      animal.deathReportedByUserId = user.id;
+      animal.deathReportedByName = displayName(user);
+      animal.recordingStatus = "dead";
+      animal.status = "deceased";
+      animal.lifecycleStatus = "euthanasia";
+      animal.statusLabel = animal.statusLabel || "死亡";
+      animal.statusColor = animal.statusColor || "rose";
+      setRegistrationStatus(animal, "deceased");
+
+      // 直接终止未闭环 Operation
+      for (const op of s.experimentOperations ?? []) {
+        if (op.animalId !== animalId) continue;
+        if (op.status === "closed" || op.status === "force_closed") continue;
+        op.status = "force_closed";
+        op.closedAt = now;
+        op.updatedAt = now;
+        op.forceClosedBy = user.id;
+        op.forceClosedByName = displayName(user);
+        op.forceCloseReason = `小鼠死亡终止：${deathReason}`;
+      }
+
+      // 取消未完成的派发任务
+      for (const task of s.animalOpTasks ?? []) {
+        if (task.status !== "scheduled") continue;
+        if (!task.animalIds.includes(animalId)) continue;
+        task.status = "cancelled";
+        task.receiptNote = `因小鼠死亡终止：${deathReason}`;
+      }
+
+      appendLifecycleTrace(s, {
+        animalId: animal.id,
+        timestamp: now,
+        action: "report_death",
+        userId: user.id,
+        userName: displayName(user),
+        details: `登记死亡并终止流程：${deathAt.slice(0, 16).replace("T", " ")} · ${deathMethod} · ${deathReason}`,
+        operationId: openOp?.id,
+      });
+
+      const ids = new Set<string>();
+      if (animal.claimantUserId && animal.claimantUserId !== user.id) ids.add(animal.claimantUserId);
+      if (animal.technicianUserId && animal.technicianUserId !== user.id) {
+        ids.add(animal.technicianUserId);
+      }
+      if (openOp?.studentUserId && openOp.studentUserId !== user.id) ids.add(openOp.studentUserId);
+      if (openOp?.technicianUserId && openOp.technicianUserId !== user.id) {
+        ids.add(openOp.technicianUserId);
+      }
+
+      pushNotificationToUsers(s, [...ids], {
+        title: "小鼠死亡通知 · 请确认已知晓",
+        titleEn: "Mouse death — please acknowledge",
+        message: `${animal.id} 已登记死亡并终止实验。请点击「我已知晓」查看死亡时间与原因。`,
+        messageEn: `${animal.id} was marked deceased and the experiment terminated. Tap Acknowledge to view details.`,
+        link: `/animals/death?animalId=${animal.id}`,
+        kind: "animal_death",
+        animalId: animal.id,
+        operationId: openOp?.id,
+      });
+
+      updated = { ...animal };
+    });
+
+    if (!updated) return jsonError("forbidden", 403);
+
+    await appendAuditLog({
+      userId: user.id,
+      userName: displayName(user),
+      action: "report_death",
+      entityType: "managed_animal",
+      entityId: animalId,
+      details: `${animalId} deathAt=${deathAt} reason=${deathReason} terminated`,
+    });
+
+    return jsonOk({ animal: updated, terminated: true });
   }
 
   return jsonError("invalid_action", 400);

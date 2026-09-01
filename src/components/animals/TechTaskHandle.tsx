@@ -10,7 +10,7 @@ import { FluentInput, FluentSelect } from "@/components/fluent/FluentField";
 import { useAuth } from "@/context/AuthContext";
 import { canReceiveAnimalOps } from "@/lib/roles";
 import { EXPERIMENT_KINDS, ExperimentKind, ExperimentOperation } from "@/types/animal-lifecycle";
-import { ManagedAnimal } from "@/types/animal-management";
+import { DEATH_METHODS, DeathMethod, ManagedAnimal } from "@/types/animal-management";
 
 const KIND_LABEL: Record<ExperimentKind, string> = {
   ephys: "电生理 / 数据采集",
@@ -19,6 +19,17 @@ const KIND_LABEL: Record<ExperimentKind, string> = {
   imaging: "成像",
   other: "其他",
 };
+
+const DEATH_METHOD_LABEL: Record<DeathMethod, string> = {
+  cervical: "断颈",
+  perfusion: "灌流",
+  found_dead: "发现死亡",
+};
+
+function toDatetimeLocalValue(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const OP_STATUS: Record<string, string> = {
   open: "待技术员拍照完成",
@@ -50,6 +61,9 @@ export function TechTaskHandle() {
   const [resultNote, setResultNote] = useState("");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [deathAt, setDeathAt] = useState(toDatetimeLocalValue());
+  const [deathMethod, setDeathMethod] = useState<DeathMethod>("found_dead");
+  const [deathReason, setDeathReason] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -222,6 +236,40 @@ export function TechTaskHandle() {
     }
   }
 
+  async function reportDeath() {
+    if (!animalId) return;
+    const reason = deathReason.trim();
+    if (!deathAt || !reason) {
+      setError("死亡须填写时间与原因");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/animal-lifecycle", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "report_death",
+          animalId,
+          deathAt: new Date(deathAt).toISOString(),
+          deathMethod,
+          deathReason: reason,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "death_fail");
+      setDeathReason("");
+      await load();
+      setVerifyMsg("已登记死亡并终止实验，已通知对方确认。");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "登记死亡失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitToStudent() {
     if (!verified) {
       setError("请先核验笼码与派发 Animal ID 一致");
@@ -367,6 +415,65 @@ export function TechTaskHandle() {
               {verifyMsg}
             </p>
           ) : null}
+        </GlassPanel>
+
+        {/* 若死亡：登记并终止 */}
+        <GlassPanel className="mb-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-lab-muted">
+            若小鼠已死亡
+          </p>
+          {animal?.deathAt ? (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-900">
+              已登记并终止：{animal.deathAt.slice(0, 16).replace("T", " ")} ·{" "}
+              {DEATH_METHOD_LABEL[animal.deathMethod as DeathMethod] || animal.deathMethod} ·{" "}
+              {animal.deathReason}
+              <Link
+                href={`/animals/death?animalId=${encodeURIComponent(animalId)}`}
+                className="mt-1 block text-xs underline"
+              >
+                查看死亡详情
+              </Link>
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-lab-muted">
+                填写死亡时间与原因后将终止实验，并通知学生点击「我已知晓」查看详情。
+              </p>
+              <FluentInput
+                label="死亡时间"
+                type="datetime-local"
+                value={deathAt}
+                onChange={(e) => setDeathAt(e.target.value)}
+                disabled={done}
+              />
+              <FluentSelect
+                label="死亡方式"
+                value={deathMethod}
+                disabled={done}
+                onChange={(e) => setDeathMethod(e.target.value as DeathMethod)}
+              >
+                {DEATH_METHODS.map((dm) => (
+                  <option key={dm} value={dm}>
+                    {DEATH_METHOD_LABEL[dm]}
+                  </option>
+                ))}
+              </FluentSelect>
+              <FluentInput
+                label="死亡原因"
+                value={deathReason}
+                disabled={done}
+                onChange={(e) => setDeathReason(e.target.value)}
+                placeholder="必填"
+              />
+              <FluentButton
+                variant="outline"
+                disabled={done || busy || !deathReason.trim()}
+                onClick={() => void reportDeath()}
+              >
+                登记死亡并终止
+              </FluentButton>
+            </div>
+          )}
         </GlassPanel>
 
         {/* Step 3–4: operate + submit */}

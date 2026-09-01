@@ -47,12 +47,23 @@ Page({
   async openNotice(e) {
     const id = e.currentTarget.dataset.id;
     const item = this.data.list.find((n) => n.id === id);
+    if (!item) return;
+    if (item.kind === "animal_death") {
+      if (!item.handled) {
+        await this.acknowledgeDeath({
+          currentTarget: { dataset: { id: item.id, animal: item.animalId || "" } },
+        });
+      } else {
+        this.openDeath({ currentTarget: { dataset: { animal: item.animalId || "" } } });
+      }
+      return;
+    }
     try {
-      if (item && !item.read) {
+      if (!item.read) {
         await api.markNotification(id, "read");
       }
     } catch (_) {}
-    if (item && item.link) {
+    if (item.link) {
       if (item.link.includes("bookings")) {
         wx.navigateTo({ url: "/pages/bookings/bookings" });
         return;
@@ -61,12 +72,35 @@ Page({
         wx.switchTab({ url: "/pages/instruments/instruments" });
         return;
       }
-      if (item.link.includes("animals") || item.link.includes("managed")) {
+      if (item.link.includes("animals") || item.link.includes("managed") || item.link.includes("lifecycle")) {
         wx.switchTab({ url: "/pages/animals/animals" });
         return;
       }
     }
     this.load();
+  },
+
+  async acknowledgeDeath(e) {
+    const id = e.currentTarget.dataset.id;
+    const animalId = e.currentTarget.dataset.animal || "";
+    try {
+      await api.markNotification(id, "acknowledge");
+    } catch (_) {
+      try {
+        await api.markNotification(id, "read");
+      } catch (__) {}
+    }
+    wx.navigateTo({
+      url: `/pages/death/death?animalId=${encodeURIComponent(animalId)}`,
+    });
+    this.load();
+  },
+
+  openDeath(e) {
+    const animalId = e.currentTarget.dataset.animal || "";
+    wx.navigateTo({
+      url: `/pages/death/death?animalId=${encodeURIComponent(animalId)}`,
+    });
   },
 
   async markAll() {

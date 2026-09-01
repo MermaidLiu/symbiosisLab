@@ -69,9 +69,9 @@
   <block wx:else>
     <view class="hero">
       <view class="hero-glow"></view>
-      <view class="hello">你好，{{name}}</view>
+      <view class="hello" bindtap="goProfile">你好，{{name}}</view>
       <view class="roles">{{rolesText}}</view>
-      <view class="hero-chip">Symbiosis Lab · 手机端</view>
+      <view class="hero-chip" bindtap="goProfile">个人信息 · 点此查看/修改</view>
     </view>
 
     <view class="overview card">

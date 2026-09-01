@@ -1,12 +1,29 @@
 const { api } = require("../../utils/api");
 const { requireLogin, getUser, setSession, getToken, clearSession } = require("../../utils/auth");
 
+function needsProfile(user) {
+  if (!user) return true;
+  const st = user.accountStatus || "active";
+  if (st === "pending_profile" || st === "rejected") return true;
+  if (st === "pending_review" || st === "disabled") return true;
+  if (!user.phone) return false;
+  if (!(user.name || "").trim()) return true;
+  const emp = (user.employeeId || "").trim();
+  if (!emp || emp.startsWith("LEGACY-")) return true;
+  if (!(user.school || "").trim()) return true;
+  if (!(user.department || "").trim()) return true;
+  if ((user.email || "").endsWith("@phone.symbiosis.local")) return true;
+  return false;
+}
+
 Page({
   data: {
     phone: "",
     status: "",
     statusText: "",
     name: "",
+    email: "",
+    school: "",
     department: "",
     employeeId: "",
     personType: "学生",
@@ -19,6 +36,7 @@ Page({
       { v: "supervisor", l: "动物房主管" },
     ],
     canSubmit: false,
+    alreadyActive: false,
     busy: false,
     rejectReason: "",
   },
@@ -38,26 +56,38 @@ Page({
       disabled: "账号已停用",
       active: "已激活",
     };
+    const incomplete = needsProfile(user);
+    if (st === "active" && !incomplete) {
+      wx.switchTab({ url: "/pages/home/home" });
+      return;
+    }
+    const email = (user.email || "").endsWith("@phone.symbiosis.local") ? "" : user.email || "";
     this.setData({
       phone: user.phone || "",
       status: st,
       statusText: map[st] || st,
       name: user.name || "",
+      email,
+      school: user.school || "",
       department: user.department || "",
       employeeId: (user.employeeId || "").startsWith("LEGACY-") ? "" : user.employeeId || "",
       personType: user.personType || "学生",
       contactExtra: user.contactExtra || "",
       appliedRole: user.appliedRole || "student",
-      canSubmit: st === "pending_profile" || st === "rejected",
+      canSubmit: st === "pending_profile" || st === "rejected" || (st === "active" && incomplete),
+      alreadyActive: st === "active",
       rejectReason: user.rejectReason || "",
     });
-    if (st === "active") {
-      wx.switchTab({ url: "/pages/home/home" });
-    }
   },
 
   onName(e) {
     this.setData({ name: e.detail.value });
+  },
+  onEmail(e) {
+    this.setData({ email: e.detail.value });
+  },
+  onSchool(e) {
+    this.setData({ school: e.detail.value });
   },
   onDept(e) {
     this.setData({ department: e.detail.value });
@@ -81,6 +111,8 @@ Page({
     try {
       const res = await api.submitRealname({
         name: this.data.name,
+        email: this.data.email,
+        school: this.data.school,
         department: this.data.department,
         employeeId: this.data.employeeId,
         personType: this.data.personType,
@@ -90,7 +122,11 @@ Page({
       const token = getToken();
       setSession(token, res.user);
       getApp().globalData.user = res.user;
-      wx.showToast({ title: "已提交审核", icon: "success" });
+      wx.showToast({ title: this.data.alreadyActive ? "已保存" : "已提交审核", icon: "success" });
+      if (this.data.alreadyActive || (res.user.accountStatus || "") === "active") {
+        setTimeout(() => wx.switchTab({ url: "/pages/home/home" }), 400);
+        return;
+      }
       this.onShow();
     } catch (e) {
       wx.showModal({

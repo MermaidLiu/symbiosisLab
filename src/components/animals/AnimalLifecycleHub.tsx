@@ -15,7 +15,7 @@ import {
   isAnimalExperimentTechnician,
   roleLabelV2,
 } from "@/lib/roles";
-import { ManagedAnimal } from "@/types/animal-management";
+import { DEATH_METHODS, DeathMethod, ManagedAnimal } from "@/types/animal-management";
 import {
   EXPERIMENT_KINDS,
   ExperimentKind,
@@ -23,6 +23,16 @@ import {
   AnimalLifecycleTraceEvent,
 } from "@/types/animal-lifecycle";
 
+const DEATH_METHOD_LABEL: Record<DeathMethod, string> = {
+  cervical: "断颈",
+  perfusion: "灌流",
+  found_dead: "发现死亡",
+};
+
+function toDatetimeLocalValue(d = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 const STATUS_LABEL: Record<string, string> = {
   blank_available: "空白鼠待认领",
   blank_claimed: "已认领待手术",
@@ -76,6 +86,8 @@ function buildFlow(
     open?.status === "closed" || latest?.status === "closed" || latest?.nasDataPath
   );
   const locked = Boolean(animal.animalLock || animal.registrationStatus === "in_experiment");
+  const deathReported = Boolean(animal.deathAt);
+  const deceasedDone = animal.registrationStatus === "deceased";
 
   return [
     {
@@ -88,8 +100,8 @@ function buildFlow(
     {
       key: "dispatch",
       label: "学生派发技术员",
-      done: ops.length > 0 || locked,
-      active: enrolled && !locked && ops.length === 0,
+      done: ops.length > 0 || locked || deceasedDone,
+      active: enrolled && !locked && !deceasedDone && ops.length === 0,
       detail: animal.technicianName || undefined,
     },
     {
@@ -100,17 +112,28 @@ function buildFlow(
       detail: open?.title || latest?.title,
     },
     {
+      key: "death",
+      label: "登记死亡（可选）",
+      done: deathReported || deceasedDone,
+      active: false,
+      detail: deathReported
+        ? `${animal.deathAt?.slice(0, 16).replace("T", " ")} · 已终止`
+        : "若死亡：内页登记时间与原因后终止流程",
+    },
+    {
       key: "nas",
       label: "学生填写 NAS 路径",
-      done: studentDone,
-      active: open?.status === "tech_submitted",
+      done: studentDone || deceasedDone,
+      active: open?.status === "tech_submitted" && !deceasedDone,
       detail: open?.nasDataPath || latest?.nasDataPath,
     },
     {
       key: "ready",
-      label: "可参与后续实验",
-      done: enrolled && !locked && (ops.length === 0 || studentDone || latest?.status === "closed"),
-      active: enrolled && !locked && ops.some((o) => o.status === "closed"),
+      label: deceasedDone || deathReported ? "已因死亡终止" : "可参与后续实验",
+      done:
+        deceasedDone ||
+        (enrolled && !locked && (ops.length === 0 || studentDone || latest?.status === "closed")),
+      active: enrolled && !locked && !deceasedDone && ops.some((o) => o.status === "closed"),
     },
   ];
 }
@@ -176,6 +199,9 @@ export function AnimalLifecycleHub() {
   const [uploading, setUploading] = useState(false);
   const [nasPath, setNasPath] = useState("");
   const [forceReason, setForceReason] = useState("");
+  const [deathAt, setDeathAt] = useState(toDatetimeLocalValue());
+  const [deathMethod, setDeathMethod] = useState<DeathMethod>("found_dead");
+  const [deathReason, setDeathReason] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const role = user ? roleLabelV2(user.roles) : "student";
@@ -226,6 +252,40 @@ export function AnimalLifecycleHub() {
     } catch {
       setError("未找到该 Animal ID");
       setSelected(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reportDeath() {
+    if (!selected) return;
+    const reason = deathReason.trim();
+    if (!deathAt || !reason) {
+      setError("请填写死亡时间与原因");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/animal-lifecycle", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "report_death",
+          animalId: selected.id,
+          deathAt: new Date(deathAt).toISOString(),
+          deathMethod,
+          deathReason: reason,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "report_death_fail");
+      setDeathReason("");
+      await lookup(selected.id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "登记死亡失败");
     } finally {
       setBusy(false);
     }
@@ -488,6 +548,57 @@ export function AnimalLifecycleHub() {
               <h4 className="mb-3 text-sm font-semibold text-thu">操作流程图</h4>
               <FlowChart steps={buildFlow(selected, animalOps)} />
             </div>
+
+            {selected.deathAt ? (
+              <div className="mb-4 rounded-lg bg-rose-50/90 px-3 py-2 text-sm text-rose-900">
+                已登记死亡并终止流程：{selected.deathAt.slice(0, 16).replace("T", " ")} ·{" "}
+                {DEATH_METHOD_LABEL[selected.deathMethod as DeathMethod] || selected.deathMethod || "—"} ·{" "}
+                {selected.deathReason || "—"}
+                <a
+                  className="mt-1 block text-xs font-medium underline"
+                  href={`/animals/death?animalId=${encodeURIComponent(selected.id)}`}
+                >
+                  查看死亡详情
+                </a>
+              </div>
+            ) : selected.registrationStatus !== "deceased" ? (
+              <div className="mb-4 space-y-2 rounded-lg border border-rose-200/80 bg-rose-50/50 p-3">
+                <p className="text-xs font-semibold text-rose-900">
+                  若小鼠已死亡：填写时间与原因后终止实验，并通知对方「我已知晓」
+                </p>
+                <FluentInput
+                  label="死亡时间"
+                  type="datetime-local"
+                  value={deathAt}
+                  onChange={(e) => setDeathAt(e.target.value)}
+                />
+                <FluentSelect
+                  label="死亡方式"
+                  value={deathMethod}
+                  onChange={(e) => setDeathMethod(e.target.value as DeathMethod)}
+                >
+                  {DEATH_METHODS.map((dm) => (
+                    <option key={dm} value={dm}>
+                      {DEATH_METHOD_LABEL[dm]}
+                    </option>
+                  ))}
+                </FluentSelect>
+                <FluentInput
+                  label="死亡原因"
+                  value={deathReason}
+                  onChange={(e) => setDeathReason(e.target.value)}
+                  placeholder="例如：术后状态差 / 笼内发现死亡 / …"
+                />
+                <FluentButton
+                  variant="outline"
+                  className="!border-rose-300 !text-rose-800"
+                  disabled={busy || !deathReason.trim()}
+                  onClick={() => void reportDeath()}
+                >
+                  登记死亡并终止
+                </FluentButton>
+              </div>
+            ) : null}
 
             {isStudent && pendingClose && pendingClose.studentUserId === user.id ? (
               <div className="mb-4 space-y-2 rounded-lg bg-violet-50/80 p-3">

@@ -52,7 +52,14 @@ export function pushNotificationToUsers(
     message: string;
     messageEn: string;
     link?: string;
-    kind?: "info" | "booking_pending" | "booking_status" | "application_status" | "application_pending" | "experiment_operation";
+    kind?:
+      | "info"
+      | "booking_pending"
+      | "booking_status"
+      | "application_status"
+      | "application_pending"
+      | "animal_death"
+      | "experiment_operation";
     bookingId?: string;
     applicationId?: string;
     operationId?: string;

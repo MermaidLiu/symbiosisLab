@@ -1,0 +1,16 @@
+<view class="page">
+  <view class="card" wx:if="{{error}}">
+    <view class="err">{{error}}</view>
+  </view>
+  <view class="card" wx:elif="{{animal}}">
+    <view class="aid">{{animal.id}}</view>
+    <view class="row"><text class="k">死亡时间</text><text class="v">{{animal.deathAtText}}</text></view>
+    <view class="row"><text class="k">死亡方式</text><text class="v">{{animal.deathMethodLabel}}</text></view>
+    <view class="row"><text class="k">死亡原因</text><text class="v">{{animal.deathReason}}</text></view>
+    <view class="row" wx:if="{{animal.deathReportedByName}}">
+      <text class="k">登记人</text><text class="v">{{animal.deathReportedByName}}</text>
+    </view>
+    <view class="hint muted">实验流程已因死亡终止，无需再走 NAS 闭环。</view>
+  </view>
+  <view class="card" wx:elif="{{busy}}">加载中…</view>
+</view>

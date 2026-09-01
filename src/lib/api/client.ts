@@ -75,6 +75,8 @@ export const api = {
     department: string;
     employeeId: string;
     personType: string;
+    school?: string;
+    email?: string;
     contactExtra?: string;
     appliedRole: "student" | "technician" | "supervisor";
   }) =>
@@ -115,7 +117,16 @@ export const api = {
       body: JSON.stringify({ action: "logout" }),
     }),
 
-  updateProfile: (data: { nickname?: string }) =>
+  updateProfile: (data: {
+    nickname?: string;
+    name?: string;
+    email?: string;
+    school?: string;
+    department?: string;
+    employeeId?: string;
+    personType?: string;
+    contactExtra?: string;
+  }) =>
     request<{ user: PublicUser; warning?: string }>("/api/auth", {
       method: "POST",
       body: JSON.stringify({ action: "update_profile", ...data }),
@@ -209,7 +220,7 @@ export const api = {
 
   notifications: () => request<{ notifications: AppNotification[] }>("/api/notifications"),
 
-  handleNotification: (id: string, action: "open" | "approve" | "reject" | "read") =>
+  handleNotification: (id: string, action: "open" | "approve" | "reject" | "read" | "acknowledge") =>
     request<{ notifications: AppNotification[]; bookings?: Booking[] }>("/api/notifications", {
       method: "PATCH",
       body: JSON.stringify({ id, action }),

@@ -56,35 +56,50 @@ export function phoneToEmail(phone: string): string {
   return `${phone}@phone.symbiosis.local`;
 }
 
-/** 是否需要强制进入完善资料页（实名 / 学号等） */
+/** 手机号登录时的占位邮箱，需用户补填真实邮箱 */
+export function isPlaceholderEmail(email?: string | null): boolean {
+  return /@phone\.symbiosis\.local$/i.test(String(email ?? "").trim());
+}
+
+/** 是否需要强制进入完善资料页（实名 / 学号 / 学校 / 邮箱等） */
 export function needsProfileCompletion(user: {
   accountStatus?: AccountStatus | null;
   name?: string;
+  email?: string;
   employeeId?: string;
+  school?: string;
+  department?: string;
   phone?: string;
 }): boolean {
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
   if (st === "pending_review" || st === "disabled") return true;
-  // 有手机号但姓名为空 → 未完成实名
-  if (user.phone && !String(user.name ?? "").trim()) return true;
-  // 学号/工号缺失或占位
-  const emp = String(user.employeeId ?? "").trim();
-  if (user.phone && (!emp || emp.startsWith("LEGACY-"))) {
-    if (st !== "active") return true;
+  // 有手机号：须完成姓名、学号、学校、真实邮箱、实验室
+  if (user.phone) {
+    if (!String(user.name ?? "").trim()) return true;
+    const emp = String(user.employeeId ?? "").trim();
+    if (!emp || emp.startsWith("LEGACY-")) return true;
+    if (!String(user.school ?? "").trim()) return true;
+    if (!String(user.department ?? "").trim()) return true;
+    if (isPlaceholderEmail(user.email)) return true;
   }
   return false;
 }
 
-/** 仅「待填资料 / 被拒重填」时显示表单；审核中/停用只展示状态 */
+/** 待填资料 / 被拒重填 / 手机号资料不齐时显示表单 */
 export function canEditRealnameForm(user: {
   accountStatus?: AccountStatus | null;
   name?: string;
   phone?: string;
+  email?: string;
+  school?: string;
+  employeeId?: string;
+  department?: string;
 }): boolean {
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
-  if (user.phone && !String(user.name ?? "").trim()) return true;
+  if (st === "pending_review" || st === "disabled") return false;
+  if (user.phone && needsProfileCompletion({ ...user, accountStatus: "active" })) return true;
   return false;
 }
 

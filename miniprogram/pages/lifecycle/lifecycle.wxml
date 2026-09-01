@@ -58,8 +58,30 @@
       <view class="meta">认领：{{animal.claimantName || '—'}} · 技术员：{{animal.technicianName || '—'}}</view>
     </view>
 
+    <view class="card death" wx:if="{{animal.deathAt}}">
+      <view class="section">已登记死亡并终止</view>
+      <view class="meta">时间：{{animal.deathAtText}} · {{animal.deathMethodLabel}}</view>
+      <view class="meta">原因：{{animal.deathReason}}</view>
+    </view>
+
+    <view class="card death" wx:elif="{{canReportDeath}}">
+      <view class="section">若小鼠已死亡</view>
+      <view class="meta muted">填写时间与原因后终止实验，并通知对方「我已知晓」</view>
+      <picker mode="date" value="{{deathDate}}" bindchange="onDeathDate">
+        <view class="input">死亡日期：{{deathDate}}</view>
+      </picker>
+      <picker mode="time" value="{{deathTime}}" bindchange="onDeathTime">
+        <view class="input">死亡时间：{{deathTime}}</view>
+      </picker>
+      <picker range="{{deathMethods}}" range-key="l" value="{{deathMethodIndex}}" bindchange="onDeathMethod">
+        <view class="input">方式：{{deathMethods[deathMethodIndex].l}}</view>
+      </picker>
+      <input class="input" placeholder="死亡原因（必填）" value="{{deathReason}}" bindinput="onDeathReason" />
+      <button class="btn ghost block" loading="{{busy}}" bindtap="reportDeath">登记死亡并终止</button>
+    </view>
+
     <!-- 学生：待填 NAS -->
-    <view class="card" wx:if="{{isStudent && pendingOp}}">
+    <view class="card" wx:if="{{isStudent && pendingOp && !animal.deathAt}}">
       <view class="section">待闭环{{pendingOp.backfill ? ' · 补录' : ''}} · {{pendingOp.title}}</view>
       <view class="meta muted">技术员已提交拍照记录，请填写本地 NAS 文件夹路径</view>
       <input class="input" placeholder="\\\\NAS\\lab\\project\\..." value="{{nasPath}}" bindinput="onNasPath" />
@@ -67,7 +89,7 @@
     </view>
 
     <!-- 技术员：无进行中实验时可创建 -->
-    <view class="card" wx:if="{{isTech && animal.registrationStatus === 'awaiting_experiment' && !animal.animalLock && !openOp}}">
+    <view class="card" wx:if="{{isTech && animal.registrationStatus === 'awaiting_experiment' && !animal.animalLock && !openOp && !animal.deathAt}}">
       <view class="section">开始本次实验</view>
       <picker range="{{kinds}}" range-key="l" bindchange="onKindChange">
         <view class="input">类型：{{expTitle}}</view>
@@ -77,7 +99,7 @@
     </view>
 
     <!-- 技术员：上传照片并完成 -->
-    <view class="card" wx:if="{{isTech && openOp}}">
+    <view class="card" wx:if="{{isTech && openOp && !animal.deathAt}}">
       <view class="section">处理中 · {{openOp.title}}</view>
       <view class="meta muted">请上传结果照片（可多张），再提交给学生</view>
       <input class="input" placeholder="结果说明（可选）" value="{{resultNote}}" bindinput="onResultNote" />

@@ -20,6 +20,8 @@ interface AuthContextValue {
     department: string;
     employeeId: string;
     personType: string;
+    school?: string;
+    email?: string;
     contactExtra?: string;
     appliedRole: "student" | "technician" | "supervisor";
   }) => Promise<{ ok: boolean; error?: string }>;
@@ -117,6 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       department: string;
       employeeId: string;
       personType: string;
+      school?: string;
+      email?: string;
       contactExtra?: string;
       appliedRole: "student" | "technician" | "supervisor";
     }) => {

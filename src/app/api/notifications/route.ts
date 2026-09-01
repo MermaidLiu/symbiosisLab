@@ -77,7 +77,12 @@ export async function PATCH(req: NextRequest) {
       return {
         ...n,
         read: true,
-        handled: action === "approve" || action === "reject" ? true : n.handled,
+        handled:
+          action === "approve" ||
+          action === "reject" ||
+          action === "acknowledge"
+            ? true
+            : n.handled,
       };
     });
     // After approve/reject, clear pending actions for the same booking/application for everyone
@@ -96,6 +101,7 @@ export async function PATCH(req: NextRequest) {
     approve: "批准预约",
     reject: "拒绝预约",
     read: "标记已读",
+    acknowledge: "我已知晓",
   };
 
   await appendAuditLog({

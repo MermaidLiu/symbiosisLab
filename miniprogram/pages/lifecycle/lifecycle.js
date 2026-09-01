@@ -43,6 +43,16 @@ Page({
     isTech: false,
     pendingOp: null,
     openOp: null,
+    canReportDeath: false,
+    deathDate: "",
+    deathTime: "12:00",
+    deathReason: "",
+    deathMethodIndex: 2,
+    deathMethods: [
+      { v: "cervical", l: "断颈" },
+      { v: "perfusion", l: "灌流" },
+      { v: "found_dead", l: "发现死亡" },
+    ],
     kinds: [
       { v: "ephys", l: "电生理/采集" },
       { v: "behavior", l: "行为学" },
@@ -296,13 +306,25 @@ Page({
         ...o,
         statusText: OP_STATUS[o.status] || o.status,
       }));
+      const animal = this.enrichAnimal(data.animal);
+      const openOp = ops.find((o) => o.status === "open") || null;
+      const pendingOp = ops.find((o) => o.status === "tech_submitted") || null;
+      const canReportDeath =
+        Boolean(animal) &&
+        !animal.deathAt &&
+        animal.registrationStatus !== "deceased";
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
       this.setData({
-        animal: data.animal,
+        animal,
         operations: ops,
         traces: data.traces || [],
-        statusLabel: STATUS[data.animal.registrationStatus] || data.animal.registrationStatus || "",
-        pendingOp: ops.find((o) => o.status === "tech_submitted") || null,
-        openOp: ops.find((o) => o.status === "open") || null,
+        statusLabel: STATUS[animal.registrationStatus] || animal.registrationStatus || "",
+        pendingOp,
+        openOp,
+        canReportDeath,
+        deathDate: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+        deathTime: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
         scanId: foundId,
         photoUrls: [],
         tip: expected ? `已核验通过：${foundId}` : "",
@@ -410,6 +432,60 @@ Page({
         fail: reject,
       });
     });
+  },
+
+  enrichAnimal(animal) {
+    if (!animal) return null;
+    const methodMap = { cervical: "断颈", perfusion: "灌流", found_dead: "发现死亡" };
+    return {
+      ...animal,
+      deathAtText: animal.deathAt
+        ? String(animal.deathAt).slice(0, 16).replace("T", " ")
+        : "",
+      deathMethodLabel: methodMap[animal.deathMethod] || animal.deathMethod || "—",
+    };
+  },
+
+  onDeathDate(e) {
+    this.setData({ deathDate: e.detail.value });
+  },
+  onDeathTime(e) {
+    this.setData({ deathTime: e.detail.value });
+  },
+  onDeathMethod(e) {
+    this.setData({ deathMethodIndex: Number(e.detail.value) || 0 });
+  },
+  onDeathReason(e) {
+    this.setData({ deathReason: e.detail.value });
+  },
+
+  async reportDeath() {
+    if (!(await promptLogin("登录后可登记死亡。"))) return;
+    const animal = this.data.animal;
+    if (!animal) return;
+    const reason = (this.data.deathReason || "").trim();
+    if (!reason) {
+      wx.showToast({ title: "请填写死亡原因", icon: "none" });
+      return;
+    }
+    const deathAt = new Date(`${this.data.deathDate}T${this.data.deathTime}:00`).toISOString();
+    const method = this.data.deathMethods[this.data.deathMethodIndex] || this.data.deathMethods[2];
+    this.setData({ busy: true });
+    try {
+      await api.lifecycleAction("report_death", {
+        animalId: animal.id,
+        deathAt,
+        deathMethod: method.v,
+        deathReason: reason,
+      });
+      this.setData({ deathReason: "" });
+      await this.lookup(animal.id);
+      wx.showToast({ title: "已登记死亡", icon: "success" });
+    } catch (e) {
+      wx.showToast({ title: (e && e.code) || "登记失败", icon: "none" });
+    } finally {
+      this.setData({ busy: false });
+    }
   },
 
   async createOp() {

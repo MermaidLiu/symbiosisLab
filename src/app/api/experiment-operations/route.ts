@@ -5,6 +5,7 @@ import {
   appendLifecycleTrace,
   assertCanCreateOperation,
   findAnimal,
+  finalizeRegistrationAfterClose,
   OPERATION_STATUS_LABELS,
   setRegistrationStatus,
 } from "@/server/animal-lifecycle";
@@ -232,14 +233,16 @@ export async function PATCH(req: NextRequest) {
         op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
       }
       animal.lastOpBackfill = op.backfill;
-      setRegistrationStatus(animal, "awaiting_experiment");
+      finalizeRegistrationAfterClose(animal);
       appendLifecycleTrace(s, {
         animalId: op.animalId,
         timestamp: now,
         action: "student_close",
         userId: user.id,
         userName: user.name,
-        details: `${op.backfill ? "【补录】" : ""}学生完成闭环，NAS：${nas}`,
+        details: `${op.backfill ? "【补录】" : ""}${
+          animal.deathAt ? "【死亡登记后】" : ""
+        }学生完成闭环，NAS：${nas}`,
         operationId: op.id,
       });
     } else if (action === "force_close") {
@@ -255,7 +258,7 @@ export async function PATCH(req: NextRequest) {
         op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
       }
       animal.lastOpBackfill = op.backfill;
-      setRegistrationStatus(animal, "awaiting_experiment");
+      finalizeRegistrationAfterClose(animal);
       appendLifecycleTrace(s, {
         animalId: op.animalId,
         timestamp: now,

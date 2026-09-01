@@ -24,6 +24,21 @@
     <view class="title">{{item.title}}</view>
     <view class="msg">{{item.message}}</view>
     <view class="muted time">{{item.timeText}}</view>
+    <button
+      wx:if="{{item.kind === 'animal_death' && !item.handled}}"
+      size="mini"
+      class="ack-btn"
+      data-id="{{item.id}}"
+      data-animal="{{item.animalId}}"
+      catchtap="acknowledgeDeath"
+    >我已知晓</button>
+    <button
+      wx:elif="{{item.kind === 'animal_death' && item.handled}}"
+      size="mini"
+      class="btn-ghost"
+      data-animal="{{item.animalId}}"
+      catchtap="openDeath"
+    >查看死亡详情</button>
   </view>
   </block>
 </view>

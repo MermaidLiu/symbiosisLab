@@ -148,8 +148,25 @@ const api = {
       data: { action: "submit_realname", ...payload },
     });
   },
+  updateProfile(payload) {
+    return request("/api/auth", {
+      method: "POST",
+      data: { action: "update_profile", ...payload },
+    });
+  },
   me() {
     return request("/api/auth");
+  },
+  users() {
+    return request("/api/users");
+  },
+  createAnimalOpTask(payload) {
+    return request("/api/animal-op-tasks", { method: "POST", data: payload });
+  },
+  deleteManagedAnimal(id) {
+    return request(`/api/managed-animals?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   },
   logout() {
     return request("/api/auth", { method: "POST", data: { action: "logout" }, silent: true });
