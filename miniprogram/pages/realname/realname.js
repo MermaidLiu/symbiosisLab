@@ -3,6 +3,7 @@ const { requireLogin, getUser, setSession, getToken, clearSession } = require(".
 
 function needsProfile(user) {
   if (!user) return true;
+  if (Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0) return false;
   const st = user.accountStatus || "active";
   if (st === "pending_profile" || st === "rejected") return true;
   if (st === "pending_review" || st === "disabled") return true;
@@ -57,7 +58,10 @@ Page({
       active: "已激活",
     };
     const incomplete = needsProfile(user);
-    if (st === "active" && !incomplete) {
+    if (
+      (Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0) ||
+      (st === "active" && !incomplete)
+    ) {
       wx.switchTab({ url: "/pages/home/home" });
       return;
     }

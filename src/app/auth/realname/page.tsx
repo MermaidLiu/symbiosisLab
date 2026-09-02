@@ -30,7 +30,7 @@ export default function RealnamePage() {
       return;
     }
     const st = user.accountStatus ?? "active";
-    if (st === "active" && !needsProfileCompletion(user)) {
+    if (user.roles?.includes("super_admin") || (st === "active" && !needsProfileCompletion(user))) {
       router.replace("/");
       return;
     }

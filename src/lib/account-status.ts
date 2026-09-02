@@ -9,7 +9,12 @@ export const ACCOUNT_STATUS_LABELS: Record<AccountStatus, string> = {
   disabled: "已停用",
 };
 
-type AccountUser = Pick<User, "accountStatus" | "rejectReason">;
+type AccountUser = Pick<User, "accountStatus" | "rejectReason" | "roles">;
+
+/** 系统管理员不走实名认证 / 人员审核流程 */
+export function isExemptFromRealname(user: { roles?: Role[] | null }): boolean {
+  return Array.isArray(user.roles) && user.roles.includes("super_admin");
+}
 
 export function normalizeAccountStatus(user: AccountUser): AccountStatus {
   return user.accountStatus ?? "active";
@@ -17,10 +22,12 @@ export function normalizeAccountStatus(user: AccountUser): AccountStatus {
 
 /** 可登录查看，但不可做动物/实验业务 */
 export function canUseBusinessFeatures(user: AccountUser): boolean {
+  if (isExemptFromRealname(user)) return true;
   return normalizeAccountStatus(user) === "active";
 }
 
 export function isPendingMessage(user: AccountUser): string {
+  if (isExemptFromRealname(user)) return "";
   const st = normalizeAccountStatus(user);
   if (st === "pending_profile") {
     return "请先完成实名认证与人员信息登记。";
@@ -70,7 +77,9 @@ export function needsProfileCompletion(user: {
   school?: string;
   department?: string;
   phone?: string;
+  roles?: Role[] | null;
 }): boolean {
+  if (isExemptFromRealname(user)) return false;
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
   if (st === "pending_review" || st === "disabled") return true;
@@ -95,11 +104,12 @@ export function canEditRealnameForm(user: {
   school?: string;
   employeeId?: string;
   department?: string;
+  roles?: Role[] | null;
 }): boolean {
+  if (isExemptFromRealname(user)) return false;
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
   if (st === "pending_review" || st === "disabled") return false;
   if (user.phone && needsProfileCompletion({ ...user, accountStatus: "active" })) return true;
   return false;
 }
-

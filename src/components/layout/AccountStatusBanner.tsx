@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { isPendingMessage, normalizeAccountStatus } from "@/lib/account-status";
+import { isExemptFromRealname, isPendingMessage, normalizeAccountStatus } from "@/lib/account-status";
 
 /** 非 active 用户顶部提示条 */
 export function AccountStatusBanner() {
   const { user } = useAuth();
   if (!user) return null;
+  if (isExemptFromRealname(user)) return null;
   const st = normalizeAccountStatus(user);
   if (st === "active") return null;
   const msg = isPendingMessage(user);

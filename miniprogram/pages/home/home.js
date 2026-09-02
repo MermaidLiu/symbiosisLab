@@ -43,7 +43,9 @@ Page({
     if (!loggedIn) return;
 
     const user = getUser();
-    if (user && user.phone) {
+    const isSuperAdmin =
+      user && Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0;
+    if (user && user.phone && !isSuperAdmin) {
       const st = user.accountStatus || "active";
       const emp = (user.employeeId || "").trim();
       const incomplete =

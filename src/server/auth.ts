@@ -79,11 +79,14 @@ export async function requireUser(): Promise<{ user: User } | { error: NextRespo
   return { user };
 }
 
-/** 业务接口：必须已实名审核通过 */
+/** 业务接口：必须已实名审核通过（系统管理员豁免） */
 export async function requireActiveUser(): Promise<{ user: User } | { error: NextResponse }> {
   const user = await getCurrentUser();
   if (!user) {
     return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  }
+  if (user.roles.includes("super_admin")) {
+    return { user };
   }
   const status = user.accountStatus ?? "active";
   if (status !== "active") {

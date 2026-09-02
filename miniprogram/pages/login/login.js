@@ -4,6 +4,8 @@ const { API_BASE, isInsecureApiBase } = require("../../utils/config");
 
 function needsRealname(user) {
   if (!user) return true;
+  // 系统管理员无需实名认证
+  if (Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0) return false;
   const st = user.accountStatus || "active";
   if (st === "pending_profile" || st === "rejected" || st === "pending_review" || st === "disabled") {
     return true;
