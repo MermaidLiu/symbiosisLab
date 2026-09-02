@@ -66,6 +66,7 @@ export default function ProfilePage() {
         invalid_email: "请填写有效邮箱",
         employee_id_exists: "学号/工号已被占用",
         email_exists: "邮箱已被占用",
+        roster_mismatch: "姓名与手机号须与课题组名单一致，请联系系统管理员核对后修改",
       };
       setErr(map[code] || code || "保存失败");
     } finally {

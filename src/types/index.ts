@@ -21,6 +21,25 @@ export type AccountStatus =
 /** 用户首次登记时可申请的业务角色（最终由主管审核） */
 export type AppliedBusinessRole = "student" | "technician" | "supervisor";
 
+/**
+ * 系统管理员录入的课题组实际名单。
+ * 学生/技术员实名认证时，姓名+手机号须与名单一致方可使用系统。
+ */
+export interface ResearchGroupRosterEntry {
+  id: string;
+  /** 真实姓名（与实名认证一致） */
+  name: string;
+  /** 中国大陆手机号 11 位 */
+  phone: string;
+  /** 可选：课题组 / 分组备注 */
+  groupName?: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdByUserId?: string;
+  createdByName?: string;
+}
+
 export type ResourceStatus = "available" | "maintenance" | "retired" | "in_use" | "quarantine";
 
 export type BookingStatus = "pending" | "approved" | "rejected" | "cancelled" | "completed";

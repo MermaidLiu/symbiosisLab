@@ -18,7 +18,9 @@ import {
   RaWorkItem,
   RaTopicKeyword,
   RaTopicItem,
+  ResearchGroupRosterEntry,
 } from "@/types";
+import { normalizeRosterPhone } from "@/lib/research-group-roster";
 import { buildDefaultTopicKeywords } from "@/server/ra-topic-seed";
 import {
   ManagedAnimal,
@@ -99,6 +101,8 @@ export interface DbStore {
   retiredAnimalIds: string[];
   /** 短信验证码（短时） */
   smsCodes: SmsCodeRecord[];
+  /** 系统管理员录入的课题组实际名单（姓名+手机号） */
+  researchGroupRoster: ResearchGroupRosterEntry[];
   /** Instrument training applications */
   instrumentTrainingRequests: InstrumentTrainingRequest[];
   /** Instrument repair tickets */
@@ -144,9 +148,37 @@ function emptyStore(): DbStore {
     animalLifecycleTraces: [],
     retiredAnimalIds: [],
     smsCodes: [],
+    researchGroupRoster: [],
     instrumentTrainingRequests: [],
     instrumentRepairTickets: [],
   };
+}
+
+/** 演示环境：把种子学生/技术员写入名单，便于联调 */
+function buildSeedResearchGroupRoster(): ResearchGroupRosterEntry[] {
+  const now = new Date().toISOString();
+  const seen = new Set<string>();
+  const out: ResearchGroupRosterEntry[] = [];
+  for (const u of SEED_USERS) {
+    // 总管理员、主管不强制进名单；其余有手机号的演示账号写入，方便学生/技术员联调
+    if (u.roles.includes("super_admin") || u.roles.includes("animal_facility_supervisor")) {
+      continue;
+    }
+    const phone = normalizeRosterPhone(u.phone ?? "");
+    if (!phone || !u.name || seen.has(phone)) continue;
+    seen.add(phone);
+    out.push({
+      id: uid("roster"),
+      name: u.name,
+      phone,
+      groupName: u.department,
+      note: "演示种子名单",
+      createdAt: now,
+      updatedAt: now,
+      createdByName: "system",
+    });
+  }
+  return out;
 }
 
 const DEFAULT_RA_PROJECTS: RaProject[] = [
@@ -192,6 +224,7 @@ function seedStore(): DbStore {
     animalLifecycleTraces: [],
     retiredAnimalIds: [],
     smsCodes: [],
+    researchGroupRoster: buildSeedResearchGroupRoster(),
     instrumentTrainingRequests: [],
     instrumentRepairTickets: [],
   };
@@ -305,6 +338,10 @@ function readFromDisk(): DbStore {
     }
     if (!Array.isArray(parsed.smsCodes)) {
       parsed.smsCodes = [];
+      dirty = true;
+    }
+    if (!Array.isArray(parsed.researchGroupRoster)) {
+      parsed.researchGroupRoster = [];
       dirty = true;
     }
     for (const u of parsed.users ?? []) {
@@ -505,6 +542,10 @@ export function getStore(): DbStore {
     }
     if (!Array.isArray(globalThis.__symbiosisDb.smsCodes)) {
       globalThis.__symbiosisDb.smsCodes = [];
+    }
+    if (!Array.isArray(globalThis.__symbiosisDb.researchGroupRoster)) {
+      globalThis.__symbiosisDb.researchGroupRoster = [];
+      writeToDisk(globalThis.__symbiosisDb);
     }
     for (const u of globalThis.__symbiosisDb.users ?? []) {
       if (!u.accountStatus) u.accountStatus = "active";

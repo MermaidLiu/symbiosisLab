@@ -48,8 +48,13 @@ export default function StaffReviewPage() {
         reason: action === "reject" ? rejectReason[userId] : undefined,
       });
       setPending(data.pending ?? []);
-    } catch {
-      setError("操作失败");
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      setError(
+        code === "roster_mismatch"
+          ? "无法通过：该人员姓名+手机号不在课题组名单中，请先让系统管理员录入名单"
+          : "操作失败"
+      );
     } finally {
       setBusyId("");
     }
@@ -57,7 +62,10 @@ export default function StaffReviewPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <PageHeader title="待审核人员" subtitle="实名建档审核 · 通过后授予申请角色" />
+      <PageHeader
+        title="待审核人员"
+        subtitle="实名建档审核 · 学生/技术员须已在课题组名单中方可审核通过"
+      />
       <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-24 md:p-6">
         {error ? <p className="mb-3 text-sm text-rose-600">{error}</p> : null}
         {!pending.length ? (

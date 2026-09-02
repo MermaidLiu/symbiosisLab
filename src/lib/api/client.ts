@@ -134,6 +134,43 @@ export const api = {
 
   users: () => request<{ users: PublicUser[] }>("/api/users"),
 
+  researchGroupRoster: () =>
+    request<{ roster: import("@/types").ResearchGroupRosterEntry[] }>("/api/research-group-roster"),
+
+  upsertResearchGroupRoster: (data: {
+    id?: string;
+    name: string;
+    phone: string;
+    groupName?: string;
+    note?: string;
+  }) =>
+    request<{
+      entry: import("@/types").ResearchGroupRosterEntry;
+      roster: import("@/types").ResearchGroupRosterEntry[];
+    }>("/api/research-group-roster", {
+      method: "POST",
+      body: JSON.stringify({ action: "upsert", ...data }),
+    }),
+
+  deleteResearchGroupRoster: (id: string) =>
+    request<{ roster: import("@/types").ResearchGroupRosterEntry[] }>("/api/research-group-roster", {
+      method: "POST",
+      body: JSON.stringify({ action: "delete", id }),
+    }),
+
+  bulkUpsertResearchGroupRoster: (
+    entries: { name: string; phone: string; groupName?: string; note?: string }[]
+  ) =>
+    request<{
+      roster: import("@/types").ResearchGroupRosterEntry[];
+      added: number;
+      updated: number;
+      skipped: number;
+    }>("/api/research-group-roster", {
+      method: "POST",
+      body: JSON.stringify({ action: "bulk_upsert", entries }),
+    }),
+
   updateUserRoles: (userId: string, roles: Role[]) =>
     request<{ users: PublicUser[] }>("/api/users", {
       method: "PATCH",

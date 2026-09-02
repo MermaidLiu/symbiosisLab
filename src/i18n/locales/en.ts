@@ -57,6 +57,7 @@ const en = {
     notifications: "Notifications",
     logs: "Audit Logs",
     adminUsers: "User Management",
+    adminRoster: "Group Roster",
     logout: "Log out",
   },
   profile: {
@@ -112,6 +113,8 @@ const en = {
       employee_id_exists: "Employee/student ID already used",
       phone_exists: "Phone already registered",
       email_exists: "Email already registered",
+      roster_mismatch:
+        "Your name and phone are not on the research group roster. Ask a system admin to add you before continuing.",
       cannot_self_admin: "Cannot self-register as super admin",
       register_disabled: "Self-registration is disabled",
       register_failed: "Registration failed",
@@ -386,6 +389,8 @@ const en = {
     createAccount: "Create account",
     createSuccess: "Account created",
     createFailed: "Failed to create account",
+    rosterTitle: "Research group roster",
+    rosterSubtitle: "Enter name + phone; students/technicians must match on real-name auth",
   },
   form: {
     nameZh: "Name (Chinese)",

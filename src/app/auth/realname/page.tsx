@@ -75,6 +75,7 @@ export default function RealnamePage() {
       const map: Record<string, string> = {
         employee_id_exists: "该工号/学号已被占用",
         email_exists: "该邮箱已被占用",
+        roster_mismatch: "姓名与手机号不在课题组名单中，无法使用本系统。请联系系统管理员将您录入名单后再认证。",
         invalid_email: "请填写有效邮箱",
         invalid_body: "请完整填写必填项",
         invalid_applied_role: "申请角色无效",
@@ -94,7 +95,7 @@ export default function RealnamePage() {
       <div className="w-full max-w-lg rounded-xl border border-lab-border bg-white p-8 shadow-card">
         <h1 className="text-xl font-bold text-thu">完善个人资料</h1>
         <p className="mt-2 text-sm text-lab-muted">
-          首次登录须完善实名信息（姓名、邮箱、学号、学校等）。信息可在「个人信息」中修改，但不可删除清空。
+          首次登录须完善实名信息。申请「学生」或「技术员」时，姓名与手机号须与系统管理员录入的课题组名单一致，否则无法使用本系统。
         </p>
 
         {(st === "pending_review" || submittedOk) && (

@@ -87,6 +87,7 @@ Page({
         invalid_email: "邮箱无效",
         employee_id_exists: "学号已被占用",
         email_exists: "邮箱已被占用",
+        roster_mismatch: "姓名与手机号须与课题组名单一致",
       };
       wx.showModal({
         title: "保存失败",

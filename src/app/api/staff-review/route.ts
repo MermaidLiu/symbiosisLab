@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
     actorId: me.id,
     actorName: me.name,
   });
-  if (!result.ok) return jsonError(result.error, 404);
+  if (!result.ok) {
+    const status = result.error === "roster_mismatch" ? 400 : 404;
+    return jsonError(result.error, status);
+  }
 
   return jsonOk({
     user: result.user,

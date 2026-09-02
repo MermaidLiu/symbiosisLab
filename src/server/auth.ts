@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from "@/server/crypto";
 import { isPlaceholderEmail, phoneToEmail, rolesForAppliedRole } from "@/lib/account-status";
 import { displayName, normalizeNickname } from "@/lib/users";
 import { isValidCnMobile, normalizePhone, verifySmsCode } from "@/server/sms";
+import { isOnRoster, requiresRosterMatch } from "@/lib/research-group-roster";
 
 export const SESSION_COOKIE = "symbiosis_session";
 const SESSION_DAYS = 7;
@@ -221,6 +222,13 @@ export async function submitRealNameProfile(
   if (!me) return { ok: false as const, error: "not_found" };
   if (!me.phone) return { ok: false as const, error: "no_phone" };
 
+  // 学生/技术员：姓名+手机号必须与管理员录入的课题组名单一致
+  if (requiresRosterMatch(appliedRole)) {
+    if (!isOnRoster(store.researchGroupRoster, name, me.phone)) {
+      return { ok: false as const, error: "roster_mismatch" };
+    }
+  }
+
   const dupEmp = store.users.some(
     (u) => u.id !== userId && u.employeeId && u.employeeId.toLowerCase() === employeeId.toLowerCase()
   );
@@ -328,6 +336,19 @@ export async function updateIdentityProfile(
       return { ok: false as const, error: "invalid_email" };
     }
 
+    const applied = (me.appliedRole ?? "student") as AppliedBusinessRole;
+    const isTechByRole =
+      me.roles.includes("animal_manager") &&
+      !me.roles.includes("animal_facility_supervisor") &&
+      !me.roles.includes("super_admin");
+    if (
+      me.phone &&
+      (requiresRosterMatch(applied) || isTechByRole) &&
+      !isOnRoster(store.researchGroupRoster, name, me.phone)
+    ) {
+      return { ok: false as const, error: "roster_mismatch" };
+    }
+
     const dupEmp = store.users.some(
       (u) =>
         u.id !== userId && u.employeeId && u.employeeId.toLowerCase() === employeeId.toLowerCase()
@@ -388,6 +409,7 @@ export async function reviewStaffAccount(input: {
   actorName: string;
 }) {
   let updated: User | null = null;
+  let failReason: string | null = null;
   const now = new Date().toISOString();
 
   await mutateStore((s) => {
@@ -396,6 +418,12 @@ export async function reviewStaffAccount(input: {
 
     if (input.action === "approve") {
       const applied = u.appliedRole ?? "student";
+      if (requiresRosterMatch(applied)) {
+        if (!u.phone || !isOnRoster(s.researchGroupRoster, u.name, u.phone)) {
+          failReason = "roster_mismatch";
+          return;
+        }
+      }
       u.roles = rolesForAppliedRole(applied);
       u.accountStatus = "active";
       u.approvedAt = now;
@@ -426,6 +454,7 @@ export async function reviewStaffAccount(input: {
     s.logs = s.logs.slice(0, 500);
   });
 
+  if (failReason) return { ok: false as const, error: failReason };
   if (!updated) return { ok: false as const, error: "not_found" };
   return { ok: true as const, user: publicUser(updated as User) };
 }

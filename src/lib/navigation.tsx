@@ -113,6 +113,7 @@ export const NAV_ENTRIES: NavEntry[] = [
     show: (roles) => canViewAllLogs(roles) || canManageInstruments(roles) || canManageAnimals(roles),
   },
   { type: "link", href: "/admin/users", labelKey: "adminUsers", icon: "users", show: canManageUsers },
+  { type: "link", href: "/admin/roster", labelKey: "adminRoster", icon: "users", show: canManageUsers },
 ];
 
 export function NavIcon({ name, className }: { name: string; className?: string }) {

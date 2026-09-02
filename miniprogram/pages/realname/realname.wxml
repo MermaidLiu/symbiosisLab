@@ -1,7 +1,7 @@
 <view class="wrap">
   <view class="card">
     <view class="title">完善个人资料</view>
-    <view class="sub">首次登录须填写姓名、邮箱、学号、学校等；之后可在个人信息中修改，不可删除清空</view>
+    <view class="sub">申请「学生」或「技术员」时，姓名与手机号须与管理员录入的课题组名单一致，否则无法使用系统</view>
     <view class="status">{{statusText}}</view>
     <view wx:if="{{rejectReason}}" class="err">原因：{{rejectReason}}</view>
   </view>

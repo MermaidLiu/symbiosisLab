@@ -56,6 +56,7 @@ const zh = {
     notifications: "通知中心",
     logs: "操作日志",
     adminUsers: "用户管理",
+    adminRoster: "课题组名单",
     logout: "退出登录",
   },
   profile: {
@@ -81,7 +82,7 @@ const zh = {
     smsSent: "验证码已发送",
     mockSmsHint: "演示验证码",
     phoneLoginTitle: "手机号登录",
-    phoneLoginHint: "实名制：手机号验证后绑定实验室真实身份",
+    phoneLoginHint: "实名制：手机号登录后完善资料；学生/技术员须与管理员录入的课题组名单一致",
     showPasswordLogin: "管理员 / 演示账号（邮箱密码）",
     hidePasswordLogin: "收起邮箱密码登录",
     passwordLogin: "邮箱密码登录",
@@ -110,6 +111,8 @@ const zh = {
       employee_id_exists: "工号/学号已被占用",
       phone_exists: "手机号已被占用",
       email_exists: "该邮箱已注册",
+      roster_mismatch:
+        "姓名与手机号不在课题组名单中，无法使用本系统。请联系系统管理员将您录入名单后再认证。",
       cannot_self_admin: "不能自行注册为总管理员",
       register_disabled: "已关闭自行注册，请联系管理员",
       register_failed: "注册失败",
@@ -383,6 +386,8 @@ const zh = {
     createAccount: "开通账号",
     createSuccess: "账号已开通",
     createFailed: "开通失败，请重试",
+    rosterTitle: "课题组名单",
+    rosterSubtitle: "录入姓名与手机号；学生/技术员实名认证须与名单一致",
   },
   form: {
     nameZh: "中文名称",

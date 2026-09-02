@@ -129,9 +129,17 @@ Page({
       }
       this.onShow();
     } catch (e) {
+      const code = e.code || "";
+      const map = {
+        roster_mismatch: "姓名与手机号不在课题组名单中，无法使用系统。请联系系统管理员录入后再认证。",
+        employee_id_exists: "该工号/学号已被占用",
+        email_exists: "该邮箱已被占用",
+        invalid_email: "请填写有效邮箱",
+        invalid_body: "请完整填写必填项",
+      };
       wx.showModal({
         title: "提交失败",
-        content: e.code || "请检查必填项",
+        content: map[code] || code || "请检查必填项",
         showCancel: false,
       });
     } finally {
