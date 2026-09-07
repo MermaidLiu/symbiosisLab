@@ -68,6 +68,17 @@ export function isPlaceholderEmail(email?: string | null): boolean {
   return /@phone\.symbiosis\.local$/i.test(String(email ?? "").trim());
 }
 
+/** 手机号是否为登录凭证（不可改） */
+export function isPhoneLocked(user: {
+  phoneLocked?: boolean | null;
+  email?: string | null;
+}): boolean {
+  if (user.phoneLocked === true) return true;
+  if (user.phoneLocked === false) return false;
+  // 兼容旧数据：仍为占位邮箱的手机号账号视为锁定
+  return isPlaceholderEmail(user.email);
+}
+
 /** 是否需要强制进入完善资料页（实名 / 学号 / 学校 / 邮箱等） */
 export function needsProfileCompletion(user: {
   accountStatus?: AccountStatus | null;

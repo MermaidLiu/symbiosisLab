@@ -54,6 +54,11 @@ export interface User {
   roles: Role[];
   /** 登录唯一凭证：中国大陆手机号 11 位 */
   phone?: string;
+  /**
+   * 手机号登录注册的账号：手机号为登录凭证，不可自行修改。
+   * 邮箱密码账号为 false/undefined，可在个人信息中修改手机号。
+   */
+  phoneLocked?: boolean;
   department?: string;
   /** 工号 / 学号（全库唯一） */
   employeeId?: string;

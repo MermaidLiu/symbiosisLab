@@ -154,6 +154,12 @@ const api = {
       data: { action: "update_profile", ...payload },
     });
   },
+  changePassword(currentPassword, newPassword) {
+    return request("/api/auth", {
+      method: "POST",
+      data: { action: "change_password", currentPassword, newPassword },
+    });
+  },
   me() {
     return request("/api/auth");
   },

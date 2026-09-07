@@ -33,6 +33,11 @@
   color: #b91c1c;
   font-size: 24rpx;
 }
+.ok {
+  margin-top: 8rpx;
+  color: #047857;
+  font-size: 24rpx;
+}
 .input {
   background: #f7f2ff;
   border-radius: 16rpx;

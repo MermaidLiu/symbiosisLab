@@ -6,13 +6,14 @@ import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { AppliedBusinessRole } from "@/types";
-import { canEditRealnameForm, isPlaceholderEmail, needsProfileCompletion } from "@/lib/account-status";
+import { canEditRealnameForm, isPhoneLocked, isPlaceholderEmail, needsProfileCompletion } from "@/lib/account-status";
 
 export default function RealnamePage() {
   const { user, loading, submitRealname, logout } = useAuth();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [school, setSchool] = useState("");
   const [department, setDepartment] = useState("");
   const [employeeId, setEmployeeId] = useState("");
@@ -36,6 +37,7 @@ export default function RealnamePage() {
     }
     if (user.name) setName(user.name);
     if (user.email && !isPlaceholderEmail(user.email)) setEmail(user.email);
+    setPhone(user.phone || "");
     if (user.school) setSchool(user.school);
     if (user.department) setDepartment(user.department);
     if (user.employeeId && !user.employeeId.startsWith("LEGACY-")) {
@@ -55,6 +57,7 @@ export default function RealnamePage() {
   const st = user.accountStatus ?? "active";
   const showForm = canEditRealnameForm(user) && !submittedOk;
   const alreadyActive = st === "active";
+  const phoneEditable = !isPhoneLocked(user);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,6 +72,7 @@ export default function RealnamePage() {
       personType,
       contactExtra,
       appliedRole,
+      ...(phoneEditable ? { phone } : {}),
     });
     setSaving(false);
     if (!res.ok) {
@@ -77,6 +81,10 @@ export default function RealnamePage() {
         email_exists: "该邮箱已被占用",
         roster_mismatch: "姓名与手机号不在课题组名单中，无法使用本系统。请联系系统管理员将您录入名单后再认证。",
         invalid_email: "请填写有效邮箱",
+        invalid_phone: "请填写有效的 11 位手机号",
+        phone_exists: "该手机号已被其他账号占用",
+        phone_locked: "手机号登录账号不可修改手机号",
+        no_phone: "请填写手机号",
         invalid_body: "请完整填写必填项",
         invalid_applied_role: "申请角色无效",
       };
@@ -117,7 +125,14 @@ export default function RealnamePage() {
         {showForm && (
           <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-3">
             <Input label="姓名 *" value={name} onChange={(e) => setName(e.target.value)} required />
-            <Input label="手机号（已验证，不可改）" value={user.phone ?? ""} disabled />
+            <Input
+              label={phoneEditable ? "手机号 *" : "手机号（登录凭证，不可改）"}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              disabled={!phoneEditable}
+              required={phoneEditable}
+              placeholder={phoneEditable ? "11 位手机号" : undefined}
+            />
             <Input
               label="邮箱 *"
               type="email"

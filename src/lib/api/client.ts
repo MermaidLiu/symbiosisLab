@@ -78,6 +78,7 @@ export const api = {
     school?: string;
     email?: string;
     contactExtra?: string;
+    phone?: string;
     appliedRole: "student" | "technician" | "supervisor";
   }) =>
     request<{ user: PublicUser }>("/api/auth", {
@@ -126,10 +127,17 @@ export const api = {
     employeeId?: string;
     personType?: string;
     contactExtra?: string;
+    phone?: string;
   }) =>
     request<{ user: PublicUser; warning?: string }>("/api/auth", {
       method: "POST",
       body: JSON.stringify({ action: "update_profile", ...data }),
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>("/api/auth", {
+      method: "POST",
+      body: JSON.stringify({ action: "change_password", currentPassword, newPassword }),
     }),
 
   users: () => request<{ users: PublicUser[] }>("/api/users"),
@@ -174,7 +182,29 @@ export const api = {
   updateUserRoles: (userId: string, roles: Role[]) =>
     request<{ users: PublicUser[] }>("/api/users", {
       method: "PATCH",
-      body: JSON.stringify({ userId, roles }),
+      body: JSON.stringify({ action: "roles", userId, roles }),
+    }),
+
+  updateUser: (data: {
+    userId: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    department?: string;
+    employeeId?: string;
+    password?: string;
+    roles?: Role[];
+    accountStatus?: string;
+  }) =>
+    request<{ user: PublicUser; users: PublicUser[] }>("/api/users", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "update", ...data }),
+    }),
+
+  deleteUser: (userId: string) =>
+    request<{ users: PublicUser[] }>("/api/users", {
+      method: "DELETE",
+      body: JSON.stringify({ userId }),
     }),
 
   instruments: () => request<{ instruments: Instrument[] }>("/api/instruments"),

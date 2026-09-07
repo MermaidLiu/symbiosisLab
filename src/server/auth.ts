@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AccountStatus, AppliedBusinessRole, Role, User } from "@/types";
 import { getStore, mutateStore, publicUser, SessionRecord, uid } from "@/server/store";
 import { hashPassword, verifyPassword } from "@/server/crypto";
-import { isPlaceholderEmail, phoneToEmail, rolesForAppliedRole } from "@/lib/account-status";
+import { isPlaceholderEmail, isPhoneLocked, phoneToEmail, rolesForAppliedRole } from "@/lib/account-status";
 import { displayName, normalizeNickname } from "@/lib/users";
 import { isValidCnMobile, normalizePhone, verifySmsCode } from "@/server/sms";
 import { isOnRoster, requiresRosterMatch } from "@/lib/research-group-roster";
@@ -171,6 +171,7 @@ export async function loginWithPhone(phoneRaw: string, code: string) {
       password: hashPassword(uid("pwd")),
       roles: ["user"],
       phone,
+      phoneLocked: true,
       accountStatus: "pending_profile",
       createdAt: now,
     };
@@ -184,6 +185,15 @@ export async function loginWithPhone(phoneRaw: string, code: string) {
 
   if ((user.accountStatus ?? "active") === "disabled") {
     return { ok: false as const, error: "account_disabled" };
+  }
+
+  // 通过手机号验证码登录：手机号即登录凭证，不可再自行修改
+  if (user.phoneLocked !== true) {
+    await mutateStore((s) => {
+      const u = s.users.find((x) => x.id === user!.id);
+      if (u) u.phoneLocked = true;
+    });
+    user = { ...user, phoneLocked: true };
   }
 
   const session = await issueSession(user);
@@ -201,6 +211,8 @@ export async function submitRealNameProfile(
     personType: string;
     contactExtra?: string;
     appliedRole: AppliedBusinessRole;
+    /** 仅邮箱账号（未锁定手机号）可在此补填/修改 */
+    phone?: string;
   }
 ) {
   const name = String(input.name ?? "").trim();
@@ -223,11 +235,26 @@ export async function submitRealNameProfile(
   const store = getStore();
   const me = store.users.find((u) => u.id === userId);
   if (!me) return { ok: false as const, error: "not_found" };
-  if (!me.phone) return { ok: false as const, error: "no_phone" };
+
+  let nextPhone = me.phone ? normalizePhone(me.phone) : "";
+  if (input.phone !== undefined) {
+    if (isPhoneLocked(me)) {
+      return { ok: false as const, error: "phone_locked" };
+    }
+    nextPhone = normalizePhone(String(input.phone));
+    if (!isValidCnMobile(nextPhone)) {
+      return { ok: false as const, error: "invalid_phone" };
+    }
+    const dupPhone = store.users.some(
+      (u) => u.id !== userId && normalizePhone(u.phone ?? "") === nextPhone
+    );
+    if (dupPhone) return { ok: false as const, error: "phone_exists" };
+  }
+  if (!nextPhone) return { ok: false as const, error: "no_phone" };
 
   // 学生/技术员：姓名+手机号必须与管理员录入的课题组名单一致
   if (requiresRosterMatch(appliedRole)) {
-    if (!isOnRoster(store.researchGroupRoster, name, me.phone)) {
+    if (!isOnRoster(store.researchGroupRoster, name, nextPhone)) {
       return { ok: false as const, error: "roster_mismatch" };
     }
   }
@@ -256,6 +283,8 @@ export async function submitRealNameProfile(
     u.personType = personType;
     u.contactExtra = String(input.contactExtra ?? "").trim();
     u.appliedRole = appliedRole;
+    u.phone = nextPhone;
+    if (u.phoneLocked !== true) u.phoneLocked = false;
     // 已激活账号补全资料：保持 active；新建/被拒：进入审核
     if (wasActive && u.accountStatus === "active") {
       u.accountStatus = "active";
@@ -295,6 +324,7 @@ export async function updateIdentityProfile(
     employeeId?: string;
     personType?: string;
     contactExtra?: string;
+    phone?: string;
   }
 ) {
   const store = getStore();
@@ -308,7 +338,8 @@ export async function updateIdentityProfile(
     input.department !== undefined ||
     input.employeeId !== undefined ||
     input.personType !== undefined ||
-    input.contactExtra !== undefined;
+    input.contactExtra !== undefined ||
+    input.phone !== undefined;
 
   const name =
     input.name !== undefined ? String(input.name).trim() : String(me.name ?? "").trim();
@@ -331,6 +362,25 @@ export async function updateIdentityProfile(
       ? String(input.email).trim().toLowerCase()
       : String(me.email ?? "").trim().toLowerCase();
 
+  let nextPhone = me.phone ? normalizePhone(me.phone) : "";
+  if (input.phone !== undefined) {
+    if (isPhoneLocked(me)) {
+      return { ok: false as const, error: "phone_locked" };
+    }
+    const raw = String(input.phone).trim();
+    if (!raw) {
+      return { ok: false as const, error: "invalid_phone" };
+    }
+    nextPhone = normalizePhone(raw);
+    if (!isValidCnMobile(nextPhone)) {
+      return { ok: false as const, error: "invalid_phone" };
+    }
+    const dupPhone = store.users.some(
+      (u) => u.id !== userId && normalizePhone(u.phone ?? "") === nextPhone
+    );
+    if (dupPhone) return { ok: false as const, error: "phone_exists" };
+  }
+
   if (touchingIdentity) {
     if (!name || !school || !department || !employeeId || !personType) {
       return { ok: false as const, error: "required_fields_cannot_clear" };
@@ -345,9 +395,9 @@ export async function updateIdentityProfile(
       !me.roles.includes("animal_facility_supervisor") &&
       !me.roles.includes("super_admin");
     if (
-      me.phone &&
+      nextPhone &&
       (requiresRosterMatch(applied) || isTechByRole) &&
-      !isOnRoster(store.researchGroupRoster, name, me.phone)
+      !isOnRoster(store.researchGroupRoster, name, nextPhone)
     ) {
       return { ok: false as const, error: "roster_mismatch" };
     }
@@ -388,6 +438,10 @@ export async function updateIdentityProfile(
       if (input.contactExtra !== undefined) {
         u.contactExtra = String(input.contactExtra).trim();
       }
+      if (input.phone !== undefined) {
+        u.phone = nextPhone;
+        u.phoneLocked = false;
+      }
     }
     if (input.nickname !== undefined) {
       u.nickname = nickname;
@@ -402,6 +456,50 @@ export async function updateIdentityProfile(
 
   if (!updated) return { ok: false as const, error: "not_found" };
   return { ok: true as const, user: publicUser(updated), warning };
+}
+
+/** 用户自行修改登录密码（需验证当前密码） */
+export async function changeOwnPassword(
+  userId: string,
+  input: { currentPassword: string; newPassword: string }
+) {
+  const currentPassword = String(input.currentPassword ?? "");
+  const newPassword = String(input.newPassword ?? "").trim();
+  if (!currentPassword || !newPassword) {
+    return { ok: false as const, error: "invalid_body" };
+  }
+  if (newPassword.length < 6) {
+    return { ok: false as const, error: "password_too_short" };
+  }
+  if (currentPassword === newPassword) {
+    return { ok: false as const, error: "password_unchanged" };
+  }
+
+  const store = getStore();
+  const me = store.users.find((u) => u.id === userId);
+  if (!me) return { ok: false as const, error: "not_found" };
+  if (!verifyPassword(currentPassword, me.password)) {
+    return { ok: false as const, error: "wrong_password" };
+  }
+
+  await mutateStore((s) => {
+    const u = s.users.find((x) => x.id === userId);
+    if (!u) return;
+    u.password = hashPassword(newPassword);
+    s.logs.unshift({
+      id: uid("log"),
+      userId,
+      userName: displayName(u),
+      action: "change_password",
+      entityType: "user",
+      entityId: userId,
+      details: "用户自行修改登录密码",
+      timestamp: new Date().toISOString(),
+    });
+    s.logs = s.logs.slice(0, 500);
+  });
+
+  return { ok: true as const };
 }
 
 export async function reviewStaffAccount(input: {
@@ -512,6 +610,7 @@ export async function createUserByAdmin(input: {
     password: hashPassword(input.password),
     roles,
     phone,
+    phoneLocked: false,
     department: input.department,
     employeeId: employeeId || `ADM-${Date.now()}`,
     accountStatus: "active" as AccountStatus,
@@ -536,6 +635,175 @@ export async function createUserByAdmin(input: {
   });
 
   return { ok: true as const, user: publicUser(newUser) };
+}
+
+/** Admin updates account profile / roles / optional password reset */
+export async function updateUserByAdmin(input: {
+  userId: string;
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  department?: string;
+  employeeId?: string;
+  password?: string;
+  roles?: Role[];
+  accountStatus?: AccountStatus;
+  actorId: string;
+  actorName: string;
+}) {
+  const store = getStore();
+  const target = store.users.find((u) => u.id === input.userId);
+  if (!target) return { ok: false as const, error: "not_found" };
+
+  const name =
+    input.name !== undefined ? String(input.name).trim() : String(target.name ?? "").trim();
+  if (!name) return { ok: false as const, error: "invalid_body" };
+
+  const email =
+    input.email !== undefined
+      ? String(input.email).trim().toLowerCase()
+      : String(target.email ?? "").trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false as const, error: "invalid_email" };
+  }
+  if (store.users.some((u) => u.id !== target.id && u.email.toLowerCase() === email)) {
+    return { ok: false as const, error: "email_exists" };
+  }
+
+  let phone: string | undefined = target.phone;
+  if (input.phone !== undefined) {
+    const raw = String(input.phone ?? "").trim();
+    if (!raw) {
+      phone = undefined;
+    } else {
+      phone = normalizePhone(raw);
+      if (!isValidCnMobile(phone)) return { ok: false as const, error: "invalid_phone" };
+      if (store.users.some((u) => u.id !== target.id && normalizePhone(u.phone ?? "") === phone)) {
+        return { ok: false as const, error: "phone_exists" };
+      }
+    }
+  }
+
+  const department =
+    input.department !== undefined
+      ? String(input.department).trim()
+      : String(target.department ?? "").trim();
+
+  let employeeId = target.employeeId;
+  if (input.employeeId !== undefined) {
+    employeeId = String(input.employeeId).trim() || undefined;
+    if (
+      employeeId &&
+      store.users.some(
+        (u) =>
+          u.id !== target.id &&
+          u.employeeId &&
+          u.employeeId.toLowerCase() === employeeId!.toLowerCase()
+      )
+    ) {
+      return { ok: false as const, error: "employee_id_exists" };
+    }
+  }
+
+  let roles = target.roles;
+  if (input.roles) {
+    roles = Array.from(
+      new Set(input.roles.includes("user") ? input.roles : [...input.roles, "user"])
+    ) as Role[];
+  }
+
+  // 不能把自己或系统中唯一的 super_admin 降权掉
+  const wasAdmin = target.roles.includes("super_admin");
+  const willBeAdmin = roles.includes("super_admin");
+  if (wasAdmin && !willBeAdmin) {
+    const otherAdmins = store.users.filter(
+      (u) => u.id !== target.id && u.roles.includes("super_admin")
+    ).length;
+    if (otherAdmins === 0) return { ok: false as const, error: "last_super_admin" };
+  }
+
+  const password = input.password?.trim();
+  if (password !== undefined && password !== "" && password.length < 6) {
+    return { ok: false as const, error: "password_too_short" };
+  }
+
+  let updated: User | null = null;
+  await mutateStore((s) => {
+    const u = s.users.find((x) => x.id === input.userId);
+    if (!u) return;
+    u.name = name;
+    u.email = email;
+    u.phone = phone;
+    u.department = department || undefined;
+    u.employeeId = employeeId;
+    u.roles = roles;
+    if (input.accountStatus) u.accountStatus = input.accountStatus;
+    if (password) u.password = hashPassword(password);
+    // 管理员编辑手机号的邮箱账号保持可改
+    if (input.phone !== undefined && u.phoneLocked !== true) {
+      u.phoneLocked = false;
+    }
+    const label = displayName(u);
+    for (const a of s.managedAnimals) {
+      if (a.claimantUserId === u.id) a.claimantName = label;
+      if (a.technicianUserId === u.id) a.technicianName = label;
+    }
+    updated = { ...u };
+    s.logs.unshift({
+      id: uid("log"),
+      userId: input.actorId,
+      userName: input.actorName,
+      action: "update_user",
+      entityType: "user",
+      entityId: u.id,
+      details: `管理员编辑账号: ${email}${password ? "（已重置密码）" : ""}`,
+      timestamp: new Date().toISOString(),
+    });
+    s.logs = s.logs.slice(0, 500);
+  });
+
+  if (!updated) return { ok: false as const, error: "not_found" };
+  return { ok: true as const, user: publicUser(updated) };
+}
+
+/** Admin deletes an account */
+export async function deleteUserByAdmin(input: {
+  userId: string;
+  actorId: string;
+  actorName: string;
+}) {
+  if (input.userId === input.actorId) {
+    return { ok: false as const, error: "cannot_delete_self" };
+  }
+  const store = getStore();
+  const target = store.users.find((u) => u.id === input.userId);
+  if (!target) return { ok: false as const, error: "not_found" };
+
+  if (target.roles.includes("super_admin")) {
+    const otherAdmins = store.users.filter(
+      (u) => u.id !== target.id && u.roles.includes("super_admin")
+    ).length;
+    if (otherAdmins === 0) return { ok: false as const, error: "last_super_admin" };
+  }
+
+  const email = target.email;
+  await mutateStore((s) => {
+    s.users = s.users.filter((u) => u.id !== input.userId);
+    s.sessions = s.sessions.filter((x) => x.userId !== input.userId);
+    s.logs.unshift({
+      id: uid("log"),
+      userId: input.actorId,
+      userName: input.actorName,
+      action: "delete_user",
+      entityType: "user",
+      entityId: input.userId,
+      details: `管理员删除账号: ${email}`,
+      timestamp: new Date().toISOString(),
+    });
+    s.logs = s.logs.slice(0, 500);
+  });
+
+  return { ok: true as const };
 }
 
 export function getTokenFromRequest(req: NextRequest): string | null {

@@ -23,6 +23,7 @@ interface AuthContextValue {
     school?: string;
     email?: string;
     contactExtra?: string;
+    phone?: string;
     appliedRole: "student" | "technician" | "supervisor";
   }) => Promise<{ ok: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ ok: boolean; error?: string }>;
@@ -122,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       school?: string;
       email?: string;
       contactExtra?: string;
+      phone?: string;
       appliedRole: "student" | "technician" | "supervisor";
     }) => {
       try {

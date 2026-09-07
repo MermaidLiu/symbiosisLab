@@ -11,6 +11,7 @@ import {
   setSessionCookie,
   submitRealNameProfile,
   updateIdentityProfile,
+  changeOwnPassword,
 } from "@/server/auth";
 import { publicUser, mutateStore } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
       personType: String(body.personType ?? ""),
       contactExtra: body.contactExtra ? String(body.contactExtra) : undefined,
       appliedRole: String(body.appliedRole ?? "student") as AppliedBusinessRole,
+      phone: body.phone !== undefined ? String(body.phone) : undefined,
     });
     if (!result.ok) return jsonError(result.error, 400);
     return jsonOk({ user: result.user });
@@ -130,6 +132,7 @@ export async function POST(req: NextRequest) {
       employeeId: body.employeeId !== undefined ? String(body.employeeId) : undefined,
       personType: body.personType !== undefined ? String(body.personType) : undefined,
       contactExtra: body.contactExtra !== undefined ? String(body.contactExtra) : undefined,
+      phone: body.phone !== undefined ? String(body.phone) : undefined,
     });
     if (!result.ok) return jsonError(result.error, 400);
 
@@ -143,6 +146,25 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonOk({ user: result.user, warning: result.warning });
+  }
+
+  if (action === "change_password") {
+    const user = await getCurrentUser();
+    if (!user) return jsonError("unauthorized", 401);
+    const result = await changeOwnPassword(user.id, {
+      currentPassword: String(body.currentPassword ?? ""),
+      newPassword: String(body.newPassword ?? ""),
+    });
+    if (!result.ok) return jsonError(result.error, 400);
+    await appendAuditLog({
+      userId: user.id,
+      userName: user.name,
+      action: "change_password",
+      entityType: "user",
+      entityId: user.id,
+      details: "用户自行修改登录密码",
+    });
+    return jsonOk({ ok: true });
   }
 
   return jsonError("unknown_action", 400);

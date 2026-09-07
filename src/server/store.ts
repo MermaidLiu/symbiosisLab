@@ -354,6 +354,11 @@ function readFromDisk(): DbStore {
         u.employeeId = `LEGACY-${u.id}`;
         dirty = true;
       }
+      if (u.phoneLocked === undefined) {
+        // 占位邮箱 = 手机号登录账号；其余邮箱账号默认可改手机号
+        u.phoneLocked = /@phone\.symbiosis\.local$/i.test(String(u.email ?? ""));
+        dirty = true;
+      }
     }
     // Default purpose / lifecycle on managed animals
     for (const a of parsed.managedAnimals ?? []) {
@@ -550,6 +555,9 @@ export function getStore(): DbStore {
     for (const u of globalThis.__symbiosisDb.users ?? []) {
       if (!u.accountStatus) u.accountStatus = "active";
       if (u.phone && !u.employeeId) u.employeeId = `LEGACY-${u.id}`;
+      if (u.phoneLocked === undefined) {
+        u.phoneLocked = /@phone\.symbiosis\.local$/i.test(String(u.email ?? ""));
+      }
     }
     if (!Array.isArray(globalThis.__symbiosisDb.instrumentTrainingRequests)) {
       globalThis.__symbiosisDb.instrumentTrainingRequests = [];

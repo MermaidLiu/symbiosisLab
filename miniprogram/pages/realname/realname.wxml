@@ -9,8 +9,8 @@
   <view class="card" wx:if="{{canSubmit}}">
     <view class="label">姓名 *</view>
     <input class="input" value="{{name}}" bindinput="onName" />
-    <view class="label">手机号</view>
-    <input class="input" value="{{phone}}" disabled />
+    <view class="label">{{phoneLocked ? '手机号（登录凭证，不可改）' : '手机号 *'}}</view>
+    <input class="input" type="number" maxlength="11" value="{{phone}}" disabled="{{phoneLocked}}" bindinput="onPhone" />
     <view class="label">邮箱 *</view>
     <input class="input" value="{{email}}" bindinput="onEmail" placeholder="name@university.edu.cn" />
     <view class="label">学校 / 单位 *</view>

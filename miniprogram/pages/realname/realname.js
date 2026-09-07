@@ -20,6 +20,7 @@ function needsProfile(user) {
 Page({
   data: {
     phone: "",
+    phoneLocked: true,
     status: "",
     statusText: "",
     name: "",
@@ -66,8 +67,12 @@ Page({
       return;
     }
     const email = (user.email || "").endsWith("@phone.symbiosis.local") ? "" : user.email || "";
+    const phoneLocked =
+      user.phoneLocked === true ||
+      (user.phoneLocked !== false && (user.email || "").endsWith("@phone.symbiosis.local"));
     this.setData({
       phone: user.phone || "",
+      phoneLocked,
       status: st,
       statusText: map[st] || st,
       name: user.name || "",
@@ -84,6 +89,9 @@ Page({
     });
   },
 
+  onPhone(e) {
+    this.setData({ phone: e.detail.value });
+  },
   onName(e) {
     this.setData({ name: e.detail.value });
   },
@@ -113,7 +121,7 @@ Page({
   async onSubmit() {
     this.setData({ busy: true });
     try {
-      const res = await api.submitRealname({
+      const payload = {
         name: this.data.name,
         email: this.data.email,
         school: this.data.school,
@@ -122,7 +130,11 @@ Page({
         personType: this.data.personType,
         contactExtra: this.data.contactExtra,
         appliedRole: this.data.appliedRole,
-      });
+      };
+      if (!this.data.phoneLocked) {
+        payload.phone = this.data.phone;
+      }
+      const res = await api.submitRealname(payload);
       const token = getToken();
       setSession(token, res.user);
       getApp().globalData.user = res.user;
@@ -139,6 +151,10 @@ Page({
         employee_id_exists: "该工号/学号已被占用",
         email_exists: "该邮箱已被占用",
         invalid_email: "请填写有效邮箱",
+        invalid_phone: "请填写有效手机号",
+        phone_exists: "手机号已被占用",
+        phone_locked: "手机号登录账号不可改手机号",
+        no_phone: "请填写手机号",
         invalid_body: "请完整填写必填项",
       };
       wx.showModal({
