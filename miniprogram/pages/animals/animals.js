@@ -110,11 +110,17 @@ Page({
     });
     const locked = Boolean(row.animalLock) || row.registrationStatus === "in_experiment";
     const mine = user && row.claimantUserId === user.id;
+    const assignee =
+      row.dispatchAssigneeName || row.technicianName || "";
+    const progress = row.dispatchProgress || (locked ? "实验中" : "");
     return {
       ...row,
       locked,
       canAssign: Boolean(mine && !locked),
       canDelete: Boolean(mine && !locked),
+      canCancel: Boolean(mine && row.canCancelDispatch),
+      assigneeText: assignee,
+      progressText: progress,
       offsetX: 0,
       label: statusLabel(row),
       tipBg: JELLY[color].bg,
@@ -288,6 +294,40 @@ Page({
       });
     } finally {
       this.setData({ assignSaving: false });
+    }
+  },
+
+  async cancelDispatch(e) {
+    const id = e.currentTarget.dataset.id;
+    const row = this.data.list.find((x) => x.id === id);
+    if (!row || !row.canCancel) return;
+    const ok = await new Promise((resolve) => {
+      wx.showModal({
+        title: "撤销派发",
+        content: `确定撤销 ${id} 的派发？仅技术员尚未处理时可撤销。`,
+        success: (res) => resolve(Boolean(res.confirm)),
+      });
+    });
+    if (!ok) return;
+    try {
+      await api.studentCancelDispatch({
+        id: row.activeDispatchTaskId,
+        animalId: id,
+      });
+      await this.load();
+      wx.showToast({ title: "已撤销", icon: "success" });
+    } catch (err) {
+      const code = (err && err.code) || "";
+      wx.showModal({
+        title: "无法撤销",
+        content:
+          code === "tech_already_started"
+            ? "技术员已提交，请完成 NAS 闭环"
+            : code === "not_cancellable"
+              ? "当前状态不可撤销"
+              : code || "请重试",
+        showCancel: false,
+      });
     }
   },
 

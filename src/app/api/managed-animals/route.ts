@@ -4,6 +4,7 @@ import { getStore, mutateStore } from "@/server/store";
 import { canManageAnimals } from "@/lib/roles";
 import { appendAuditLog } from "@/server/audit";
 import { normalizeLegacyRegistration } from "@/server/animal-lifecycle";
+import { withDispatchListFields } from "@/server/animal-dispatch-view";
 import { isAnimalExperimentLocked } from "@/lib/animals/experiment-lock";
 import {
   AnimalPurpose,
@@ -22,7 +23,12 @@ export async function GET() {
     }
   });
 
-  return jsonOk({ managedAnimals: getStore().managedAnimals });
+  const store = getStore();
+  return jsonOk({
+    managedAnimals: store.managedAnimals.map((a) =>
+      withDispatchListFields(a, store, user.id)
+    ),
+  });
 }
 
 /** POST — create a managed animal (managers only) */

@@ -66,6 +66,8 @@ const COLUMN_KEYS = [
   "status",
   "cageLocation",
   "claimantName",
+  "dispatchAssignee",
+  "dispatchProgress",
 ] as const;
 
 type ColumnKey = (typeof COLUMN_KEYS)[number];
@@ -80,6 +82,8 @@ const DEFAULT_COLUMNS: ColumnKey[] = [
   "implantAt",
   "tracking",
   "trackingStage",
+  "dispatchAssignee",
+  "dispatchProgress",
   "lastCollectionAt",
   "repeatDays",
   "nextCollectionAt",
@@ -91,6 +95,8 @@ const OPS_STAFF_COLUMNS: ColumnKey[] = [
   "claimantName",
   "recordingStatus",
   "trackingStage",
+  "dispatchAssignee",
+  "dispatchProgress",
   "implantAt",
   "tracking",
   "nextCollectionAt",
@@ -298,6 +304,8 @@ export function ManagedAnimals({
     status: m.colStatus,
     cageLocation: m.colCage,
     claimantName: isOpsStaff ? m.colOwner : m.colClaimant,
+    dispatchAssignee: m.colDispatchAssignee,
+    dispatchProgress: m.colDispatchProgress,
   };
 
   const strains = useMemo(
@@ -873,6 +881,37 @@ export function ManagedAnimals({
     }
   }
 
+  async function cancelDispatch(row: ManagedAnimal) {
+    if (!row.canCancelDispatch) {
+      showToast(m.cancelDispatchBlocked);
+      return;
+    }
+    if (!window.confirm(m.cancelDispatchConfirm.replace("{id}", row.id))) return;
+    setRemoving(true);
+    try {
+      const data = await api.studentCancelDispatch({
+        id: row.activeDispatchTaskId,
+        animalId: row.id,
+      });
+      if (data.managedAnimals) {
+        setCachePartial({ managedAnimals: data.managedAnimals });
+        setAnimals(scopeList(data.managedAnimals));
+      } else {
+        const res = await api.managedAnimals();
+        setCachePartial({ managedAnimals: res.managedAnimals });
+        setAnimals(scopeList(res.managedAnimals));
+      }
+      showToast(m.cancelDispatchOk);
+    } catch (e) {
+      const code = (e as { code?: string }).code || "";
+      if (code === "tech_already_started") showToast(m.cancelDispatchTechStarted);
+      else if (code === "not_cancellable") showToast(m.cancelDispatchBlocked);
+      else showToast(m.cancelDispatchFail);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   function openForceFor(ids: string[]) {
     if (!ids.length) {
       showToast(m.selectRows);
@@ -1248,6 +1287,8 @@ export function ManagedAnimals({
     if (key === "repeatDays") return row.repeatDays != null ? String(row.repeatDays) : "—";
     if (key === "cageLocation") return row.cageLocation || "—";
     if (key === "claimantName") return row.claimantName ?? "—";
+    if (key === "dispatchAssignee") return row.dispatchAssigneeName?.trim() || row.technicianName?.trim() || "—";
+    if (key === "dispatchProgress") return row.dispatchProgress?.trim() || "—";
     if (key === "id") return row.id;
     return String(row[key as keyof ManagedAnimal] ?? "");
   }
@@ -1732,6 +1773,16 @@ export function ManagedAnimals({
                                   {m.forceHandle}
                                 </FluentButton>
                               </>
+                            ) : isClaimCatalog && row.canCancelDispatch ? (
+                              <FluentButton
+                                variant="ghost"
+                                size="sm"
+                                className="!text-amber-800"
+                                disabled={removing}
+                                onClick={() => void cancelDispatch(row)}
+                              >
+                                {m.cancelDispatch}
+                              </FluentButton>
                             ) : isAnimalExperimentLocked(row) && isClaimCatalog ? (
                               <span
                                 className="inline-flex items-center gap-1 px-1 text-[11px] text-amber-800"
@@ -1837,6 +1888,14 @@ export function ManagedAnimals({
                     </span>
                     {stageForRow(row)}
                   </div>
+                  <div>
+                    <span className="text-lab-muted">{m.colDispatchAssignee}: </span>
+                    <span>{row.dispatchAssigneeName || row.technicianName || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-lab-muted">{m.colDispatchProgress}: </span>
+                    <span className="font-medium">{row.dispatchProgress || "—"}</span>
+                  </div>
                   <div><span className="text-lab-muted">{m.colNextDate}: </span>{formatDateOnly(row.nextCollectionAt)}</div>
                 </dl>
                 <div className="mt-3 flex flex-wrap gap-1">
@@ -1854,6 +1913,16 @@ export function ManagedAnimals({
                         {m.forceHandle}
                       </FluentButton>
                     </>
+                  ) : isClaimCatalog && row.canCancelDispatch ? (
+                    <FluentButton
+                      variant="ghost"
+                      size="sm"
+                      className="!text-amber-800"
+                      disabled={removing}
+                      onClick={() => void cancelDispatch(row)}
+                    >
+                      {m.cancelDispatch}
+                    </FluentButton>
                   ) : isAnimalExperimentLocked(row) && isClaimCatalog ? (
                     <span className="text-[11px] text-amber-800" title={m.lockedHint}>
                       🔒 {m.lockedShort}

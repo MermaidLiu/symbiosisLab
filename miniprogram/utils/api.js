@@ -169,6 +169,12 @@ const api = {
   createAnimalOpTask(payload) {
     return request("/api/animal-op-tasks", { method: "POST", data: payload });
   },
+  studentCancelDispatch(payload) {
+    return request("/api/animal-op-tasks", {
+      method: "PATCH",
+      data: { action: "student_cancel", ...payload },
+    });
+  },
   deleteManagedAnimal(id) {
     return request(`/api/managed-animals?id=${encodeURIComponent(id)}`, {
       method: "DELETE",

@@ -13,10 +13,13 @@ import {
 import {
   appendLifecycleTrace,
   assertCanCreateOperation,
+  finalizeRegistrationAfterClose,
   findAnimal,
+  openOperationForAnimal,
   setRegistrationStatus,
 } from "@/server/animal-lifecycle";
 import { ExperimentKind, ExperimentOperation } from "@/types/animal-lifecycle";
+import { withDispatchListFields } from "@/server/animal-dispatch-view";
 
 function isOpType(v: string): v is AnimalOpTask["opType"] {
   return (ANIMAL_OP_TYPES as readonly string[]).includes(v);
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
 
   // 学生派发：跳过已锁定小鼠；若全部锁定则拒绝
-  const unlockedIds = animalIds.filter((id) => {
+  const unlockedIds = animalIds.filter((id: string) => {
     const a = findAnimal(store, id);
     if (!a) return false;
     return !assertCanCreateOperation(a, store);
@@ -211,12 +214,143 @@ export async function POST(req: NextRequest) {
   return jsonOk({ task, tasks: getStore().animalOpTasks }, { status: 201 });
 }
 
-/** Reschedule / complete / cancel */
+/** Reschedule / complete / cancel / student revoke */
 export async function PATCH(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
 
   const body = await req.json().catch(() => ({}));
+  const action = String(body.action ?? "").trim();
+
+  // 学生撤销：技术员尚未处理（任务 scheduled，关联 Operation 仍为 open）时可撤销并解锁
+  if (action === "student_cancel") {
+    const taskId = String(body.id ?? body.taskId ?? "").trim();
+    const animalId = String(body.animalId ?? "").trim();
+    if (!taskId && !animalId) return jsonError("invalid_body", 400);
+
+    let cancelledTask: AnimalOpTask | undefined;
+    let fail: string | null = null;
+
+    await mutateStore((s) => {
+      if (!Array.isArray(s.animalOpTasks)) s.animalOpTasks = [];
+      let task = taskId ? s.animalOpTasks.find((t) => t.id === taskId) : undefined;
+      if (!task && animalId) {
+        task = s.animalOpTasks.find(
+          (t) =>
+            t.status === "scheduled" &&
+            t.createdByUserId === user.id &&
+            t.animalIds.includes(animalId)
+        );
+      }
+      if (!task) {
+        fail = "not_found";
+        return;
+      }
+      if (task.createdByUserId !== user.id && !canReceiveAnimalOps(user.roles)) {
+        fail = "forbidden";
+        return;
+      }
+      if (task.status !== "scheduled") {
+        fail = "not_cancellable";
+        return;
+      }
+
+      const now = new Date().toISOString();
+      for (const aid of task.animalIds) {
+        const op = openOperationForAnimal(s, aid);
+        if (op && op.status === "tech_submitted") {
+          fail = "tech_already_started";
+          return;
+        }
+      }
+
+      const idx = s.animalOpTasks.findIndex((t) => t.id === task!.id);
+      if (idx < 0) {
+        fail = "not_found";
+        return;
+      }
+      const next: AnimalOpTask = {
+        ...task,
+        status: "cancelled",
+        receiptNote: `学生撤销派发：${displayName(user)}`,
+      };
+      s.animalOpTasks[idx] = next;
+      cancelledTask = next;
+
+      for (const aid of task.animalIds) {
+        const op = openOperationForAnimal(s, aid);
+        if (op && op.status === "open") {
+          op.status = "force_closed";
+          op.closedAt = now;
+          op.updatedAt = now;
+          op.forceClosedBy = user.id;
+          op.forceClosedByName = displayName(user);
+          op.forceCloseReason = "学生撤销派发（技术员尚未处理）";
+          appendLifecycleTrace(s, {
+            animalId: aid,
+            timestamp: now,
+            action: "operation_force_closed",
+            userId: user.id,
+            userName: displayName(user),
+            details: "学生撤销派发，实验终止",
+            operationId: op.id,
+          });
+        }
+        const animal = findAnimal(s, aid);
+        if (animal) {
+          finalizeRegistrationAfterClose(animal);
+          animal.technicianUserId = undefined;
+          animal.technicianName = undefined;
+          animal.lastOpBackfill = false;
+        }
+      }
+
+      s.notifications.unshift({
+        id: uid("ntf"),
+        userId: task.assigneeUserId,
+        title: "学生已撤销派发",
+        titleEn: "Dispatch cancelled by student",
+        message: `${displayName(user)} 撤销了「${OP_TYPE_TITLE[task.opType] || task.opType}」派发（${task.animalIds.join("、")}），技术员无需再处理。`,
+        messageEn: `${displayName(user)} cancelled the dispatch for ${task.animalIds.join(", ")}.`,
+        read: false,
+        link: "/animals/managed",
+        kind: "animal_task",
+        animalTaskId: task.id,
+        animalId: task.animalIds[0],
+        handled: false,
+        createdAt: now,
+      });
+      s.notifications = s.notifications.map((n) =>
+        n.animalTaskId === task!.id && n.userId === task!.assigneeUserId
+          ? { ...n, handled: true, read: true }
+          : n
+      );
+    });
+
+    if (fail === "forbidden") return jsonError("forbidden", 403);
+    if (fail === "tech_already_started") return jsonError("tech_already_started", 409);
+    if (fail === "not_cancellable") return jsonError("not_cancellable", 400);
+    if (fail || !cancelledTask) return jsonError(fail || "not_found", 404);
+
+    await appendAuditLog({
+      userId: user.id,
+      userName: displayName(user),
+      action: "student_cancel_dispatch",
+      entityType: "animal_op_task",
+      entityId: cancelledTask.id,
+      details: `撤销派发 ${cancelledTask.animalIds.join(",")}`,
+    });
+
+    const store = getStore();
+    return jsonOk({
+      task: cancelledTask,
+      tasks: store.animalOpTasks,
+      managedAnimals: store.managedAnimals.map((a) =>
+        withDispatchListFields(a, store, user.id)
+      ),
+    });
+  }
+
   const id = String(body.id ?? "").trim();
   if (!id) return jsonError("invalid_body", 400);
 

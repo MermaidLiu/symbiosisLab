@@ -127,6 +127,14 @@ export interface ManagedAnimal {
    * 技术员提交日与 Operation 开始日不是同一自然日
    */
   lastOpBackfill?: boolean;
+  /** 列表展示：当前派发技术员（API 计算） */
+  dispatchAssigneeName?: string;
+  /** 列表展示：当前进度文案（API 计算） */
+  dispatchProgress?: string;
+  /** 列表展示：学生可否撤销派发（技术员尚未处理） */
+  canCancelDispatch?: boolean;
+  /** 列表展示：可撤销的派发任务 ID */
+  activeDispatchTaskId?: string;
   /** 死亡时间 ISO（实验中死亡必须登记） */
   deathAt?: string;
   /** 死亡原因说明（实验中死亡必须登记） */

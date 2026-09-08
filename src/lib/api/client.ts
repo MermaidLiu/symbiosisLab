@@ -422,6 +422,16 @@ export const api = {
       { method: "PATCH", body: JSON.stringify(data) }
     ),
 
+  studentCancelDispatch: (data: { id?: string; animalId?: string }) =>
+    request<{
+      task: import("@/types/animal-ops").AnimalOpTask;
+      tasks: import("@/types/animal-ops").AnimalOpTask[];
+      managedAnimals: import("@/types/animal-management").ManagedAnimal[];
+    }>("/api/animal-op-tasks", {
+      method: "PATCH",
+      body: JSON.stringify({ action: "student_cancel", ...data }),
+    }),
+
   forceHandleAnimals: (data: {
     animalIds: string[];
     note: string;
