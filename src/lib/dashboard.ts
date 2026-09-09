@@ -1,6 +1,7 @@
-import { AuditLog, Animal, Booking, Instrument, Role } from "@/types";
+import { AccountStatus, AuditLog, Animal, Booking, Instrument, Role } from "@/types";
 import { getNotifications } from "@/lib/storage/db";
 import { canManageAnimals, canManageInstruments, canProcessVeterinary, canSuperviseAnimalFacility, hasRole } from "@/lib/roles";
+import { isExemptFromRealname } from "@/lib/account-status";
 
 export type DashboardView =
   | "admin"
@@ -52,6 +53,17 @@ export function getDashboardView(roles: Role[]): DashboardView {
   if (inst && (animal || canSuperviseAnimalFacility(roles))) return "admin";
   if (canProcessVeterinary(roles)) return "veterinarian";
   return "student";
+}
+
+/** 按账号状态 + 角色决定工作台：未激活或无专员角色时默认学生台 */
+export function getDashboardViewForUser(user: {
+  roles: Role[];
+  accountStatus?: AccountStatus | null;
+}): DashboardView {
+  if (isExemptFromRealname(user)) return getDashboardView(user.roles);
+  const status = user.accountStatus ?? "active";
+  if (status !== "active") return "student";
+  return getDashboardView(user.roles);
 }
 
 function managedInstrumentIds(userId: string, instruments: Instrument[]): Set<string> {

@@ -188,17 +188,30 @@ export async function PATCH(req: NextRequest) {
   const now = new Date().toISOString();
   let updated: ExperimentOperation | null = null;
   let notifyStudentId: string | null = null;
+  let fail: string | null = null;
 
   await mutateStore((s) => {
     const idx = (s.experimentOperations ?? []).findIndex((op) => op.id === id);
-    if (idx < 0) return;
+    if (idx < 0) {
+      fail = "not_found";
+      return;
+    }
     const op = s.experimentOperations![idx];
     const animal = findAnimal(s, op.animalId);
-    if (!animal) return;
+    if (!animal) {
+      fail = "not_found";
+      return;
+    }
 
     if (action === "tech_submit") {
-      if (op.technicianUserId !== user.id && !canSuperviseAnimalFacility(user.roles)) return;
-      if (op.status !== "open") return;
+      if (op.technicianUserId !== user.id && !canSuperviseAnimalFacility(user.roles)) {
+        fail = "forbidden";
+        return;
+      }
+      if (op.status !== "open") {
+        fail = "invalid_state";
+        return;
+      }
       op.status = "tech_submitted";
       op.techSubmittedAt = now;
       op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
@@ -276,7 +289,9 @@ export async function PATCH(req: NextRequest) {
     updated = { ...op };
   });
 
-  if (!updated) return jsonError("invalid_state", 409);
+  if (fail === "forbidden") return jsonError("forbidden", 403);
+  if (fail === "not_found") return jsonError("not_found", 404);
+  if (!updated) return jsonError(fail || "invalid_state", 409);
 
   if (action === "tech_submit" && notifyStudentId) {
     await mutateStore((s) => {

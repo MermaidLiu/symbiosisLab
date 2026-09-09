@@ -285,9 +285,15 @@ export async function submitRealNameProfile(
     u.appliedRole = appliedRole;
     u.phone = nextPhone;
     if (u.phoneLocked !== true) u.phoneLocked = false;
-    // 已激活账号补全资料：保持 active；新建/被拒：进入审核
+    // 已激活账号补全资料：保持 active
+    // 学生且已通过名单校验：直接激活；技术员/主管仍须动物房审核
     if (wasActive && u.accountStatus === "active") {
       u.accountStatus = "active";
+    } else if (appliedRole === "student") {
+      u.accountStatus = "active";
+      u.roles = rolesForAppliedRole("student");
+      u.approvedAt = now;
+      u.approvedBy = "auto_roster";
     } else {
       u.accountStatus = "pending_review";
       u.roles = ["user"];

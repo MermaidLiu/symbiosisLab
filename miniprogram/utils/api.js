@@ -240,6 +240,49 @@ const api = {
       data: { id, action, ...extra },
     });
   },
+  uploadExperimentPhoto(filePath, onProgress) {
+    const token = getToken();
+    return new Promise((resolve, reject) => {
+      const task = wx.uploadFile({
+        url: `${API_BASE}/api/experiment-uploads`,
+        filePath,
+        name: "file",
+        header: token
+          ? {
+              Authorization: `Bearer ${token}`,
+              Cookie: `${SESSION_COOKIE}=${token}`,
+              "X-Symbiosis-Token": token,
+            }
+          : {},
+        success(res) {
+          const body = parseBody(res.data);
+          if (res.statusCode >= 400 || !body.url) {
+            const code = body.error || `http_${res.statusCode}`;
+            reject(
+              Object.assign(new Error(code), {
+                code,
+                status: res.statusCode,
+                detail: JSON.stringify(body).slice(0, 120),
+              })
+            );
+            return;
+          }
+          resolve(String(body.url));
+        },
+        fail(err) {
+          reject(
+            Object.assign(new Error("network_error"), {
+              code: "network_error",
+              errMsg: (err && err.errMsg) || "",
+            })
+          );
+        },
+      });
+      if (typeof onProgress === "function" && task && task.onProgressUpdate) {
+        task.onProgressUpdate((ev) => onProgress(ev.progress || 0));
+      }
+    });
+  },
 };
 
 module.exports = { api, request, extractToken };

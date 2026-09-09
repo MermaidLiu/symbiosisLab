@@ -1,7 +1,6 @@
 const { api } = require("../../utils/api");
 const { isLoggedIn, getUser, goLogin, promptLogin } = require("../../utils/auth");
 const { API_BASE } = require("../../utils/config");
-const { getToken } = require("../../utils/auth");
 
 const STATUS = {
   blank_available: "空白鼠待认领",
@@ -38,21 +37,14 @@ Page({
     expTitle: "数据采集",
     resultNote: "",
     photoUrls: [],
+    photoPreviews: [],
+    uploadProgress: 0,
+    uploading: false,
     nasPath: "",
     isStudent: false,
     isTech: false,
     pendingOp: null,
     openOp: null,
-    canReportDeath: false,
-    deathDate: "",
-    deathTime: "12:00",
-    deathReason: "",
-    deathMethodIndex: 2,
-    deathMethods: [
-      { v: "cervical", l: "断颈" },
-      { v: "perfusion", l: "灌流" },
-      { v: "found_dead", l: "发现死亡" },
-    ],
     kinds: [
       { v: "ephys", l: "电生理/采集" },
       { v: "behavior", l: "行为学" },
@@ -309,12 +301,6 @@ Page({
       const animal = this.enrichAnimal(data.animal);
       const openOp = ops.find((o) => o.status === "open") || null;
       const pendingOp = ops.find((o) => o.status === "tech_submitted") || null;
-      const canReportDeath =
-        Boolean(animal) &&
-        !animal.deathAt &&
-        animal.registrationStatus !== "deceased";
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, "0");
       this.setData({
         animal,
         operations: ops,
@@ -322,11 +308,9 @@ Page({
         statusLabel: STATUS[animal.registrationStatus] || animal.registrationStatus || "",
         pendingOp,
         openOp,
-        canReportDeath,
-        deathDate: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-        deathTime: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
         scanId: foundId,
         photoUrls: [],
+        photoPreviews: [],
         tip: expected ? `已核验通过：${foundId}` : "",
         error: "",
       });
@@ -359,6 +343,23 @@ Page({
     this.setData({ expKind: k.v, expTitle: k.l });
   },
 
+  previewPhotoUrls(urls) {
+    return (urls || []).map((u) =>
+      String(u).startsWith("http") ? u : `${API_BASE}${u}`
+    );
+  },
+
+  uploadErrorText(code) {
+    const map = {
+      account_not_active: "账号未审核通过，无法上传（请联系主管）",
+      unauthorized: "登录已失效，请重新登录",
+      invalid_type: "图片格式不支持，请换 JPG/PNG",
+      file_too_large: "图片过大（最大 12MB）",
+      network_error: "网络异常，请检查 uploadFile 合法域名是否已配置",
+    };
+    return map[code] || code || "上传失败";
+  },
+
   async choosePhotos() {
     if (!(await promptLogin("登录后可上传照片。"))) return;
     wx.chooseMedia({
@@ -367,70 +368,55 @@ Page({
       sourceType: ["album", "camera"],
       success: async (res) => {
         const files = res.tempFiles || [];
-        this.setData({ busy: true, error: "" });
+        this.setData({ uploading: true, uploadProgress: 0, busy: true, error: "" });
         const urls = [...this.data.photoUrls];
         try {
-          for (const f of files) {
-            const url = await this.uploadFile(f.tempFilePath);
-            if (url) urls.push(url);
+          for (let i = 0; i < files.length; i++) {
+            const f = files[i];
+            const rel = await api.uploadExperimentPhoto(f.tempFilePath, (pct) => {
+              this.setData({ uploadProgress: pct });
+            });
+            if (rel) urls.push(rel);
           }
-          this.setData({ photoUrls: urls });
+          this.setData({
+            photoUrls: urls,
+            photoPreviews: this.previewPhotoUrls(urls),
+          });
           wx.showToast({ title: `已上传 ${urls.length} 张结果图`, icon: "success" });
         } catch (e) {
-          const msg = (e && e.message) || "上传失败";
+          const code = (e && e.code) || "";
+          const msg = this.uploadErrorText(code);
           this.setData({ error: `照片上传失败：${msg}` });
-          wx.showToast({ title: "上传失败", icon: "none" });
+          wx.showToast({ title: msg, icon: "none" });
         } finally {
-          this.setData({ busy: false });
+          this.setData({ busy: false, uploading: false, uploadProgress: 0 });
         }
       },
     });
   },
 
   previewPhoto(e) {
-    const url = e.currentTarget.dataset.url;
-    const urls = this.data.photoUrls || [];
+    const idx = Number(e.currentTarget.dataset.index);
+    const urls = this.data.photoPreviews || [];
+    const url = urls[idx];
     if (!url || !urls.length) return;
     wx.previewImage({ current: url, urls });
   },
 
   removePhoto(e) {
-    const url = e.currentTarget.dataset.url;
+    const idx = Number(e.currentTarget.dataset.index);
     wx.showModal({
       title: "删除照片",
       content: "确定删除这张结果图？",
       success: (res) => {
-        if (!res.confirm) return;
+        if (!res.confirm || Number.isNaN(idx)) return;
+        const urls = [...(this.data.photoUrls || [])];
+        urls.splice(idx, 1);
         this.setData({
-          photoUrls: (this.data.photoUrls || []).filter((u) => u !== url),
+          photoUrls: urls,
+          photoPreviews: this.previewPhotoUrls(urls),
         });
       },
-    });
-  },
-
-  uploadFile(filePath) {
-    return new Promise((resolve, reject) => {
-      const token = getToken();
-      wx.uploadFile({
-        url: `${API_BASE}/api/experiment-uploads`,
-        filePath,
-        name: "file",
-        header: token ? { Authorization: `Bearer ${token}` } : {},
-        success: (res) => {
-          try {
-            const body = JSON.parse(res.data || "{}");
-            if (res.statusCode >= 400 || !body.url) {
-              reject(new Error(body.error || "upload_fail"));
-              return;
-            }
-            const path = body.url.startsWith("http") ? body.url : `${API_BASE}${body.url}`;
-            resolve(path);
-          } catch (e) {
-            reject(e);
-          }
-        },
-        fail: reject,
-      });
     });
   },
 
@@ -444,48 +430,6 @@ Page({
         : "",
       deathMethodLabel: methodMap[animal.deathMethod] || animal.deathMethod || "—",
     };
-  },
-
-  onDeathDate(e) {
-    this.setData({ deathDate: e.detail.value });
-  },
-  onDeathTime(e) {
-    this.setData({ deathTime: e.detail.value });
-  },
-  onDeathMethod(e) {
-    this.setData({ deathMethodIndex: Number(e.detail.value) || 0 });
-  },
-  onDeathReason(e) {
-    this.setData({ deathReason: e.detail.value });
-  },
-
-  async reportDeath() {
-    if (!(await promptLogin("登录后可登记死亡。"))) return;
-    const animal = this.data.animal;
-    if (!animal) return;
-    const reason = (this.data.deathReason || "").trim();
-    if (!reason) {
-      wx.showToast({ title: "请填写死亡原因", icon: "none" });
-      return;
-    }
-    const deathAt = new Date(`${this.data.deathDate}T${this.data.deathTime}:00`).toISOString();
-    const method = this.data.deathMethods[this.data.deathMethodIndex] || this.data.deathMethods[2];
-    this.setData({ busy: true });
-    try {
-      await api.lifecycleAction("report_death", {
-        animalId: animal.id,
-        deathAt,
-        deathMethod: method.v,
-        deathReason: reason,
-      });
-      this.setData({ deathReason: "" });
-      await this.lookup(animal.id);
-      wx.showToast({ title: "已登记死亡", icon: "success" });
-    } catch (e) {
-      wx.showToast({ title: (e && e.code) || "登记失败", icon: "none" });
-    } finally {
-      this.setData({ busy: false });
-    }
   },
 
   async createOp() {
@@ -529,7 +473,17 @@ Page({
       await this.lookup(this.data.animal.id);
       wx.showToast({ title: "已完成，已通知学生", icon: "success" });
     } catch (e) {
-      wx.showToast({ title: "提交失败", icon: "none" });
+      const code = (e && e.code) || "";
+      const map = {
+        account_not_active: "账号未审核通过",
+        forbidden: "无权提交此任务",
+        invalid_state: "任务状态已变化，请刷新",
+      };
+      wx.showModal({
+        title: "提交失败",
+        content: map[code] || code || "请重试",
+        showCancel: false,
+      });
     } finally {
       this.setData({ busy: false });
     }

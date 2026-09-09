@@ -9,12 +9,12 @@ import { FacilityCageBoard } from "@/components/animals/FacilityCageBoard";
 import { TechnicianWorkbench } from "@/components/animals/TechnicianWorkbench";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { useAuth } from "@/context/AuthContext";
-import { getDashboardView } from "@/lib/dashboard";
+import { getDashboardViewForUser } from "@/lib/dashboard";
 
 export default function DashboardPage() {
   const { t } = useLocale();
   const { user } = useAuth();
-  const view = user ? getDashboardView(user.roles) : "student";
+  const view = user ? getDashboardViewForUser(user) : "student";
 
   if (view === "animal_facility_supervisor") {
     return <FacilityCageBoard mode="workbench" />;

@@ -93,7 +93,6 @@ export function needsProfileCompletion(user: {
   if (isExemptFromRealname(user)) return false;
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
-  if (st === "pending_review" || st === "disabled") return true;
   // 有手机号：须完成姓名、学号、学校、真实邮箱、实验室
   if (user.phone) {
     if (!String(user.name ?? "").trim()) return true;

@@ -64,22 +64,6 @@
       <view class="meta">原因：{{animal.deathReason}}</view>
     </view>
 
-    <view class="card death" wx:elif="{{canReportDeath}}">
-      <view class="section">若小鼠已死亡</view>
-      <view class="meta muted">填写时间与原因后终止实验，并通知对方「我已知晓」</view>
-      <picker mode="date" value="{{deathDate}}" bindchange="onDeathDate">
-        <view class="input">死亡日期：{{deathDate}}</view>
-      </picker>
-      <picker mode="time" value="{{deathTime}}" bindchange="onDeathTime">
-        <view class="input">死亡时间：{{deathTime}}</view>
-      </picker>
-      <picker range="{{deathMethods}}" range-key="l" value="{{deathMethodIndex}}" bindchange="onDeathMethod">
-        <view class="input">方式：{{deathMethods[deathMethodIndex].l}}</view>
-      </picker>
-      <input class="input" placeholder="死亡原因（必填）" value="{{deathReason}}" bindinput="onDeathReason" />
-      <button class="btn ghost block" loading="{{busy}}" bindtap="reportDeath">登记死亡并终止</button>
-    </view>
-
     <!-- 学生：待填 NAS -->
     <view class="card" wx:if="{{isStudent && pendingOp && !animal.deathAt}}">
       <view class="section">待闭环{{pendingOp.backfill ? ' · 补录' : ''}} · {{pendingOp.title}}</view>
@@ -103,22 +87,25 @@
       <view class="section">处理中 · {{openOp.title}}</view>
       <view class="meta muted">请上传结果照片（可多张），再提交给学生</view>
       <input class="input" placeholder="结果说明（可选）" value="{{resultNote}}" bindinput="onResultNote" />
-      <button class="btn ghost block" loading="{{busy}}" bindtap="choosePhotos">
+      <button class="btn ghost block" loading="{{uploading || busy}}" bindtap="choosePhotos">
         📷 拍照 / 从相册上传结果图（已 {{photoUrls.length}} 张）
       </button>
-      <view class="photos" wx:if="{{photoUrls.length}}">
+      <view class="hint muted" wx:if="{{uploading}}">上传中 {{uploadProgress}}%…</view>
+      <view class="photos" wx:if="{{photoPreviews.length}}">
         <image
-          wx:for="{{photoUrls}}"
+          wx:for="{{photoPreviews}}"
+          wx:for-index="idx"
           wx:key="*this"
           src="{{item}}"
           mode="aspectFill"
           class="thumb"
-          data-url="{{item}}"
+          data-index="{{idx}}"
           bindtap="previewPhoto"
           bindlongpress="removePhoto"
         />
       </view>
       <view class="hint muted" wx:if="{{photoUrls.length}}">轻触预览，长按可删除</view>
+      <view class="hint muted" wx:elif="{{!photoUrls.length}}">须至少上传 1 张结果图后才能提交</view>
       <button
         class="btn primary block"
         loading="{{busy}}"

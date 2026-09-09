@@ -91,7 +91,7 @@ export default function RealnamePage() {
       setError(map[res.error ?? ""] ?? res.error ?? "提交失败");
       return;
     }
-    if (alreadyActive) {
+    if (alreadyActive || appliedRole === "student") {
       router.replace("/");
       return;
     }
@@ -109,6 +109,13 @@ export default function RealnamePage() {
         {(st === "pending_review" || submittedOk) && (
           <div className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
             资料已提交，正在等待动物房主管审核。审核通过前无法认领小鼠、建档或创建实验。
+            <button
+              type="button"
+              className="mt-3 block w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-950"
+              onClick={() => router.replace("/")}
+            >
+              进入学生工作台
+            </button>
           </div>
         )}
         {st === "rejected" && !submittedOk ? (
