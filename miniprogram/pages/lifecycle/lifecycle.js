@@ -355,7 +355,9 @@ Page({
       unauthorized: "登录已失效，请重新登录",
       invalid_type: "图片格式不支持，请换 JPG/PNG",
       file_too_large: "图片过大（最大 12MB）",
-      network_error: "网络异常，请检查 uploadFile 合法域名是否已配置",
+      read_fail: "读取照片失败，请重试",
+      network_error: "网络异常，请检查网络后重试",
+      upload_fail: "上传失败，请重试",
     };
     return map[code] || code || "上传失败";
   },
@@ -366,23 +368,40 @@ Page({
       count: 6,
       mediaType: ["image"],
       sourceType: ["album", "camera"],
+      fail: (err) => {
+        const msg = (err && err.errMsg) || "";
+        if (msg.includes("cancel")) return;
+        wx.showToast({ title: "无法选择照片", icon: "none" });
+      },
       success: async (res) => {
         const files = res.tempFiles || [];
+        if (!files.length) {
+          wx.showToast({ title: "未选择照片", icon: "none" });
+          return;
+        }
         this.setData({ uploading: true, uploadProgress: 0, busy: true, error: "" });
         const urls = [...this.data.photoUrls];
+        let added = 0;
         try {
           for (let i = 0; i < files.length; i++) {
             const f = files[i];
             const rel = await api.uploadExperimentPhoto(f.tempFilePath, (pct) => {
               this.setData({ uploadProgress: pct });
             });
-            if (rel) urls.push(rel);
+            if (rel) {
+              urls.push(rel);
+              added += 1;
+            }
           }
           this.setData({
             photoUrls: urls,
             photoPreviews: this.previewPhotoUrls(urls),
           });
-          wx.showToast({ title: `已上传 ${urls.length} 张结果图`, icon: "success" });
+          if (added > 0) {
+            wx.showToast({ title: `已上传 ${added} 张`, icon: "success" });
+          } else {
+            wx.showToast({ title: "上传失败，请重试", icon: "none" });
+          }
         } catch (e) {
           const code = (e && e.code) || "";
           const msg = this.uploadErrorText(code);

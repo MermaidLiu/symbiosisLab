@@ -241,47 +241,67 @@ const api = {
     });
   },
   uploadExperimentPhoto(filePath, onProgress) {
-    const token = getToken();
-    return new Promise((resolve, reject) => {
-      const task = wx.uploadFile({
-        url: `${API_BASE}/api/experiment-uploads`,
-        filePath,
-        name: "file",
-        header: token
-          ? {
-              Authorization: `Bearer ${token}`,
-              Cookie: `${SESSION_COOKIE}=${token}`,
-              "X-Symbiosis-Token": token,
-            }
-          : {},
-        success(res) {
-          const body = parseBody(res.data);
-          if (res.statusCode >= 400 || !body.url) {
-            const code = body.error || `http_${res.statusCode}`;
-            reject(
-              Object.assign(new Error(code), {
-                code,
-                status: res.statusCode,
-                detail: JSON.stringify(body).slice(0, 120),
-              })
-            );
-            return;
-          }
-          resolve(String(body.url));
-        },
-        fail(err) {
-          reject(
-            Object.assign(new Error("network_error"), {
-              code: "network_error",
-              errMsg: (err && err.errMsg) || "",
-            })
-          );
-        },
+    const fs = wx.getFileSystemManager();
+
+    function compress(pathIn) {
+      return new Promise((resolve) => {
+        if (typeof wx.compressImage !== "function") {
+          resolve(pathIn);
+          return;
+        }
+        wx.compressImage({
+          src: pathIn,
+          quality: 75,
+          success: (res) => resolve(res.tempFilePath || pathIn),
+          fail: () => resolve(pathIn),
+        });
       });
-      if (typeof onProgress === "function" && task && task.onProgressUpdate) {
-        task.onProgressUpdate((ev) => onProgress(ev.progress || 0));
-      }
-    });
+    }
+
+    function readBase64(pathIn) {
+      return new Promise((resolve, reject) => {
+        fs.readFile({
+          filePath: pathIn,
+          encoding: "base64",
+          success: (res) => resolve(res.data || ""),
+          fail: (err) =>
+            reject(
+              Object.assign(new Error("read_fail"), {
+                code: "read_fail",
+                errMsg: (err && err.errMsg) || "",
+              })
+            ),
+        });
+      });
+    }
+
+    return compress(filePath)
+      .then((compressed) => {
+        if (typeof onProgress === "function") onProgress(10);
+        return readBase64(compressed);
+      })
+      .then((base64) => {
+        if (!base64) {
+          throw Object.assign(new Error("file_required"), { code: "file_required" });
+        }
+        if (typeof onProgress === "function") onProgress(35);
+        return request("/api/experiment-uploads", {
+          method: "POST",
+          data: {
+            imageBase64: base64,
+            filename: "photo.jpg",
+          },
+        });
+      })
+      .then((body) => {
+        if (typeof onProgress === "function") onProgress(100);
+        if (!body || !body.url) {
+          throw Object.assign(new Error(body && body.error ? body.error : "upload_fail"), {
+            code: (body && body.error) || "upload_fail",
+          });
+        }
+        return String(body.url);
+      });
   },
 };
 
