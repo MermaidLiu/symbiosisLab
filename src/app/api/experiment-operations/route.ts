@@ -6,6 +6,7 @@ import {
   assertCanCreateOperation,
   findAnimal,
   finalizeRegistrationAfterClose,
+  completeScheduledTasksAfterExperimentClose,
   OPERATION_STATUS_LABELS,
   setRegistrationStatus,
 } from "@/server/animal-lifecycle";
@@ -247,6 +248,13 @@ export async function PATCH(req: NextRequest) {
       }
       animal.lastOpBackfill = op.backfill;
       finalizeRegistrationAfterClose(animal);
+      completeScheduledTasksAfterExperimentClose(
+        s,
+        op.animalId,
+        `实验已闭环，NAS：${nas}`,
+        now,
+        op.backfill
+      );
       appendLifecycleTrace(s, {
         animalId: op.animalId,
         timestamp: now,
@@ -272,6 +280,13 @@ export async function PATCH(req: NextRequest) {
       }
       animal.lastOpBackfill = op.backfill;
       finalizeRegistrationAfterClose(animal);
+      completeScheduledTasksAfterExperimentClose(
+        s,
+        op.animalId,
+        op.forceCloseReason || "实验已强制关闭",
+        now,
+        op.backfill
+      );
       appendLifecycleTrace(s, {
         animalId: op.animalId,
         timestamp: now,

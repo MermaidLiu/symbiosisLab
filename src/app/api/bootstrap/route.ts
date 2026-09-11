@@ -1,11 +1,18 @@
 import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
-import { getStore, publicUser } from "@/server/store";
+import { getStore, mutateStore, publicUser } from "@/server/store";
 import { normalizeInstrument } from "@/lib/instruments";
+import { normalizeLegacyRegistration, reconcileDispatchStateForAnimal } from "@/server/animal-lifecycle";
 
 /** Bootstrap payload for authenticated client hydrate */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
+  await mutateStore((s) => {
+    for (const a of s.managedAnimals) {
+      normalizeLegacyRegistration(a);
+      reconcileDispatchStateForAnimal(s, a.id);
+    }
+  });
   const store = getStore();
   return jsonOk({
     user: publicUser(user),

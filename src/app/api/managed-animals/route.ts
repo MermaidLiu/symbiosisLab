@@ -3,7 +3,7 @@ import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
 import { canManageAnimals } from "@/lib/roles";
 import { appendAuditLog } from "@/server/audit";
-import { normalizeLegacyRegistration } from "@/server/animal-lifecycle";
+import { normalizeLegacyRegistration, reconcileDispatchStateForAnimal } from "@/server/animal-lifecycle";
 import { withDispatchListFields } from "@/server/animal-dispatch-view";
 import { isAnimalExperimentLocked } from "@/lib/animals/experiment-lock";
 import {
@@ -20,6 +20,7 @@ export async function GET() {
   await mutateStore((s) => {
     for (const a of s.managedAnimals) {
       normalizeLegacyRegistration(a);
+      reconcileDispatchStateForAnimal(s, a.id);
     }
   });
 

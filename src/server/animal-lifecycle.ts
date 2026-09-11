@@ -1,4 +1,5 @@
 import { DbStore, uid } from "@/server/store";
+import { isBackfillProcessing } from "@/lib/animals/experiment-lock";
 import { ManagedAnimal } from "@/types/animal-management";
 import {
   AnimalLifecycleTraceEvent,
@@ -80,6 +81,65 @@ export function finalizeRegistrationAfterClose(animal: ManagedAnimal): void {
   } else {
     setRegistrationStatus(animal, "awaiting_experiment");
   }
+  animal.technicianUserId = undefined;
+  animal.technicianName = undefined;
+}
+
+/** 该鼠是否仍有进行中的实验（未闭环） */
+export function isExperimentActiveForAnimal(store: DbStore, animalId: string): boolean {
+  if (openOperationForAnimal(store, animalId)) return true;
+  const animal = findAnimal(store, animalId);
+  if (!animal) return false;
+  return Boolean(animal.animalLock) || animal.registrationStatus === "in_experiment";
+}
+
+/**
+ * 学生 NAS 闭环 / 强制关闭后：若派发任务内所有小鼠均已结束，则标记任务 done。
+ */
+export function completeScheduledTasksAfterExperimentClose(
+  store: DbStore,
+  animalId: string,
+  receiptNote: string,
+  now: string,
+  backfill?: boolean
+): void {
+  for (const task of store.animalOpTasks ?? []) {
+    if (task.status !== "scheduled") continue;
+    if (!task.animalIds.includes(animalId)) continue;
+    const allDone = task.animalIds.every((id) => !isExperimentActiveForAnimal(store, id));
+    if (!allDone) continue;
+    task.status = "done";
+    task.completedAt = now;
+    task.receiptNote = receiptNote;
+    if (backfill !== undefined) {
+      task.backfill = backfill;
+    } else {
+      task.backfill = isBackfillProcessing(task.startTime || task.createdAt, now);
+    }
+  }
+}
+
+/** 修复已闭环但仍显示「已派发」的陈旧数据（列表刷新时调用） */
+export function reconcileDispatchStateForAnimal(store: DbStore, animalId: string): void {
+  if (isExperimentActiveForAnimal(store, animalId)) return;
+  const animal = findAnimal(store, animalId);
+  if (!animal) return;
+
+  if (animal.technicianUserId || animal.technicianName) {
+    animal.technicianUserId = undefined;
+    animal.technicianName = undefined;
+  }
+  if (animal.registrationStatus === "in_experiment") {
+    setRegistrationStatus(animal, "awaiting_experiment");
+  }
+
+  const now = new Date().toISOString();
+  completeScheduledTasksAfterExperimentClose(
+    store,
+    animalId,
+    "实验已闭环（状态同步）",
+    now
+  );
 }
 
 export function assertCanCreateOperation(animal: ManagedAnimal, store: DbStore): string | null {

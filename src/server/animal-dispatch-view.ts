@@ -1,5 +1,5 @@
 import { DbStore } from "@/server/store";
-import { openOperationForAnimal } from "@/server/animal-lifecycle";
+import { openOperationForAnimal, isExperimentActiveForAnimal } from "@/server/animal-lifecycle";
 import { ManagedAnimal } from "@/types/animal-management";
 import { AnimalOpTask } from "@/types/animal-ops";
 
@@ -33,8 +33,11 @@ export function withDispatchListFields(
 ): ManagedAnimal {
   const op = openOperationForAnimal(store, animal.id);
   const task = activeScheduledTaskForAnimal(store, animal.id);
-  const assigneeName =
-    op?.technicianName || animal.technicianName || task?.assigneeName || undefined;
+  const experimentActive = isExperimentActiveForAnimal(store, animal.id);
+
+  const assigneeName = experimentActive
+    ? op?.technicianName || animal.technicianName || task?.assigneeName || undefined
+    : undefined;
 
   let progress = "";
   if (op?.status === "open") {
@@ -42,10 +45,10 @@ export function withDispatchListFields(
     progress = `待技术员处理（${opLabel}）`;
   } else if (op?.status === "tech_submitted") {
     progress = "待学生 NAS 闭环";
-  } else if (task) {
+  } else if (task && experimentActive) {
     const opLabel = OP_TYPE_LABEL[task.opType] || task.opType;
     progress = `已派发·待执行（${opLabel}）`;
-  } else if (animal.animalLock || animal.registrationStatus === "in_experiment") {
+  } else if (experimentActive) {
     progress = "实验中";
   }
 
