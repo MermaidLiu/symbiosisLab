@@ -39,6 +39,7 @@ export default function NotificationsPage() {
   }
 
   async function acknowledge(n: AppNotification) {
+    if (!user) return;
     try {
       const data = await api.handleNotification(n.id, "acknowledge");
       setCachePartial({ notifications: data.notifications });

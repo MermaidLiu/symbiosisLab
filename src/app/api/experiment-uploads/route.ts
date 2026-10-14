@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (!ext) return jsonError("invalid_type", 400);
 
     const saved = await saveExperimentImage(buf, ext);
-    if ("error" in saved) return jsonError(saved.error, 400);
+    if ("error" in saved) return jsonError(saved.error ?? "failed", 400);
     return jsonOk(saved, { status: 201 });
   }
 
@@ -92,6 +92,6 @@ export async function POST(req: NextRequest) {
   if (!ext) return jsonError("invalid_type", 400);
 
   const saved = await saveExperimentImage(buf, ext);
-  if ("error" in saved) return jsonError(saved.error, 400);
+  if ("error" in saved) return jsonError(saved.error ?? "failed", 400);
   return jsonOk(saved, { status: 201 });
 }
