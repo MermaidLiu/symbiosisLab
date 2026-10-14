@@ -7,6 +7,13 @@ import {
 export const BOOKING_HOURS_FLOOR = 0.5;
 export const BOOKING_HOURS_CEILING = 24;
 
+/** List/detail title: English name when set, otherwise Chinese name. */
+export function instrumentDisplayName(inst: Instrument, isZh: boolean): string {
+  if (isZh) return inst.name;
+  const en = (inst.nameEn || "").trim();
+  return en || inst.name;
+}
+
 export const INSTRUMENT_CONTACT_STEPS: InstrumentContactStep[] = [
   "approval",
   "training",

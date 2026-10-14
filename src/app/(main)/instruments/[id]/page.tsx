@@ -26,6 +26,7 @@ import {
   canBookInstrument,
   deriveInstrumentDisplayStatus,
   durationHoursValid,
+  instrumentDisplayName,
   instrumentImageUrl,
   normalizeInstrument,
   userHasInstrumentTraining,
@@ -50,7 +51,7 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
   const { id } = use(params);
   const { t, isZh, locale } = useLocale();
   const { user, refreshUser } = useAuth();
-  const { instruments, bookings, createBooking, refresh } = useData();
+  const { instruments, bookings, createBooking, refresh, dataReady } = useData();
   const raw = instruments.find((i) => i.id === id);
   const inst = raw ? normalizeInstrument(raw) : null;
   const [purpose, setPurpose] = useState("");
@@ -99,6 +100,13 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
     })();
   }, [id]);
 
+  if (!dataReady) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-8 text-sm text-lab-muted">
+        {t.common.loading}
+      </div>
+    );
+  }
   if (!inst) notFound();
 
   const isManager = user ? canManageInstruments(user.roles) : false;
@@ -292,7 +300,7 @@ export default function InstrumentDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <PageHeader
-        title={isZh ? inst.name : inst.nameEn}
+        title={instrumentDisplayName(inst, isZh)}
         action={
           <div className="flex flex-wrap gap-2">
             {isManager && (

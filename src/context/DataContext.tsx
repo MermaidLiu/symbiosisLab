@@ -16,6 +16,8 @@ interface DataContextValue {
   instruments: Instrument[];
   animals: Animal[];
   bookings: Booking[];
+  /** False until the first bootstrap fetch for the current user finishes */
+  dataReady: boolean;
   refresh: () => Promise<void>;
   addInstrument: (data: Omit<Instrument, "id" | "createdAt" | "updatedAt">) => Promise<Instrument>;
   updateInstrument: (id: string, data: Partial<Instrument>) => Promise<void>;
@@ -36,6 +38,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [dataReady, setDataReady] = useState(false);
 
   const syncFromCache = useCallback(() => {
     setInstruments(getInstruments());
@@ -48,10 +51,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setInstruments([]);
       setAnimals([]);
       setBookings([]);
+      setDataReady(false);
       return;
     }
+    setDataReady(false);
     await hydrateFromApi();
     syncFromCache();
+    setDataReady(true);
   }, [user, syncFromCache]);
 
   useEffect(() => {
@@ -135,6 +141,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         instruments,
         animals,
         bookings,
+        dataReady,
         refresh,
         addInstrument,
         updateInstrument,

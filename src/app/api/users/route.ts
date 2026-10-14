@@ -10,7 +10,7 @@ import {
 } from "@/server/auth";
 import { getStore, mutateStore, publicUser } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
-import { AccountStatus, Role } from "@/types";
+import { AccountStatus, AppliedBusinessRole, Role } from "@/types";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -40,6 +40,11 @@ export async function POST(req: NextRequest) {
     name,
     phone: body.phone ? String(body.phone) : undefined,
     department: body.department ? String(body.department) : undefined,
+    employeeId: body.employeeId ? String(body.employeeId) : undefined,
+    school: body.school ? String(body.school) : undefined,
+    personType: body.personType ? String(body.personType) : undefined,
+    appliedRole: body.appliedRole as AppliedBusinessRole | undefined,
+    phoneLocked: body.phoneLocked === true || body.phoneLocked === "true",
     roles,
     actorId: me.id,
     actorName: me.name,
@@ -112,6 +117,8 @@ export async function PATCH(req: NextRequest) {
     phone: body.phone !== undefined ? String(body.phone) : undefined,
     department: body.department !== undefined ? String(body.department) : undefined,
     employeeId: body.employeeId !== undefined ? String(body.employeeId) : undefined,
+    school: body.school !== undefined ? String(body.school) : undefined,
+    personType: body.personType !== undefined ? String(body.personType) : undefined,
     password: body.password !== undefined ? String(body.password) : undefined,
     roles: Array.isArray(body.roles) ? (body.roles as Role[]) : undefined,
     accountStatus: body.accountStatus

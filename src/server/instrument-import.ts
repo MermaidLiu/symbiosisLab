@@ -63,7 +63,7 @@ export function buildInstrumentFromRow(
   return normalizeInstrument({
     id: uid("inst"),
     name,
-    nameEn: (row.nameEn || row["英文名"] || name).trim(),
+    nameEn: (row.nameEn || row["英文名"] || "").trim(),
     model: (row.model || row["型号"] || "").trim(),
     location: (row.location || row["位置"] || "").trim(),
     description: (row.description || row["描述"] || "").trim(),

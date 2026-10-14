@@ -152,10 +152,11 @@ function LoginForm() {
           <form onSubmit={(e) => void onPasswordLogin(e)} className="mt-4 space-y-3 border-t border-lab-border pt-4">
             <p className="text-xs text-lab-muted">{t.auth.passwordLoginHint}</p>
             <Input
-              label={t.auth.email}
-              type="email"
+              label={t.auth.phoneOrEmailLogin}
+              type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder={t.auth.phoneOrEmailPlaceholder}
               required
             />
             <Input

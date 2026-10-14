@@ -14,6 +14,7 @@ import { useData } from "@/context/DataContext";
 import { canManageInstruments, canSuperviseInstruments } from "@/lib/roles";
 import {
   deriveInstrumentDisplayStatus,
+  instrumentDisplayName,
   instrumentImageUrl,
   normalizeInstrument,
 } from "@/lib/instruments";
@@ -108,7 +109,7 @@ export default function InstrumentsPage() {
                       </div>
                     )}
                     <div className="mb-2 flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-thu">{isZh ? inst.name : inst.nameEn}</h3>
+                      <h3 className="font-semibold text-thu">{instrumentDisplayName(inst, isZh)}</h3>
                       <span className="shrink-0 rounded-full bg-thu/10 px-2 py-0.5 text-[10px] font-medium text-thu">
                         {opsLabel(display)}
                       </span>

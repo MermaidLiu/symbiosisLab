@@ -131,10 +131,19 @@ async function issueSession(user: User) {
   return session;
 }
 
-export async function loginUser(email: string, password: string) {
-  const normalized = email.trim().toLowerCase();
+export async function loginUser(identifier: string, password: string) {
+  const raw = identifier.trim();
+  const idLower = raw.toLowerCase();
   const store = getStore();
-  const found = store.users.find((u) => u.email === normalized);
+  let found = store.users.find((u) => u.email === idLower);
+  if (!found) {
+    const phone = normalizePhone(raw);
+    if (isValidCnMobile(phone)) {
+      found =
+        store.users.find((u) => normalizePhone(u.phone ?? "") === phone) ??
+        store.users.find((u) => u.email === phoneToEmail(phone));
+    }
+  }
   if (!found || !verifyPassword(password, found.password)) {
     return { ok: false as const, error: "invalid_credentials" };
   }
@@ -585,6 +594,10 @@ export async function createUserByAdmin(input: {
   phone?: string;
   department?: string;
   employeeId?: string;
+  school?: string;
+  personType?: string;
+  appliedRole?: AppliedBusinessRole;
+  phoneLocked?: boolean;
   roles: Role[];
   actorId: string;
   actorName: string;
@@ -616,7 +629,10 @@ export async function createUserByAdmin(input: {
     password: hashPassword(input.password),
     roles,
     phone,
-    phoneLocked: false,
+    phoneLocked: input.phoneLocked ?? false,
+    school: input.school?.trim() || undefined,
+    personType: input.personType?.trim() || undefined,
+    appliedRole: input.appliedRole,
     department: input.department,
     employeeId: employeeId || `ADM-${Date.now()}`,
     accountStatus: "active" as AccountStatus,
@@ -651,6 +667,8 @@ export async function updateUserByAdmin(input: {
   phone?: string | null;
   department?: string;
   employeeId?: string;
+  school?: string;
+  personType?: string;
   password?: string;
   roles?: Role[];
   accountStatus?: AccountStatus;
@@ -694,6 +712,14 @@ export async function updateUserByAdmin(input: {
     input.department !== undefined
       ? String(input.department).trim()
       : String(target.department ?? "").trim();
+
+  const school =
+    input.school !== undefined ? String(input.school).trim() : String(target.school ?? "").trim();
+
+  const personType =
+    input.personType !== undefined
+      ? String(input.personType).trim()
+      : String(target.personType ?? "").trim();
 
   let employeeId = target.employeeId;
   if (input.employeeId !== undefined) {
@@ -741,6 +767,8 @@ export async function updateUserByAdmin(input: {
     u.email = email;
     u.phone = phone;
     u.department = department || undefined;
+    u.school = school || undefined;
+    u.personType = personType || undefined;
     u.employeeId = employeeId;
     u.roles = roles;
     if (input.accountStatus) u.accountStatus = input.accountStatus;

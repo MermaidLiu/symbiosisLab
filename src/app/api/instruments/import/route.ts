@@ -4,49 +4,8 @@ import { mutateStore, uid } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
 import { buildInstrumentFromRow } from "@/server/instrument-import";
 import { canSuperviseInstruments } from "@/lib/roles";
+import { parseCsvRecords } from "@/lib/csv";
 import { Instrument } from "@/types";
-
-function parseCsv(text: string): Record<string, string>[] {
-  const lines = text
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = splitCsvLine(lines[0]).map((h) => h.trim());
-  return lines.slice(1).map((line) => {
-    const cols = splitCsvLine(line);
-    const row: Record<string, string> = {};
-    headers.forEach((h, i) => {
-      row[h] = (cols[i] ?? "").trim();
-    });
-    return row;
-  });
-}
-
-function splitCsvLine(line: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === "," && !inQuotes) {
-      out.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out;
-}
 
 /** Only instrument super admin may batch-import devices. */
 export async function POST(req: NextRequest) {
@@ -58,7 +17,7 @@ export async function POST(req: NextRequest) {
   const csv = String(body.csv ?? "");
   if (!csv.trim()) return jsonError("invalid_body", 400);
 
-  const rows = parseCsv(csv);
+  const rows = parseCsvRecords(csv);
   const created: Instrument[] = [];
   const errors: string[] = [];
 
