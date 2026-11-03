@@ -2,23 +2,7 @@ const { api } = require("../../utils/api");
 const { setSession, getToken, clearSession } = require("../../utils/auth");
 const { API_BASE, isInsecureApiBase } = require("../../utils/config");
 
-function needsRealname(user) {
-  if (!user) return true;
-  // 系统管理员无需实名认证
-  if (Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0) return false;
-  const st = user.accountStatus || "active";
-  if (st === "pending_profile" || st === "rejected" || st === "pending_review" || st === "disabled") {
-    return true;
-  }
-  if (!user.phone) return false;
-  if (!(user.name || "").trim()) return true;
-  const emp = (user.employeeId || "").trim();
-  if (!emp || emp.startsWith("LEGACY-")) return true;
-  if (!(user.school || "").trim()) return true;
-  if (!(user.department || "").trim()) return true;
-  if ((user.email || "").endsWith("@phone.symbiosis.local")) return true;
-  return false;
-}
+const { needsProfileCompletion: needsRealname, canEditRealnameForm } = require("../../utils/account-status");
 
 function afterLogin(user) {
   getApp().globalData.user = user;

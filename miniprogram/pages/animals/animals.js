@@ -13,15 +13,7 @@ const {
 const ACTION_W = 76;
 const EXPERIMENT_TYPES = new Set(["signal_collection", "surgery", "perfusion", "other"]);
 
-function isStudentUser(user) {
-  if (!user) return false;
-  const roles = user.roles || [];
-  const techish = roles.some((r) =>
-    ["animal_manager", "animal_caretaker", "animal_facility_supervisor", "super_admin"].includes(r)
-  );
-  if (techish) return false;
-  return (user.appliedRole || "student") === "student" || roles.includes("user");
-}
+const { isAnimalClaimantStudent: isStudentUser } = require("../../utils/account-status");
 
 Page({
   data: {

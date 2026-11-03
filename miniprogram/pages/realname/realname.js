@@ -1,21 +1,7 @@
 const { api } = require("../../utils/api");
 const { requireLogin, getUser, setSession, getToken, clearSession } = require("../../utils/auth");
 
-function needsProfile(user) {
-  if (!user) return true;
-  if (Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0) return false;
-  const st = user.accountStatus || "active";
-  if (st === "pending_profile" || st === "rejected") return true;
-  if (st === "pending_review" || st === "disabled") return true;
-  if (!user.phone) return false;
-  if (!(user.name || "").trim()) return true;
-  const emp = (user.employeeId || "").trim();
-  if (!emp || emp.startsWith("LEGACY-")) return true;
-  if (!(user.school || "").trim()) return true;
-  if (!(user.department || "").trim()) return true;
-  if ((user.email || "").endsWith("@phone.symbiosis.local")) return true;
-  return false;
-}
+const { needsProfileCompletion: needsProfile, canEditRealnameForm } = require("../../utils/account-status");
 
 Page({
   data: {
@@ -83,7 +69,7 @@ Page({
       personType: user.personType || "学生",
       contactExtra: user.contactExtra || "",
       appliedRole: user.appliedRole || "student",
-      canSubmit: st === "pending_profile" || st === "rejected" || (st === "active" && incomplete),
+      canSubmit: canEditRealnameForm(user),
       alreadyActive: st === "active",
       rejectReason: user.rejectReason || "",
     });

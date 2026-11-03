@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { needsProfileCompletion } from "@/lib/account-status";
 import type { PublicUser } from "@/lib/api/client";
+import { getLoginRedirect } from "@/lib/login-redirect";
 
 function LoginForm() {
   const { login, phoneLogin, sendSms, user } = useAuth();
@@ -30,7 +31,7 @@ function LoginForm() {
       router.replace("/auth/realname");
       return;
     }
-    router.replace(params.get("redirect") ?? "/");
+    router.replace(getLoginRedirect(params.get("redirect"), u.roles));
   }
 
   useEffect(() => {

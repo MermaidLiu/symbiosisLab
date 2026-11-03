@@ -1,3 +1,4 @@
+const { isAnimalClaimantStudent, isAnimalTechnician } = require("../../utils/account-status");
 const { api } = require("../../utils/api");
 const { isLoggedIn, getUser, goLogin, promptLogin } = require("../../utils/auth");
 const { API_BASE } = require("../../utils/config");
@@ -84,15 +85,8 @@ Page({
     this.setData({ guestMode: !loggedIn });
     if (!loggedIn) return;
     const user = getUser();
-    const roles = (user && user.roles) || [];
-    const isStudent =
-      roles.includes("user") &&
-      !roles.some((r) =>
-        ["animal_manager", "animal_caretaker", "animal_collector", "animal_facility_supervisor"].includes(r)
-      );
-    const isTech = roles.some((r) =>
-      ["animal_manager", "animal_caretaker", "animal_collector", "animal_facility_supervisor"].includes(r)
-    );
+    const isStudent = isAnimalClaimantStudent(user);
+    const isTech = isAnimalTechnician(user);
     this.setData({
       isStudent,
       isTech,

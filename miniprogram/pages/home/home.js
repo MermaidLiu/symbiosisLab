@@ -1,3 +1,4 @@
+const { needsProfileCompletion } = require("../../utils/account-status");
 const { api } = require("../../utils/api");
 const { isLoggedIn, getUser, clearSession, goLogin, promptLogin } = require("../../utils/auth");
 const { isInsecureApiBase } = require("../../utils/config");
@@ -43,25 +44,9 @@ Page({
     if (!loggedIn) return;
 
     const user = getUser();
-    const isSuperAdmin =
-      user && Array.isArray(user.roles) && user.roles.indexOf("super_admin") >= 0;
-    if (user && user.phone && !isSuperAdmin) {
-      const st = user.accountStatus || "active";
-      const emp = (user.employeeId || "").trim();
-      const incomplete =
-        st === "pending_profile" ||
-        st === "rejected" ||
-        st === "pending_review" ||
-        !(user.name || "").trim() ||
-        !emp ||
-        emp.startsWith("LEGACY-") ||
-        !(user.school || "").trim() ||
-        !(user.department || "").trim() ||
-        (user.email || "").endsWith("@phone.symbiosis.local");
-      if (incomplete && st !== "disabled") {
-        wx.redirectTo({ url: "/pages/realname/realname" });
-        return;
-      }
+    if (needsProfileCompletion(user)) {
+      wx.navigateTo({ url: "/pages/realname/realname" });
+      return;
     }
 
     const now = new Date();
