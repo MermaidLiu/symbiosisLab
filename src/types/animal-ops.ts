@@ -38,6 +38,8 @@ export const URGENCY_COLORS: Record<AnimalOpUrgency, string> = {
 
 export interface AnimalOpTask {
   id: string;
+  remainingSteps?: { opType: AnimalOpType; assigneeUserId: string; assigneeName: string }[];
+  nextTaskId?: string;
   animalIds: string[];
   opType: AnimalOpType;
   /** 填空备注 */

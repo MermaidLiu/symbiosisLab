@@ -394,6 +394,7 @@ export const api = {
   },
 
   createAnimalOpTask: (data: {
+    steps?: { opType: import("@/types/animal-ops").AnimalOpType; assigneeUserId: string }[];
     animalIds: string[];
     opType: import("@/types/animal-ops").AnimalOpType;
     note?: string;

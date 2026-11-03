@@ -11,6 +11,7 @@ import {
   urgencyFromFlags,
 } from "@/types/animal-ops";
 import {
+  advanceAnimalTask,
   appendLifecycleTrace,
   assertCanCreateOperation,
   finalizeRegistrationAfterClose,
@@ -98,6 +99,16 @@ export async function POST(req: NextRequest) {
     return jsonError("invalid_assignee", 400);
   }
 
+  if (body.steps !== undefined && (!Array.isArray(body.steps) || body.steps.length > 30)) return jsonError("invalid_steps", 400);
+  const remainingSteps: NonNullable<AnimalOpTask["remainingSteps"]> = [];
+  for (const step of body.steps ?? []) {
+    if (!step || !isOpType(step.opType)) return jsonError("invalid_steps", 400);
+    const person = store.users.find((u) => u.id === step.assigneeUserId);
+    if (!person || !canReceiveAnimalOps(person.roles) || (person.accountStatus ?? "active") !== "active") return jsonError("invalid_assignee", 400);
+    remainingSteps.push({ opType: step.opType, assigneeUserId: person.id, assigneeName: displayName(person) });
+  }
+  const allTypes = [opTypeRaw, ...remainingSteps.map((step) => step.opType)];
+  if (allTypes.slice(0, -1).includes("euthanasia")) return jsonError("euthanasia_must_be_last", 400);
   const urgency = urgencyFromFlags(necessary, urgent);
   const now = new Date().toISOString();
 
@@ -114,6 +125,7 @@ export async function POST(req: NextRequest) {
 
   const task: AnimalOpTask = {
     id: uid("aot"),
+    remainingSteps,
     animalIds: targetIds,
     opType: opTypeRaw,
     note,
@@ -370,6 +382,8 @@ export async function PATCH(req: NextRequest) {
       return;
     }
 
+    if (body.status === "done" && cur.remainingSteps?.length && !isAssignee) { forbidden = true; return; }
+    if (body.status === "done" && cur.remainingSteps?.length && cur.animalIds.some((id) => Boolean(openOperationForAnimal(s, id)))) { forbidden = true; return; }
     const prevStatus = cur.status;
     const next = { ...cur };
     if (body.startTime !== undefined) next.startTime = String(body.startTime);
@@ -395,6 +409,7 @@ export async function PATCH(req: NextRequest) {
 
     s.animalOpTasks[idx] = next;
     updated = next;
+    if (becameDone) advanceAnimalTask(s, next, now);
 
     // Student receipt + red-dot notification when staff completes the task
     if (becameDone && next.createdByUserId) {

@@ -44,6 +44,7 @@ export function AssignAnimalOpModal({
   const [staff, setStaff] = useState<PublicUser[]>([]);
   const [assigneeTasks, setAssigneeTasks] = useState<AnimalOpTask[]>([]);
   const [opType, setOpType] = useState<AnimalOpType>("fasting");
+  const [steps, setSteps] = useState<{ opType: AnimalOpType; assigneeUserId: string }[]>([]);
   const [note, setNote] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [necessary, setNecessary] = useState(true);
@@ -61,6 +62,7 @@ export function AssignAnimalOpModal({
     if (!open) return;
     setMsg("");
     setNote("");
+    setSteps([]);
     (async () => {
       try {
         const { users } = await api.users();
@@ -130,6 +132,7 @@ export function AssignAnimalOpModal({
     try {
       await api.createAnimalOpTask({
         animalIds,
+        steps,
         opType,
         note,
         assigneeUserId: assigneeId,
@@ -159,7 +162,7 @@ export function AssignAnimalOpModal({
           <FluentButton variant="outline" onClick={onClose}>
             {t.common.cancel}
           </FluentButton>
-          <FluentButton disabled={saving || !assigneeId} onClick={() => void submit()}>
+          <FluentButton disabled={saving || !assigneeId || steps.some((s) => !s.assigneeUserId)} onClick={() => void submit()}>
             {o.submit}
           </FluentButton>
         </div>
@@ -169,7 +172,7 @@ export function AssignAnimalOpModal({
         {o.assignHint.replace("{n}", String(animalIds.length))}
       </p>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid items-end gap-3 md:grid-cols-[1fr_1fr_auto]">
         <div>
           <label className="mb-1 block text-xs text-lab-muted">{o.opType}</label>
           <FluentSelect
@@ -194,8 +197,27 @@ export function AssignAnimalOpModal({
             ))}
           </FluentSelect>
         </div>
+      <div className="flex justify-end">
+        <FluentButton variant="outline" onClick={() => setSteps([...steps, { opType: "fasting", assigneeUserId: "" }])} aria-label="新增操作步骤">＋</FluentButton>
       </div>
-
+      </div>
+      {steps.map((step, index) => (
+        <div key={index} className="mt-3 grid grid-cols-[1fr_1fr_auto] items-end gap-3">
+          <FluentSelect label={"步骤 " + (index + 2)} value={step.opType} onChange={(e) => setSteps(steps.map((s, i) => i === index ? { ...s, opType: e.target.value as AnimalOpType } : s))}>
+            {ANIMAL_OP_TYPES.map((k) => <option key={k} value={k}>{o.types[k]}</option>)}
+          </FluentSelect>
+          <FluentSelect label={o.assignee} value={step.assigneeUserId} onChange={(e) => setSteps(steps.map((s, i) => i === index ? { ...s, assigneeUserId: e.target.value } : s))}>
+            <option value="">{o.pickAssignee}</option>
+            {staff.map((u) => <option key={u.id} value={u.id}>{displayName(u)}</option>)}
+          </FluentSelect>
+          <FluentButton variant="outline" aria-label="移除步骤" title="移除步骤" onClick={() => setSteps(steps.filter((_, i) => i !== index))}>
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12m-8-3h4l1 3H9l1-3Zm-3 3 1 13h8l1-13M10 10v7m4-7v7" />
+            </svg>
+          </FluentButton>
+        </div>
+      ))}
+      {steps.length > 0 && <p className="mt-2 text-xs text-lab-muted">按步骤顺序派发，前一步完成后自动通知下一位负责人。实验步骤在 NAS 闭环后完成交接。</p>}
       <div className="mt-3">
         <label className="mb-1 block text-xs text-lab-muted">{o.note}</label>
         <input
