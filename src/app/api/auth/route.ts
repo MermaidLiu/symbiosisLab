@@ -1,3 +1,4 @@
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 import { NextRequest } from "next/server";
 import {
   clearSessionCookie,
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const action = body.action as string;
 
+  if ((action === "send_sms" || action === "phone_login") && !PHONE_VERIFICATION_ENABLED) return jsonError("phone_verification_disabled", 400);
   if (action === "send_sms") {
     const result = await createAndSendSmsCode(String(body.phone ?? ""));
     if (!result.ok) return jsonError(result.error, 400);

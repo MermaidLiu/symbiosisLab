@@ -1,3 +1,4 @@
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 import { AccountStatus, AppliedBusinessRole, Role, User } from "@/types";
 import { canSuperviseAnimalFacility, hasRole } from "@/lib/roles";
 
@@ -93,6 +94,7 @@ export function needsProfileCompletion(user: {
   if (isExemptFromRealname(user)) return false;
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
+  if (!PHONE_VERIFICATION_ENABLED) return false;
   // 有手机号：须完成姓名、学号、学校、真实邮箱、实验室
   if (user.phone) {
     if (!String(user.name ?? "").trim()) return true;
@@ -119,6 +121,7 @@ export function canEditRealnameForm(user: {
   if (isExemptFromRealname(user)) return false;
   const st = user.accountStatus ?? "active";
   if (st === "pending_profile" || st === "rejected") return true;
+  if (!PHONE_VERIFICATION_ENABLED) return false;
   if (st === "pending_review" || st === "disabled") return false;
   if (user.phone && needsProfileCompletion({ ...user, accountStatus: "active" })) return true;
   return false;

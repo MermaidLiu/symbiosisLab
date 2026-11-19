@@ -29,18 +29,17 @@ function detectImageExt(buf: Buffer): string | null {
 }
 
 function resolveExt(filename: string | undefined, buf: Buffer): string | null {
-  const fromName = path.extname(String(filename ?? "")).toLowerCase();
-  if (fromName && ALLOWED.has(fromName)) return fromName;
+  void filename;
   const detected = detectImageExt(buf);
   if (detected && ALLOWED.has(detected)) return detected;
-  return ".jpg";
+  return null;
 }
 
 async function saveExperimentImage(buf: Buffer, ext: string) {
   if (buf.length > MAX_BYTES) return { error: "file_too_large" as const };
   if (!ALLOWED.has(ext)) return { error: "invalid_type" as const };
 
-  const dir = path.join(process.cwd(), "public", "uploads", "experiments");
+  const dir = path.join(process.cwd(), "data", "uploads", "experiments");
   await mkdir(dir, { recursive: true });
   const filename = `${uid("expimg")}${ext}`;
   await writeFile(path.join(dir, filename), buf);
@@ -86,9 +85,8 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) return jsonError("file_required", 400);
 
   const name = file.name || "photo.jpg";
-  const extFromName = path.extname(name).toLowerCase();
   const buf = Buffer.from(await file.arrayBuffer());
-  const ext = extFromName && ALLOWED.has(extFromName) ? extFromName : resolveExt(name, buf);
+  const ext = resolveExt(name, buf);
   if (!ext) return jsonError("invalid_type", 400);
 
   const saved = await saveExperimentImage(buf, ext);

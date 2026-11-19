@@ -1,4 +1,5 @@
 "use client";
+import { experimentPhotoUrl } from "@/lib/experiment-photos";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -195,6 +196,8 @@ export function AnimalLifecycleHub() {
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
   const [resultNote, setResultNote] = useState("");
+  const [dataTransferred, setDataTransferred] = useState<boolean | null>(null);
+  const [studentFileSeen, setStudentFileSeen] = useState<boolean | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [nasPath, setNasPath] = useState("");
@@ -246,6 +249,9 @@ export function AnimalLifecycleHub() {
       if (!res.ok) throw new Error("not_found");
       const data = await res.json();
       setSelected(data.animal);
+      setDataTransferred(null);
+      setStudentFileSeen(null);
+      setPhotoUrls([]);
       setOperations(data.operations ?? []);
       setTraces(data.traces ?? []);
       setScanId(animalId);
@@ -312,6 +318,8 @@ export function AnimalLifecycleHub() {
       setNasPath("");
       setResultNote("");
       setPhotoUrls([]);
+      setDataTransferred(null);
+      setStudentFileSeen(null);
       await lookup(selected?.id || scanId);
       await load();
     } catch (e) {
@@ -611,14 +619,14 @@ export function AnimalLifecycleHub() {
                   onChange={(e) => setNasPath(e.target.value)}
                   placeholder="\\\\NAS\\lab\\project\\mouse001\\"
                 />
-                <p className="text-[11px] text-lab-muted">路径生成规则后续接入，现阶段可手动填写。</p>
+                {pendingClose.dataTransferred === true ? <label className="block text-sm">是否在文件夹中看到此文件<select className="ml-2 rounded border p-2" value={studentFileSeen === null ? "" : String(studentFileSeen)} onChange={(e) => setStudentFileSeen(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是</option><option value="false">否（通知技术员核查）</option></select></label> : null}
                 <FluentButton
-                  disabled={busy || !nasPath.trim()}
+                  disabled={busy || !nasPath.trim() || (pendingClose.dataTransferred === true && studentFileSeen === null)}
                   onClick={() =>
-                    void patchOperation(pendingClose.id, "student_close", { nasDataPath: nasPath })
+                    void patchOperation(pendingClose.id, "student_close", { nasDataPath: nasPath, studentFileSeen })
                   }
                 >
-                  完成闭环 · 可参与后续实验
+                  {studentFileSeen === false ? "反馈未看到文件" : "完成闭环 · 可参与后续实验"}
                 </FluentButton>
               </div>
             ) : null}
@@ -652,7 +660,7 @@ export function AnimalLifecycleHub() {
                   placeholder="例如：行为学完成，鼠状态正常"
                 />
                 <div>
-                  <p className="mb-1 text-[11px] font-medium text-lab-muted">结果照片（可多张）</p>
+                  <label className="block text-sm">是否传输<select className="ml-2 rounded border p-2" value={dataTransferred === null ? "" : String(dataTransferred)} onChange={(e) => setDataTransferred(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是（上传照片）</option><option value="false">否（不上传照片）</option></select></label>
                   <input
                     ref={photoInputRef}
                     type="file"
@@ -667,7 +675,7 @@ export function AnimalLifecycleHub() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={busy || uploading}
+                      disabled={busy || uploading || dataTransferred !== true}
                       onClick={() => photoInputRef.current?.click()}
                     >
                       {uploading ? "上传中…" : "选择 / 拍照上传"}
@@ -680,7 +688,7 @@ export function AnimalLifecycleHub() {
                         <div key={url} className="relative">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={url}
+                            src={experimentPhotoUrl(url)}
                             alt=""
                             className="h-20 w-20 rounded-lg object-cover ring-1 ring-black/10"
                           />
@@ -698,15 +706,15 @@ export function AnimalLifecycleHub() {
                   ) : null}
                 </div>
                 <FluentButton
-                  disabled={busy || uploading || (!photoUrls.length && !resultNote.trim())}
+                  disabled={busy || uploading || dataTransferred === null || (dataTransferred && !photoUrls.length)}
                   onClick={() => {
-                    if (!photoUrls.length) {
+                    if (dataTransferred && !photoUrls.length) {
                       setError("请至少上传一张结果照片");
                       return;
                     }
                     void patchOperation(openOp.id, "tech_submit", {
                       resultNote,
-                      resultImageUrls: photoUrls,
+                      dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
                     });
                   }}
                 >
@@ -752,7 +760,7 @@ export function AnimalLifecycleHub() {
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               key={url}
-                              src={url}
+                              src={experimentPhotoUrl(url)}
                               alt=""
                               className="h-14 w-14 rounded object-cover ring-1 ring-black/10"
                             />

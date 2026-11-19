@@ -1,4 +1,5 @@
 "use client";
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -22,7 +23,7 @@ function LoginForm() {
   const [sending, setSending] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(!PHONE_VERIFICATION_ENABLED);
   const [email, setEmail] = useState("admin@lab.edu.cn");
   const [password, setPassword] = useState("admin123");
 
@@ -99,13 +100,13 @@ function LoginForm() {
             <div className="mb-3 inline-flex rounded-lg bg-tsinghua-yellow px-3 py-2 shadow-sm">
               <span className="text-sm font-bold tracking-tight text-thu-dark">Symbiosis Lab</span>
             </div>
-            <h1 className="text-xl font-bold text-thu">{t.auth.phoneLoginTitle}</h1>
-            <p className="mt-1 text-xs text-lab-muted">{t.auth.phoneLoginHint}</p>
+            <h1 className="text-xl font-bold text-thu">{PHONE_VERIFICATION_ENABLED ? t.auth.phoneLoginTitle : "邮箱密码登录"}</h1>
+            <p className="mt-1 text-xs text-lab-muted">{PHONE_VERIFICATION_ENABLED ? t.auth.phoneLoginHint : "手机号验证暂未启用"}</p>
           </div>
           <LanguageSwitcher />
         </div>
 
-        <form onSubmit={(e) => void onPhoneLogin(e)} className="space-y-4">
+        {PHONE_VERIFICATION_ENABLED ? <form onSubmit={(e) => void onPhoneLogin(e)} className="space-y-4">
           <Input
             label={t.auth.phone}
             type="tel"
@@ -139,15 +140,15 @@ function LoginForm() {
           <Button type="submit" className="w-full">
             {t.auth.login}
           </Button>
-        </form>
+        </form> : null}
 
-        <button
+        {PHONE_VERIFICATION_ENABLED ? <button
           type="button"
           className="mt-4 w-full text-center text-xs text-lab-muted underline"
           onClick={() => setShowPassword((v) => !v)}
         >
           {showPassword ? t.auth.hidePasswordLogin : t.auth.showPasswordLogin}
-        </button>
+        </button> : null}
 
         {showPassword ? (
           <form onSubmit={(e) => void onPasswordLogin(e)} className="mt-4 space-y-3 border-t border-lab-border pt-4">

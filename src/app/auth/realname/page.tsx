@@ -103,7 +103,7 @@ export default function RealnamePage() {
       <div className="w-full max-w-lg rounded-xl border border-lab-border bg-white p-8 shadow-card">
         <h1 className="text-xl font-bold text-thu">完善个人资料</h1>
         <p className="mt-2 text-sm text-lab-muted">
-          首次登录须完善实名信息。申请「学生」或「技术员」时，姓名与手机号须与系统管理员录入的课题组名单一致，否则无法使用本系统。
+          请完善个人资料。手机号名单核验暂未启用，已激活账号可直接登录。
         </p>
 
         {(st === "pending_review" || submittedOk) && (

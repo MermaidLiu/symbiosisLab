@@ -1,3 +1,4 @@
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 import { cookies, headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { AccountStatus, AppliedBusinessRole, Role, User } from "@/types";
@@ -261,8 +262,9 @@ export async function submitRealNameProfile(
   }
   if (!nextPhone) return { ok: false as const, error: "no_phone" };
 
-  // 学生/技术员：姓名+手机号必须与管理员录入的课题组名单一致
-  if (requiresRosterMatch(appliedRole)) {
+  const wasActive = (me.accountStatus ?? "active") === "active";
+  // 已开通账号补资料时免查名单；新申请仍须匹配。
+  if (!wasActive && requiresRosterMatch(appliedRole)) {
     if (!isOnRoster(store.researchGroupRoster, name, nextPhone)) {
       return { ok: false as const, error: "roster_mismatch" };
     }
@@ -279,7 +281,6 @@ export async function submitRealNameProfile(
   if (dupEmail) return { ok: false as const, error: "email_exists" };
 
   const now = new Date().toISOString();
-  const wasActive = (me.accountStatus ?? "active") === "active";
   let updated: User | null = null;
   await mutateStore((s) => {
     const u = s.users.find((x) => x.id === userId);
@@ -296,7 +297,7 @@ export async function submitRealNameProfile(
     if (u.phoneLocked !== true) u.phoneLocked = false;
     // 已激活账号补全资料：保持 active
     // 学生且已通过名单校验：直接激活；技术员/主管仍须动物房审核
-    if (wasActive && u.accountStatus === "active") {
+    if (wasActive && (u.accountStatus ?? "active") === "active") {
       u.accountStatus = "active";
     } else if (appliedRole === "student") {
       u.accountStatus = "active";
@@ -410,7 +411,7 @@ export async function updateIdentityProfile(
       !me.roles.includes("animal_facility_supervisor") &&
       !me.roles.includes("super_admin");
     if (
-      nextPhone &&
+      PHONE_VERIFICATION_ENABLED && nextPhone &&
       (requiresRosterMatch(applied) || isTechByRole) &&
       !isOnRoster(store.researchGroupRoster, name, nextPhone)
     ) {

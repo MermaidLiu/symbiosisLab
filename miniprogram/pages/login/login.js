@@ -15,7 +15,8 @@ function afterLogin(user) {
 
 Page({
   data: {
-    mode: "phone",
+    phoneVerificationEnabled: require("../../utils/phone-verification").enabled,
+    mode: require("../../utils/phone-verification").enabled ? "phone" : "password",
     phone: "",
     code: "",
     email: "student@lab.edu.cn",

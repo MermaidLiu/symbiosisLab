@@ -1,3 +1,4 @@
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 import { AppliedBusinessRole, ResearchGroupRosterEntry } from "@/types";
 
 /** 手机号归一：仅保留数字，去掉 +86 */
@@ -17,7 +18,7 @@ export function normalizePersonName(raw: string): string {
 }
 
 export function requiresRosterMatch(appliedRole: AppliedBusinessRole): boolean {
-  return appliedRole === "student" || appliedRole === "technician";
+  return PHONE_VERIFICATION_ENABLED && (appliedRole === "student" || appliedRole === "technician");
 }
 
 export function findRosterEntry(

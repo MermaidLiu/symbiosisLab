@@ -67,9 +67,10 @@
     <!-- 学生：待填 NAS -->
     <view class="card" wx:if="{{isStudent && pendingOp && !animal.deathAt}}">
       <view class="section">待闭环{{pendingOp.backfill ? ' · 补录' : ''}} · {{pendingOp.title}}</view>
-      <view class="meta muted">技术员已提交拍照记录，请填写本地 NAS 文件夹路径</view>
+      <view class="meta muted">技术员已提交结果，请填写本地 NAS 文件夹路径</view>
       <input class="input" placeholder="\\\\NAS\\lab\\project\\..." value="{{nasPath}}" bindinput="onNasPath" />
-      <button class="btn primary block" loading="{{busy}}" bindtap="studentClose">完成闭环</button>
+      <radio-group wx:if="{{pendingOp.dataTransferred === true}}" bindchange="onFileSeen"><view>是否在文件夹中看到此文件</view><label><radio value="true" />是</label><label><radio value="false" />否（通知技术员核查）</label></radio-group>
+      <button class="btn primary block" loading="{{busy}}" bindtap="studentClose">{{studentFileSeen === false ? "反馈未看到文件" : "完成闭环"}}</button>
     </view>
 
     <!-- 技术员：无进行中实验时可创建 -->
@@ -85,9 +86,9 @@
     <!-- 技术员：上传照片并完成 -->
     <view class="card" wx:if="{{isTech && openOp && !animal.deathAt}}">
       <view class="section">处理中 · {{openOp.title}}</view>
-      <view class="meta muted">请上传结果照片（可多张），再提交给学生</view>
+      <radio-group bindchange="onTransfer"><view>是否传输</view><label><radio value="true" checked="{{dataTransferred === true}}" />是（上传照片）</label><label><radio value="false" checked="{{dataTransferred === false}}" />否（不上传照片）</label></radio-group>
       <input class="input" placeholder="结果说明（可选）" value="{{resultNote}}" bindinput="onResultNote" />
-      <button class="btn ghost block" loading="{{uploading || busy}}" bindtap="choosePhotos">
+      <button class="btn ghost block" loading="{{uploading || busy}}" disabled="{{dataTransferred !== true}}" bindtap="choosePhotos">
         📷 拍照 / 从相册上传结果图（已 {{photoUrls.length}} 张）
       </button>
       <view class="hint muted" wx:if="{{uploading}}">上传中 {{uploadProgress}}%…</view>
@@ -105,11 +106,11 @@
         />
       </view>
       <view class="hint muted" wx:if="{{photoUrls.length}}">轻触预览，长按可删除</view>
-      <view class="hint muted" wx:elif="{{!photoUrls.length}}">须至少上传 1 张结果图后才能提交</view>
+      <view class="hint muted" wx:elif="{{!photoUrls.length}}">选择是时须上传至少 1 张传输照片</view>
       <button
         class="btn primary block"
         loading="{{busy}}"
-        disabled="{{!photoUrls.length}}"
+        disabled="{{dataTransferred === null || (dataTransferred && !photoUrls.length)}}"
         bindtap="techSubmit"
       >完成数据采集 · 提交学生</button>
     </view>
@@ -118,6 +119,8 @@
       <view class="section">实验记录</view>
       <block wx:for="{{operations}}" wx:key="id">
         <view class="op">{{item.title}} · {{item.statusText}} · {{item.technicianName}}</view>
+        <view class="meta">传输：{{item.dataTransferred === undefined ? '未记录' : (item.dataTransferred ? '是' : '否')}} · 学生看到文件：{{item.studentFileSeen === undefined ? '未反馈' : (item.studentFileSeen ? '是' : '否')}}</view>
+        <view class="photos"><image wx:for="{{item.photoPreviews}}" wx:for-item="photo" wx:key="*this" src="{{photo}}" mode="aspectFill" class="thumb" data-operation="{{item.id}}" data-url="{{photo}}" bindtap="previewRecordPhoto" /></view>
         <view wx:if="{{item.nasDataPath}}" class="meta">NAS: {{item.nasDataPath}}</view>
       </block>
     </view>

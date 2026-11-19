@@ -213,6 +213,9 @@ export async function PATCH(req: NextRequest) {
         fail = "invalid_state";
         return;
       }
+      const images = Array.isArray(body.resultImageUrls) ? body.resultImageUrls.filter((u: unknown) => typeof u === "string" && u) : [];
+      if (typeof body.dataTransferred !== "boolean" || (body.dataTransferred && !images.length)) { fail = "transfer_photo_required"; return; }
+      op.dataTransferred = body.dataTransferred;
       op.status = "tech_submitted";
       op.techSubmittedAt = now;
       op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
@@ -223,6 +226,7 @@ export async function PATCH(req: NextRequest) {
         : body.resultImageUrl
           ? [String(body.resultImageUrl)]
           : op.resultImageUrls;
+      if (!op.dataTransferred) op.resultImageUrls = [];
       op.updatedAt = now;
       notifyStudentId = op.studentUserId;
       appendLifecycleTrace(s, {
@@ -239,6 +243,18 @@ export async function PATCH(req: NextRequest) {
       if (op.status !== "tech_submitted") return;
       const nas = String(body.nasDataPath ?? "").trim();
       if (!nas) return;
+      if (op.dataTransferred === true && typeof body.studentFileSeen !== "boolean") { fail = "file_confirmation_required"; return; }
+      if (op.dataTransferred === true && body.studentFileSeen === false) {
+        op.studentFileSeen = false;
+        op.updatedAt = now;
+        pushNotificationToUsers(s, [op.technicianUserId], {
+          title: "学生未看到传输文件，请核查", titleEn: "Transferred file not found", message: "学生反馈在文件夹中未看到文件，请核查传输。", messageEn: "The student cannot find the transferred file. Please check the transfer.",
+          link: "/animals/lifecycle?animalId=" + op.animalId, kind: "experiment_operation", operationId: op.id, animalId: op.animalId,
+        });
+        updated = op;
+        return;
+      }
+      op.studentFileSeen = op.dataTransferred === true ? true : undefined;
       op.nasDataPath = nas;
       op.status = "closed";
       op.closedAt = now;
@@ -313,7 +329,7 @@ export async function PATCH(req: NextRequest) {
       pushNotificationToUsers(s, [notifyStudentId!], {
         title: "实验已完成，请上传 NAS 路径",
         titleEn: "Experiment submitted — upload NAS path",
-        message: `小鼠 ${(updated as ExperimentOperation).animalId} 的技术员阶段已提交，请上传 NAS 数据路径并完成闭环。`,
+        message: `小鼠 ${(updated as ExperimentOperation).animalId} 的技术员阶段已提交，请填写 NAS 路径，并反馈是否在文件夹看到传输文件后完成闭环。`,
         messageEn: `Technician submitted results for ${(updated as ExperimentOperation).animalId}. Upload NAS path to close.`,
         link: `/animals/lifecycle?animalId=${(updated as ExperimentOperation).animalId}`,
         kind: "experiment_operation",

@@ -125,3 +125,5 @@ data/
 ## 许可证
 
 MIT
+
+手机号名单核验默认关闭。启用时设置 NEXT_PUBLIC_PHONE_VERIFICATION_ENABLED=true 并重新构建网站，同时将 miniprogram/utils/phone-verification.js 的 enabled 改为 true 后发布小程序。已激活账号在关闭期间不强制补资料；停用、拒绝和待审核状态不受此开关影响。

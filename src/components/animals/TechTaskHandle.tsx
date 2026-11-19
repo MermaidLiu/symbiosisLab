@@ -1,4 +1,5 @@
 "use client";
+import { experimentPhotoUrl } from "@/lib/experiment-photos";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -48,6 +49,8 @@ export function TechTaskHandle() {
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
   const [resultNote, setResultNote] = useState("");
+  const [dataTransferred, setDataTransferred] = useState<boolean | null>(null);
+  const [studentFileSeen, setStudentFileSeen] = useState<boolean | null>(null);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -233,11 +236,8 @@ export function TechTaskHandle() {
       setError("请先核验笼码与派发 Animal ID 一致");
       return;
     }
-    if (!photoUrls.length && !resultNote.trim()) {
-      setError("请至少上传一张拍照记录或填写结果说明");
-      return;
-    }
-    if (!photoUrls.length) {
+    if (dataTransferred === null) { setError("请选择是否传输"); return; }
+    if (dataTransferred && !photoUrls.length) {
       setError("请至少上传一张结果照片");
       return;
     }
@@ -257,7 +257,7 @@ export function TechTaskHandle() {
           id: op.id,
           action: "tech_submit",
           resultNote,
-          resultImageUrls: photoUrls,
+          dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -418,7 +418,7 @@ export function TechTaskHandle() {
                 onChange={(e) => setResultNote(e.target.value)}
               />
               <div>
-                <p className="mb-1 text-[11px] font-medium text-lab-muted">拍照记录</p>
+                <label className="block text-sm">是否传输<select className="ml-2 rounded border p-2" value={dataTransferred === null ? "" : String(dataTransferred)} onChange={(e) => setDataTransferred(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是（上传照片）</option><option value="false">否（不上传照片）</option></select></label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -431,7 +431,7 @@ export function TechTaskHandle() {
                 <FluentButton
                   variant="outline"
                   size="sm"
-                  disabled={!verified || uploading || busy}
+                  disabled={!verified || uploading || busy || dataTransferred !== true}
                   onClick={() => fileRef.current?.click()}
                 >
                   {uploading ? "上传中…" : `拍照 / 上传（已 ${photoUrls.length} 张）`}
@@ -442,7 +442,7 @@ export function TechTaskHandle() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         key={url}
-                        src={url}
+                        src={experimentPhotoUrl(url)}
                         alt=""
                         className="h-20 w-20 rounded-lg object-cover ring-1 ring-black/10"
                       />
@@ -451,7 +451,7 @@ export function TechTaskHandle() {
                 ) : null}
               </div>
               <FluentButton
-                disabled={!verified || busy || uploading}
+                disabled={!verified || busy || uploading || dataTransferred === null}
                 onClick={() => void submitToStudent()}
               >
                 完成并提交给学生

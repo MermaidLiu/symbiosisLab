@@ -37,6 +37,8 @@ Page({
     expKind: "ephys",
     expTitle: "数据采集",
     resultNote: "",
+    dataTransferred: null,
+    studentFileSeen: null,
     photoUrls: [],
     photoPreviews: [],
     uploadProgress: 0,
@@ -290,6 +292,7 @@ Page({
       }
       const ops = (data.operations || []).map((o) => ({
         ...o,
+        photoPreviews: this.previewPhotoUrls(o.resultImageUrls || []),
         statusText: OP_STATUS[o.status] || o.status,
       }));
       const animal = this.enrichAnimal(data.animal);
@@ -303,6 +306,8 @@ Page({
         pendingOp,
         openOp,
         scanId: foundId,
+        dataTransferred: null,
+        studentFileSeen: null,
         photoUrls: [],
         photoPreviews: [],
         tip: expected ? `已核验通过：${foundId}` : "",
@@ -329,6 +334,8 @@ Page({
   onResultNote(e) {
     this.setData({ resultNote: e.detail.value });
   },
+  onTransfer(e) { this.setData({ dataTransferred: e.detail.value === "true" }); },
+  onFileSeen(e) { this.setData({ studentFileSeen: e.detail.value === "true" }); },
   onNasPath(e) {
     this.setData({ nasPath: e.detail.value });
   },
@@ -341,6 +348,10 @@ Page({
     return (urls || []).map((u) =>
       String(u).startsWith("http") ? u : `${API_BASE}${u}`
     );
+  },
+  previewRecordPhoto(e) {
+    const operation = this.data.operations.find((o) => o.id === e.currentTarget.dataset.operation);
+    if (operation && operation.photoPreviews.length) wx.previewImage({ urls: operation.photoPreviews, current: e.currentTarget.dataset.url });
   },
 
   uploadErrorText(code) {
@@ -473,7 +484,8 @@ Page({
     if (!(await promptLogin("登录后可提交。"))) return;
     const op = this.data.openOp;
     if (!op) return;
-    if (!this.data.photoUrls.length) {
+    if (this.data.dataTransferred === null) { wx.showToast({ title: "请选择是否传输", icon: "none" }); return; }
+    if (this.data.dataTransferred && !this.data.photoUrls.length) {
       wx.showToast({ title: "请先上传至少一张结果照片", icon: "none" });
       return;
     }
@@ -481,7 +493,8 @@ Page({
     try {
       await api.patchExperimentOperation(op.id, "tech_submit", {
         resultNote: this.data.resultNote,
-        resultImageUrls: this.data.photoUrls,
+        dataTransferred: this.data.dataTransferred,
+        resultImageUrls: this.data.dataTransferred ? this.data.photoUrls : [],
       });
       await this.lookup(this.data.animal.id);
       wx.showToast({ title: "已完成，已通知学生", icon: "success" });
@@ -509,13 +522,15 @@ Page({
       wx.showToast({ title: "请填写 NAS 路径", icon: "none" });
       return;
     }
+    if (op.dataTransferred === true && this.data.studentFileSeen === null) { wx.showToast({ title: "请反馈是否看到文件", icon: "none" }); return; }
     this.setData({ busy: true });
     try {
       await api.patchExperimentOperation(op.id, "student_close", {
         nasDataPath: this.data.nasPath.trim(),
+        studentFileSeen: this.data.studentFileSeen,
       });
       await this.lookup(this.data.animal.id);
-      wx.showToast({ title: "实验已闭环", icon: "success" });
+      wx.showToast({ title: this.data.studentFileSeen === false ? "已反馈技术员核查" : "实验已闭环", icon: "success" });
     } catch (e) {
       wx.showToast({ title: "闭环失败", icon: "none" });
     } finally {

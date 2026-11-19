@@ -5,6 +5,7 @@ function needsProfileCompletion(user) {
   if (isExempt(user)) return false;
   const status = user.accountStatus || "active";
   if (status === "pending_profile" || status === "rejected") return true;
+  if (!require("./phone-verification").enabled) return false;
   if (!user.phone) return false;
   const text = (v) => String(v || "").trim();
   const emp = text(user.employeeId);

@@ -3,7 +3,7 @@
   <view class="blob blob-b"></view>
   <view class="hero">
     <view class="brand">Symbiosis Lab</view>
-    <view class="sub">实名制 · 手机号登录</view>
+    <view class="sub">邮箱密码登录</view>
   </view>
 
   <view class="card form" wx:if="{{insecureApi}}">
@@ -12,7 +12,7 @@
     <view class="api muted">{{apiBase}}</view>
   </view>
 
-  <view class="card form" wx:elif="{{mode === 'phone'}}">
+  <view class="card form" wx:elif="{{phoneVerificationEnabled && mode === 'phone'}}">
     <view class="label">手机号</view>
     <input class="input" type="number" maxlength="11" placeholder="11 位手机号" value="{{phone}}" bindinput="onPhone" />
     <view class="label">短信验证码</view>
@@ -62,7 +62,7 @@
     <button class="btn-primary login-btn" loading="{{loading}}" disabled="{{checking}}" bindtap="onLogin">
       邮箱密码登录
     </button>
-    <view class="hint muted" bindtap="toggleMode">返回手机号登录</view>
+    <view wx:if="{{phoneVerificationEnabled}}" class="hint muted" bindtap="toggleMode">返回手机号登录</view>
     <view class="hint muted browse-back" bindtap="backBrowse">暂不登录，返回浏览</view>
     <view class="api muted">{{apiBase}}</view>
   </view>
