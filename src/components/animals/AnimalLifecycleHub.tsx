@@ -195,6 +195,8 @@ export function AnimalLifecycleHub() {
   const [busy, setBusy] = useState(false);
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
+  const [surgeryLocation,setSurgeryLocation] = useState("");
+  const [assistantNames,setAssistantNames] = useState("");
   const [resultNote, setResultNote] = useState("");
   const [dataTransferred, setDataTransferred] = useState<boolean | null>(null);
   const [studentFileSeen, setStudentFileSeen] = useState<boolean | null>(null);
@@ -653,6 +655,7 @@ export function AnimalLifecycleHub() {
             {isTech && openOp?.status === "open" && openOp.technicianUserId === user.id ? (
               <div className="mb-4 space-y-3 border-t border-white/40 pt-3">
                 <p className="text-xs font-medium text-lab-muted">提交结果照片与说明</p>
+                <label>手术位置（手术任务必填）<input className="block w-full rounded border p-2" value={surgeryLocation} onChange={e=>setSurgeryLocation(e.target.value)} /></label><label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
                 <FluentInput
                   label="结果说明"
                   value={resultNote}
@@ -675,7 +678,7 @@ export function AnimalLifecycleHub() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={busy || uploading || dataTransferred !== true}
+                      disabled={busy || uploading || (dataTransferred !== true && !surgeryLocation.trim())}
                       onClick={() => photoInputRef.current?.click()}
                     >
                       {uploading ? "上传中…" : "选择 / 拍照上传"}
@@ -714,7 +717,7 @@ export function AnimalLifecycleHub() {
                     }
                     void patchOperation(openOp.id, "tech_submit", {
                       resultNote,
-                      dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
+                      surgeryLocation, surgeryImageUrls: surgeryLocation.trim() ? photoUrls : [], assistantNames, dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
                     });
                   }}
                 >
@@ -754,6 +757,7 @@ export function AnimalLifecycleHub() {
                     <li key={op.id} className="rounded-lg bg-white/60 p-2 text-xs">
                       <span className="font-semibold text-thu">{op.title}</span> · {KIND_LABEL[op.kind]} ·{" "}
                       {OP_STATUS[op.status]} · 技术员 {op.technicianName}
+                      {op.assistantNames ? <p>协助完成人：{op.assistantNames}</p> : null}
                       {op.resultImageUrls?.length ? (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {op.resultImageUrls.map((url) => (

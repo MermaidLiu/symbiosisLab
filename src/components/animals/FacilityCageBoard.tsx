@@ -1,4 +1,5 @@
 "use client";
+import { CageWorkflow } from "./CageWorkflow";
 
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
@@ -47,7 +48,7 @@ export function FacilityCageBoard({
       canReceiveAnimalOps(user.roles)
     : false;
   const canOperate = user
-    ? hasRole(user.roles, "super_admin") || canSuperviseAnimalFacility(user.roles)
+    ? canManageAnimals(user.roles)
     : false;
   const isWorkbench = mode === "workbench";
 
@@ -264,14 +265,7 @@ export function FacilityCageBoard({
     }
   }
 
-  if (!allowed) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <PageHeader title={isWorkbench ? t.dashboard.title : f.title} />
-        <div className="fluent-mica-bg flex-1 p-6 text-sm text-lab-muted">{f.forbidden}</div>
-      </div>
-    );
-  }
+  if (!allowed) return <CageWorkflow />;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -430,6 +424,8 @@ export function FacilityCageBoard({
           </GlassPanel>
         ) : (
           <div className="space-y-6">
+            <CageWorkflow />
+            <details><summary>原有笼位视图</summary>
             {[...racks.entries()].map(([rack, rackCells]) => (
               <GlassPanel key={rack} padding={false} className="overflow-hidden">
                 <div className="border-b border-white/30 bg-white/40 px-4 py-2.5">
@@ -509,6 +505,7 @@ export function FacilityCageBoard({
                 </div>
               </GlassPanel>
             ))}
+            </details>
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { POST as enrollInCage } from "@/app/api/cage-workflow/route";
 import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk, requireActiveUser } from "@/server/auth";
 import { appendAuditLog } from "@/server/audit";
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
   }
 
   const store = getStore();
-  const animal = findAnimal(store, animalId);
+  const animal = findAnimal(store, animalId) || store.managedAnimals.find(a => a.qrCode === animalId);
   if (!animal) return jsonError("not_found", 404);
   normalizeLegacyRegistration(animal);
 
@@ -93,172 +94,7 @@ export async function POST(req: NextRequest) {
    * cageCode 可为笼位二维码原文、cageId=xxx、或已有 M############
    */
   if (action === "enroll_from_cage") {
-    // 任意已激活账号可录入（认领人=当前用户）；二维码未到位时可用 ML0001 等笼号测试
-    const raw = String(body.cageCode ?? body.animalId ?? "").trim();
-    if (!raw) return jsonError("invalid_body", 400);
-
-    // 永久 Animal ID 仅匹配 M + 12 位数字（勿把 ML0001 之类笼号当成 Animal ID）
-    const idMatch = raw.match(/\b(M\d{12})\b/i);
-    const cageIdMatch = raw.match(/cageId=([^&\s]+)/i);
-    const cageCode = (
-      cageIdMatch
-        ? decodeURIComponent(cageIdMatch[1])
-        : idMatch
-          ? idMatch[1]
-          : raw
-    )
-      .trim()
-      .toUpperCase()
-      .slice(0, 64);
-
-    if (!cageCode) return jsonError("invalid_body", 400);
-
-    const now = new Date().toISOString();
-    let result: ManagedAnimal | null = null;
-    let created = false;
-
-    await mutateStore((s) => {
-      const ensureImplant = (animal: ManagedAnimal, at: string) => {
-        // 录入成功时间即植入时间
-        if (!animal.implantAt) {
-          animal.implantAt = animal.registeredAt || at;
-        }
-        if (animal.lifecycleStatus === "entered" || !animal.lifecycleStatus) {
-          animal.lifecycleStatus = "electrode_implant";
-        }
-      };
-
-      // 已有永久 ID：若空白则认领建档；若已是本人名下则直接返回
-      if (idMatch) {
-        const existingId = idMatch[1].toUpperCase();
-        const animal = findAnimal(s, existingId);
-        if (animal) {
-          normalizeLegacyRegistration(animal);
-          if (animal.claimantUserId === user.id) {
-            if (
-              animal.registrationStatus === "blank_claimed" ||
-              animal.registrationStatus === "awaiting_register" ||
-              animal.registrationStatus === "blank_available"
-            ) {
-              animal.registrationStatus = "awaiting_experiment";
-              animal.registeredAt = animal.registeredAt || now;
-              animal.animalLock = false;
-              animal.purpose = animal.purpose === "blank" ? "signal_processing" : animal.purpose;
-              appendLifecycleTrace(s, {
-                animalId: animal.id,
-                timestamp: now,
-                action: "enroll_from_cage",
-                userId: user.id,
-                userName: user.name,
-                details: `扫码录入，确认建档 ${animal.id}`,
-              });
-            }
-            ensureImplant(animal, now);
-            result = { ...animal };
-            return;
-          }
-          if (animal.registrationStatus === "blank_available" && !animal.claimantUserId) {
-            animal.claimantUserId = user.id;
-            animal.claimantName = user.name;
-            animal.registrationStatus = "awaiting_experiment";
-            animal.registeredAt = now;
-            animal.implantAt = now;
-            animal.animalLock = false;
-            animal.purpose = "signal_processing";
-            animal.lifecycleStatus = "electrode_implant";
-            if (cageIdMatch) animal.cageId = cageCode;
-            appendLifecycleTrace(s, {
-              animalId: animal.id,
-              timestamp: now,
-              action: "enroll_from_cage",
-              userId: user.id,
-              userName: user.name,
-              details: `扫码认领空白鼠并建档 ${animal.id}`,
-            });
-            result = { ...animal };
-            return;
-          }
-          return; // 已被他人占用
-        }
-      }
-
-      // 同笼码已录入过（本人）→ 返回已有记录（补写缺失的植入时间）
-      const byCage = s.managedAnimals.find(
-        (a) =>
-          a.claimantUserId === user.id &&
-          (a.cageId === cageCode || a.cageLocation === cageCode)
-      );
-      if (byCage) {
-        normalizeLegacyRegistration(byCage);
-        ensureImplant(byCage, now);
-        result = { ...byCage };
-        return;
-      }
-
-      const id = generateAnimalId(s);
-      const animal: ManagedAnimal = {
-        id,
-        gender: body.gender === "female" ? "female" : "male",
-        strain: String(body.strain ?? "C57BL/6").trim() || "C57BL/6",
-        genotype: String(body.genotype ?? "未知").trim() || "未知",
-        sireId: "—",
-        sireGenotype: "—",
-        damId: "—",
-        damGenotype: "—",
-        birthDate: String(body.birthDate ?? now.slice(0, 10)),
-        ageWeeks: 0,
-        cageLocation: String(body.cageLocation ?? cageCode).trim() || cageCode,
-        status: "active",
-        strainType: "public",
-        generation: 1,
-        weaningStatus: "weaned",
-        genotypeStatus: "unidentified",
-        purpose: "signal_processing",
-        lifecycleStatus: "electrode_implant",
-        registrationStatus: "awaiting_experiment",
-        animalLock: false,
-        registeredAt: now,
-        implantAt: now,
-        cageId: cageCode,
-        claimantUserId: user.id,
-        claimantName: user.name,
-      };
-      s.managedAnimals = [animal, ...s.managedAnimals];
-      appendLifecycleTrace(s, {
-        animalId: id,
-        timestamp: now,
-        action: "enroll_from_cage",
-        userId: user.id,
-        userName: user.name,
-        details: `扫码录入小鼠，分配 ID ${id}（笼码 ${cageCode}）`,
-      });
-      result = { ...animal };
-      created = true;
-    });
-
-    if (!result) return jsonError("cage_occupied_or_invalid", 409);
-
-    await appendAuditLog({
-      userId: user.id,
-      userName: user.name,
-      action: "enroll_from_cage",
-      entityType: "managed_animal",
-      entityId: (result as ManagedAnimal).id,
-      details: created
-        ? `扫码新建 ${(result as ManagedAnimal).id}`
-        : `扫码确认 ${(result as ManagedAnimal).id}`,
-    });
-
-    return jsonOk({ animal: result, created }, { status: created ? 201 : 200 });
-  }
-
-  if (action === "lookup") {
-    const animalId = String(body.animalId ?? "").trim();
-    if (!animalId) return jsonError("invalid_body", 400);
-    const animal = findAnimal(getStore(), animalId);
-    if (!animal) return jsonError("not_found", 404);
-    normalizeLegacyRegistration(animal);
-    return jsonOk({ animal, label: REGISTRATION_LABELS[animal.registrationStatus ?? "blank_available"] });
+    return enrollInCage(new NextRequest(req.url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"enroll",id:body.customId,qrCode:body.cageCode,cageNumber:body.cageNumber,entryDate:body.entryDate,strain:body.strain,note:body.note,ownerUserId:body.ownerUserId || user.id})}));
   }
 
   /** 技术员按笼号/笼码查找小鼠（核验是否与派发 ID 一致） */
@@ -273,6 +109,7 @@ export async function POST(req: NextRequest) {
       store.managedAnimals.find(
         (a) =>
           a.id.toUpperCase() === code ||
+          a.qrCode === raw ||
           (a.cageId && a.cageId.toUpperCase() === code) ||
           (a.cageLocation && a.cageLocation.toUpperCase() === code)
       );
@@ -383,6 +220,9 @@ export async function POST(req: NextRequest) {
   if (action === "complete_surgery") {
     const animalId = String(body.animalId ?? "").trim();
     if (!animalId) return jsonError("invalid_body", 400);
+    const surgeryLocation = String(body.surgeryLocation || "").trim();
+    const surgeryImages = Array.isArray(body.surgeryImageUrls) ? body.surgeryImageUrls.filter((u: unknown) => typeof u === "string" && u.startsWith("/uploads/experiments/")) : [];
+    if (!surgeryLocation || !surgeryImages.length) return jsonError("surgery_location_and_photo_required", 400);
 
     let updated: ManagedAnimal | null = null;
     const now = new Date().toISOString();
@@ -398,9 +238,11 @@ export async function POST(req: NextRequest) {
         return;
       }
       animal.surgeryCompletedAt = now;
+      animal.surgeryLocation = surgeryLocation;
+      animal.surgeryImageUrls = surgeryImages;
       animal.implantAt = animal.implantAt || now;
       animal.lifecycleStatus = "electrode_implant";
-      animal.cageLabelNote = String(body.cageLabelNote ?? "").trim();
+      if (animal.claimantUserId === user.id && body.cageLabelNote !== undefined) animal.cageLabelNote = String(body.cageLabelNote).trim();
       animal.registrationStatus = "awaiting_register";
       appendLifecycleTrace(s, {
         animalId,
@@ -519,6 +361,10 @@ export async function POST(req: NextRequest) {
       animal.deathReportedByName = displayName(user);
       animal.recordingStatus = "dead";
       animal.status = "deceased";
+      animal.exitedAt = deathAt;
+      animal.cageId = undefined;
+      animal.cageLocation = "已退出";
+      for (const cage of s.cages) cage.occupied = s.managedAnimals.filter(a => a.cageId === cage.id && !a.deathAt && !a.exitedAt && a.status !== "deceased").length;
       animal.lifecycleStatus = "euthanasia";
       animal.statusLabel = animal.statusLabel || "死亡";
       animal.statusColor = animal.statusColor || "rose";
@@ -555,6 +401,7 @@ export async function POST(req: NextRequest) {
       });
 
       const ids = new Set<string>();
+      for (const person of s.users) if (canManageAnimals(person.roles)) ids.add(person.id);
       if (animal.claimantUserId && animal.claimantUserId !== user.id) ids.add(animal.claimantUserId);
       if (animal.technicianUserId && animal.technicianUserId !== user.id) {
         ids.add(animal.technicianUserId);

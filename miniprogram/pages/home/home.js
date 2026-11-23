@@ -6,6 +6,7 @@ const { displayName } = require("../../utils/format");
 const { monthLabel, buildMonthRows, pad } = require("../../utils/calendar");
 
 Page({
+  goCages(){wx.navigateTo({url:"/pages/cages/cages"});},
   data: {
     loggedIn: false,
     ready: true,

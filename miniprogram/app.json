@@ -13,7 +13,8 @@
     "pages/realname/realname",
     "pages/profile/profile",
     "pages/legal/privacy",
-    "pages/legal/terms"
+    "pages/legal/terms",
+    "pages/cages/cages"
   ],
   "window": {
     "navigationBarBackgroundColor": "#7B4DB8",

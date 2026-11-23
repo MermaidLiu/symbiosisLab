@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
-import { canSuperviseAnimalFacility, hasRole } from "@/lib/roles";
+import { canManageAnimals } from "@/lib/roles";
 import { appendAuditLog } from "@/server/audit";
 import { buildFacilityCageCells } from "@/lib/animals/facility-board";
 import { Cage, CageStatus } from "@/types/animal-management";
@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return jsonError("unauthorized", 401);
-  if (!canSuperviseAnimalFacility(user.roles) && !hasRole(user.roles, "super_admin")) {
+  if (!canManageAnimals(user.roles)) {
     return jsonError("forbidden", 403);
   }
 

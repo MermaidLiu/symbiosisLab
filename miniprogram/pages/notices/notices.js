@@ -63,6 +63,7 @@ Page({
         await api.markNotification(id, "read");
       }
     } catch (_) {}
+    if (item.animalTaskId || item.kind === "experiment_operation" || (item.link === "/" && item.animalId)) {wx.navigateTo({url:"/pages/lifecycle/lifecycle"});return;}
     if (item.link) {
       if (item.link.includes("bookings")) {
         wx.navigateTo({ url: "/pages/bookings/bookings" });

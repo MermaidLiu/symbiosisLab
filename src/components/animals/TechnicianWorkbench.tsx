@@ -114,7 +114,7 @@ export function TechnicianWorkbench() {
   }, [allowed, user, loadAnimals]);
 
   const scheduled = useMemo(
-    () => tasks.filter((x) => x.status === "scheduled"),
+    () => tasks.filter((x) => x.status === "scheduled" && !x.isWaiting),
     [tasks]
   );
 

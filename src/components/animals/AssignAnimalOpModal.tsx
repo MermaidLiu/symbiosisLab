@@ -45,6 +45,7 @@ export function AssignAnimalOpModal({
   const [assigneeTasks, setAssigneeTasks] = useState<AnimalOpTask[]>([]);
   const [opType, setOpType] = useState<AnimalOpType>("fasting");
   const [steps, setSteps] = useState<{ opType: AnimalOpType; assigneeUserId: string }[]>([]);
+  const [assistantNames,setAssistantNames] = useState("");
   const [note, setNote] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [necessary, setNecessary] = useState(true);
@@ -133,6 +134,7 @@ export function AssignAnimalOpModal({
       await api.createAnimalOpTask({
         animalIds,
         steps,
+        assistantNames,
         opType,
         note,
         assigneeUserId: assigneeId,
@@ -217,6 +219,7 @@ export function AssignAnimalOpModal({
           </FluentButton>
         </div>
       ))}
+      <label className="block text-sm">协助人（可选，主负责人操作流程）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} placeholder="可填写多名协助人" /></label>
       {steps.length > 0 && <p className="mt-2 text-xs text-lab-muted">按步骤顺序派发，前一步完成后自动通知下一位负责人。实验步骤在 NAS 闭环后完成交接。</p>}
       <div className="mt-3">
         <label className="mb-1 block text-xs text-lab-muted">{o.note}</label>

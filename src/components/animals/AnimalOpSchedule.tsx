@@ -76,6 +76,7 @@ export function AnimalOpSchedule({
   const [dragId, setDragId] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [completeId, setCompleteId] = useState<string | null>(null);
+  const [assistantNames,setAssistantNames] = useState("");
   const [receiptNote, setReceiptNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -95,10 +96,12 @@ export function AnimalOpSchedule({
 
   useEffect(() => {
     void load();
+    const timer = setInterval(() => void load(), 4000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const scheduled = useMemo(
-    () => sortTasks(tasks.filter((x) => x.status === "scheduled")),
+    () => sortTasks(tasks.filter((x) => x.status === "scheduled" && !x.isWaiting)),
     [tasks]
   );
 
@@ -166,6 +169,7 @@ export function AnimalOpSchedule({
       await api.updateAnimalOpTask({
         id: completeId,
         status: "done",
+        assistantNames,
         receiptNote: receiptNote.trim() || undefined,
       });
       setCompleteId(null);
@@ -290,6 +294,7 @@ export function AnimalOpSchedule({
       </div>
 
       {msg && <p className="mb-2 text-xs text-thu">{msg}</p>}
+      {tasks.some(task=>task.isWaiting) && <div className="mb-4 space-y-2 rounded-xl border border-violet-100 bg-violet-50/70 p-4"><h3 className="text-sm font-semibold text-thu">待接手的后续步骤</h3>{tasks.filter(task=>task.isWaiting).map(task=><div key={task.id} className="rounded-lg bg-white p-3 text-sm"><strong>{o.types[task.opType]}</strong><p className="mt-1 text-xs text-lab-muted">小鼠：{task.animalIds.join("、")} · 派发人：{task.createdByName}</p>{task.note&&<p className="mt-1 text-xs">备注：{task.note}</p>}<p className="mt-1 text-xs text-violet-700">等待 {task.waitingForName} 完成前一步，届时将自动通知你。</p></div>)}</div>}
 
       {view === "gantt" ? (
         <div className="overflow-x-auto">
@@ -390,6 +395,7 @@ export function AnimalOpSchedule({
                             className="mt-0.5 underline"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setAssistantNames(task.assistantNames || "");
                               setCompleteId(task.id);
                               setReceiptNote("");
                             }}
@@ -461,7 +467,8 @@ export function AnimalOpSchedule({
                           type="button"
                           className="underline"
                           onClick={() => {
-                            setCompleteId(task.id);
+                            setAssistantNames(task.assistantNames || "");
+                              setCompleteId(task.id);
                             setReceiptNote("");
                           }}
                         >
@@ -535,6 +542,7 @@ export function AnimalOpSchedule({
               {" · "}
               {completeTask.createdByName}
             </p>
+            <label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
             <FluentInput
               label={o.receiptLabel}
               value={receiptNote}

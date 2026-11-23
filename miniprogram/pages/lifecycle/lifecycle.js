@@ -1,3 +1,4 @@
+const TASK_TITLES={fasting:"禁食",water_deprivation:"禁水",signal_collection:"信号采集",surgery:"手术",perfusion:"灌流取材",euthanasia:"处死",other:"其他"};
 const { isAnimalClaimantStudent, isAnimalTechnician } = require("../../utils/account-status");
 const { api } = require("../../utils/api");
 const { isLoggedIn, getUser, goLogin, promptLogin } = require("../../utils/auth");
@@ -26,6 +27,8 @@ Page({
     expectedAnimalId: "",
     expectedHint: "",
     pendingTasks: [],
+    surgeryLocation:"",
+    customId: "", cageNumber: "1A1", enrollStrain: "", assistantNames: "",
     scanId: "",
     animal: null,
     operations: [],
@@ -90,24 +93,29 @@ Page({
     const isStudent = isAnimalClaimantStudent(user);
     const isTech = isAnimalTechnician(user);
     this.setData({
+      currentUserId:user.id,
       isStudent,
       isTech,
       guestMode: false,
       mode: isTech && !isStudent ? "tech" : "student",
     });
-    if (isTech) void this.loadPendingTasks();
+    if (isTech) { void this.loadPendingTasks(); if(this.pendingRefresh)clearInterval(this.pendingRefresh); this.pendingRefresh=setInterval(()=>this.loadPendingTasks(),4000); }
     if (this.data.scanId && !this.data.animal) {
       if (isStudent) return;
       this.lookup(this.data.scanId);
     }
   },
 
+  onHide() {if(this.pendingRefresh)clearInterval(this.pendingRefresh);},
+  onUnload() {if(this.pendingRefresh)clearInterval(this.pendingRefresh);},
   async loadPendingTasks() {
     try {
       const { request } = require("../../utils/api");
-      const res = await request("/api/experiment-operations");
-      const ops = (res.operations || []).filter((o) => o.status === "open");
+      const [res, taskRes] = await Promise.all([request("/api/experiment-operations"),request("/api/animal-op-tasks?mine=1")]);
+      const ops = (res.operations || []).filter((o) => o.status === "open" && o.technicianUserId === getUser().id);
       this.setData({
+        activeAnimalTasks:(taskRes.tasks || []).filter(t=>!t.isWaiting && t.status==="scheduled" && ["fasting","water_deprivation","euthanasia"].includes(t.opType)).map(t=>({...t,taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
+        waitingTasks: (taskRes.tasks || []).filter(t=>t.isWaiting).map(t=>({...t,taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
         pendingTasks: ops.map((o) => ({
           id: o.id,
           animalId: o.animalId,
@@ -126,6 +134,10 @@ Page({
     }
   },
 
+  async completeSimpleTask(e) {
+    const id=e.currentTarget.dataset.id;
+    wx.showModal({title:"确认操作已完成",content:"完成后将通知下一步负责人，请确认实际操作已结束。",success:async r=>{if(!r.confirm)return;try{const {request}=require("../../utils/api");await request("/api/animal-op-tasks",{method:"PATCH",data:{id,status:"done",assistantNames:this.data.assistantNames}});await this.loadPendingTasks();wx.showToast({title:"已完成"});}catch(e){wx.showToast({title:e.code||"提交失败",icon:"none"});}}});
+  },
   pickPending(e) {
     const animalId = e.currentTarget.dataset.animalid;
     this.setData({
@@ -165,7 +177,7 @@ Page({
       success: (res) => {
         const code = this.parseCageCode(res.result);
         this.setData({ scanId: code });
-        this.enroll(code);
+        this.setData({tip:"已读取二维码，请填写小鼠编号、笼位和品系后确认录入。"});
       },
       fail: () => wx.showToast({ title: "扫码取消", icon: "none" }),
     });
@@ -182,6 +194,11 @@ Page({
     else void this.onLookup();
   },
 
+  onSurgeryLocation(e) {this.setData({surgeryLocation:e.detail.value});},
+  onCustomId(e) {this.setData({customId:e.detail.value});},
+  onCageNumber(e) {this.setData({cageNumber:e.detail.value});},
+  onEnrollStrain(e) {this.setData({enrollStrain:e.detail.value});},
+  onAssistantNames(e) {this.setData({assistantNames:e.detail.value});},
   async enroll(code) {
     const cageCode = String(code || this.data.scanId).trim();
     if (!cageCode) {
@@ -190,7 +207,7 @@ Page({
     }
     this.setData({ busy: true, error: "", tip: "" });
     try {
-      const data = await api.lifecycleAction("enroll_from_cage", { cageCode });
+      const data = await api.lifecycleAction("enroll_from_cage", { cageCode, customId:this.data.customId, cageNumber:this.data.cageNumber, strain:this.data.enrollStrain, entryDate:new Date().toISOString().slice(0,10) });
       const animal = data.animal;
       if (!animal || !animal.id) {
         this.setData({ error: "服务器未返回小鼠信息，请确认后台已更新 enroll 接口" });
@@ -493,6 +510,9 @@ Page({
     try {
       await api.patchExperimentOperation(op.id, "tech_submit", {
         resultNote: this.data.resultNote,
+        surgeryLocation:this.data.surgeryLocation,
+        surgeryImageUrls:this.data.surgeryLocation.trim() ? this.data.photoUrls : [],
+        assistantNames:this.data.assistantNames,
         dataTransferred: this.data.dataTransferred,
         resultImageUrls: this.data.dataTransferred ? this.data.photoUrls : [],
       });

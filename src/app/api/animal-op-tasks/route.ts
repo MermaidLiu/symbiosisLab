@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore, uid } from "@/server/store";
 import { appendAuditLog } from "@/server/audit";
-import { canReceiveAnimalOps } from "@/lib/roles";
+import { canReceiveAnimalOps, canManageAnimals } from "@/lib/roles";
 import { isBackfillProcessing } from "@/lib/animals/experiment-lock";
 import { displayName } from "@/lib/users";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/types/animal-ops";
 import {
   advanceAnimalTask,
+  animalTasksWithWaiting,
   appendLifecycleTrace,
   assertCanCreateOperation,
   finalizeRegistrationAfterClose,
@@ -21,6 +22,7 @@ import {
 } from "@/server/animal-lifecycle";
 import { ExperimentKind, ExperimentOperation } from "@/types/animal-lifecycle";
 import { withDispatchListFields } from "@/server/animal-dispatch-view";
+import { pushNotificationToUsers } from "@/server/notify";
 
 function isOpType(v: string): v is AnimalOpTask["opType"] {
   return (ANIMAL_OP_TYPES as readonly string[]).includes(v);
@@ -58,7 +60,7 @@ export async function GET(req: NextRequest) {
   const mine = url.searchParams.get("mine") === "1";
   const assigneeId = url.searchParams.get("assigneeId") || undefined;
 
-  const tasks = getStore().animalOpTasks ?? [];
+  const tasks = animalTasksWithWaiting(getStore().animalOpTasks ?? []);
   let list = tasks;
   if (mine) {
     list = tasks.filter((t) => t.assigneeUserId === user.id);
@@ -76,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const animalIds = Array.isArray(body.animalIds)
-    ? body.animalIds.map((x: unknown) => String(x).trim()).filter(Boolean)
+    ? [...new Set<string>(body.animalIds.map((x: unknown) => String(x).trim()).filter(Boolean))]
     : [];
   const opTypeRaw = String(body.opType ?? "").trim();
   const note = String(body.note ?? "").trim();
@@ -89,13 +91,18 @@ export async function POST(req: NextRequest) {
   if (!animalIds.length || !isOpType(opTypeRaw) || !assigneeUserId || !startTime || !endTime) {
     return jsonError("invalid_body", 400);
   }
-  if (new Date(endTime) <= new Date(startTime)) {
+  if (!Number.isFinite(Date.parse(startTime)) || !Number.isFinite(Date.parse(endTime)) || new Date(endTime) <= new Date(startTime)) {
     return jsonError("invalid_duration", 400);
   }
 
   const store = getStore();
+  if ((user.accountStatus ?? "active") !== "active") return jsonError("account_not_active", 403);
+  if (animalIds.some(id => {
+    const a = findAnimal(store, id);
+    return !a || a.exitedAt || a.deathAt || a.status === "deceased" || (!canManageAnimals(user.roles) && a.claimantUserId !== user.id);
+  })) return jsonError("invalid_or_unauthorized_animals", 403);
   const assignee = store.users.find((u) => u.id === assigneeUserId);
-  if (!assignee || !canReceiveAnimalOps(assignee.roles)) {
+  if (!assignee || !canReceiveAnimalOps(assignee.roles) || (assignee.accountStatus ?? "active") !== "active") {
     return jsonError("invalid_assignee", 400);
   }
 
@@ -126,6 +133,7 @@ export async function POST(req: NextRequest) {
   const task: AnimalOpTask = {
     id: uid("aot"),
     remainingSteps,
+    assistantNames: String(body.assistantNames || "").trim().slice(0,500),
     animalIds: targetIds,
     opType: opTypeRaw,
     note,
@@ -203,7 +211,7 @@ export async function POST(req: NextRequest) {
         ? `${displayName(user)} assigned ${createdOps.length} mouse(es). Open handle page, scan QR codes, upload photos.`
         : `${displayName(user)} assigned you an animal op on ${targetIds.length} mouse(es)`,
       read: false,
-      link: firstId
+      link: needScan && firstId
         ? `/animals/task-handle?animalId=${encodeURIComponent(firstId)}`
         : "/",
       kind: needScan ? "experiment_operation" : "animal_task",
@@ -212,6 +220,14 @@ export async function POST(req: NextRequest) {
       handled: false,
       createdAt: now,
     });
+    for (const [index,step] of remainingSteps.entries()) {
+      pushNotificationToUsers(s,[step.assigneeUserId],{
+        title:"你有一个后续步骤待接手", titleEn:"Upcoming animal task",
+        message:`${displayName(user)} 已将第 ${index+2} 步「${OP_TYPE_TITLE[step.opType] || step.opType}」派发给你，涉及小鼠 ${targetIds.join("、")}。请等待前一步完成后处理。`,
+        messageEn:"An upcoming task has been assigned to you. Wait for the preceding step to finish.",
+        link:"/", animalId:targetIds[0],
+      });
+    }
   });
 
   await appendAuditLog({
@@ -365,6 +381,7 @@ export async function PATCH(req: NextRequest) {
 
   const id = String(body.id ?? "").trim();
   if (!id) return jsonError("invalid_body", 400);
+  if (id.includes(":waiting:")) return jsonError("task_not_ready", 409);
 
   let updated: AnimalOpTask | null = null;
   let forbidden = false;
@@ -382,7 +399,7 @@ export async function PATCH(req: NextRequest) {
       return;
     }
 
-    if (body.status === "done" && cur.remainingSteps?.length && !isAssignee) { forbidden = true; return; }
+    if (body.status === "done" && !isAssignee) { forbidden = true; return; }
     if (body.status === "done" && cur.remainingSteps?.length && cur.animalIds.some((id) => Boolean(openOperationForAnimal(s, id)))) { forbidden = true; return; }
     const prevStatus = cur.status;
     const next = { ...cur };
@@ -397,6 +414,7 @@ export async function PATCH(req: NextRequest) {
       const n = Number(body.sortOrder);
       if (Number.isFinite(n)) next.sortOrder = n;
     }
+    if (body.assistantNames !== undefined && isAssignee) next.assistantNames = String(body.assistantNames).trim().slice(0,500);
     if (body.receiptNote !== undefined) next.receiptNote = String(body.receiptNote).trim();
     if (new Date(next.endTime) <= new Date(next.startTime)) return;
 
@@ -405,6 +423,19 @@ export async function PATCH(req: NextRequest) {
     if (becameDone) {
       next.completedAt = now;
       next.backfill = isBackfillProcessing(next.startTime || next.createdAt, now);
+      if (next.opType === "euthanasia") {
+        for (const aid of next.animalIds) {
+          const animal = findAnimal(s, aid);
+          if (!animal) continue;
+          animal.status = "deceased"; animal.recordingStatus = "dead"; animal.deathAt = now;
+          animal.lifecycleStatus = "euthanasia"; animal.exitedAt = now;
+          animal.cageId = undefined; animal.cageLocation = "已退出";
+          setRegistrationStatus(animal, "deceased");
+          const ids=s.users.filter(u=>canManageAnimals(u.roles)||u.id===animal.claimantUserId||u.id===animal.technicianUserId).map(u=>u.id);
+          pushNotificationToUsers(s,[...new Set(ids)],{title:"小鼠处死并退出笼位",titleEn:"Mouse euthanized and removed from cage",message:aid+" 已完成处死，已从笼位移除。",messageEn:aid+" removed from cage",animalId:aid,kind:"animal_death",link:"/animals/death?animalId="+encodeURIComponent(aid)});
+        }
+        for (const cage of s.cages) cage.occupied=s.managedAnimals.filter(a=>a.cageId===cage.id&&!a.exitedAt&&!a.deathAt&&a.status!=="deceased").length;
+      }
     }
 
     s.animalOpTasks[idx] = next;

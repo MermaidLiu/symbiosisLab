@@ -1,5 +1,5 @@
 const zh = {
-  brand: { title: "Symbiosis Lab", subtitle: "实验室资源管理平台" },
+  brand: { title: "Daigroup Lab", subtitle: "实验室资源管理平台" },
   roles: {
     super_admin: "总管理员",
     instrument_super_admin: "仪器总管理员",

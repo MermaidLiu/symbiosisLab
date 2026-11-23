@@ -44,6 +44,7 @@ export const ANIMAL_REGISTRATION_STATUSES: AnimalRegistrationStatus[] = [
  * 与 OperationApplication（审批流）不同。
  */
 export interface ExperimentOperation {
+  assistantNames?: string;
   id: string;
   animalId: string;
   status: ExperimentOperationStatus;

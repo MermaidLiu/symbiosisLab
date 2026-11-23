@@ -48,6 +48,8 @@ export function TechTaskHandle() {
   const [verifyMsg, setVerifyMsg] = useState("");
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
+  const [surgeryLocation,setSurgeryLocation] = useState("");
+  const [assistantNames,setAssistantNames] = useState("");
   const [resultNote, setResultNote] = useState("");
   const [dataTransferred, setDataTransferred] = useState<boolean | null>(null);
   const [studentFileSeen, setStudentFileSeen] = useState<boolean | null>(null);
@@ -257,7 +259,7 @@ export function TechTaskHandle() {
           id: op.id,
           action: "tech_submit",
           resultNote,
-          dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
+          surgeryLocation, surgeryImageUrls: surgeryLocation.trim() ? photoUrls : [], assistantNames, dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -411,6 +413,7 @@ export function TechTaskHandle() {
                 disabled={!verified || busy}
                 onChange={(e) => setExpTitle(e.target.value)}
               />
+              <label>手术位置（手术任务必填）<input className="block w-full rounded border p-2" value={surgeryLocation} onChange={e=>setSurgeryLocation(e.target.value)} /></label><label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
               <FluentInput
                 label="结果说明（可选）"
                 value={resultNote}
@@ -431,7 +434,7 @@ export function TechTaskHandle() {
                 <FluentButton
                   variant="outline"
                   size="sm"
-                  disabled={!verified || uploading || busy || dataTransferred !== true}
+                  disabled={!verified || uploading || busy || (dataTransferred !== true && !surgeryLocation.trim())}
                   onClick={() => fileRef.current?.click()}
                 >
                   {uploading ? "上传中…" : `拍照 / 上传（已 ${photoUrls.length} 张）`}

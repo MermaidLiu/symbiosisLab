@@ -181,19 +181,9 @@ export function ManagedAnimals({
   const [vetModalOpen, setVetModalOpen] = useState(false);
   const [vetAction, setVetAction] = useState("");
   const [vetOtherNote, setVetOtherNote] = useState("");
-  const [addModalOpen, setAddModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferDest, setTransferDest] = useState("");
   const [transferNote, setTransferNote] = useState("");
-  const [addForm, setAddForm] = useState({
-    id: "",
-    gender: "male" as "male" | "female",
-    strain: "",
-    genotype: "",
-    cageLocation: "",
-    birthDate: "",
-    purpose: "blank" as AnimalPurpose,
-  });
   const [removing, setRemoving] = useState(false);
   const [batchMenuOpen, setBatchMenuOpen] = useState(false);
   const [batchMenuPos, setBatchMenuPos] = useState({ top: 0, left: 0 });
@@ -205,6 +195,9 @@ export function ManagedAnimals({
   const [opAssignOpen, setOpAssignOpen] = useState(false);
   const [opTargetIds, setOpTargetIds] = useState<string[]>([]);
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [customId,setCustomId]=useState("");
+  const [enrollCageNumber,setEnrollCageNumber]=useState("1A1");
+  const [enrollStrain,setEnrollStrain]=useState("");
   const [enrollCageCode, setEnrollCageCode] = useState("");
   const [enrollBusy, setEnrollBusy] = useState(false);
   const [enrollMsg, setEnrollMsg] = useState("");
@@ -714,49 +707,9 @@ export function ManagedAnimals({
     }
   }
 
-  function openAddModal() {
-    const year = new Date().getFullYear();
-    const suffix = String(Math.floor(Math.random() * 90000) + 10000);
-    setAddForm({
-      id: `A-${year}-${suffix}`,
-      gender: "male",
-      strain: "",
-      genotype: "",
-      cageLocation: "",
-      birthDate: new Date().toISOString().slice(0, 10),
-      purpose: "blank",
-    });
-    setAddModalOpen(true);
-  }
-
-  async function submitAddAnimal() {
-    if (!addForm.id.trim() || !addForm.strain.trim() || !addForm.cageLocation.trim() || !addForm.birthDate) {
-      showToast(m.addNeedFields);
-      return;
-    }
-    setApplying(true);
-    try {
-      const { managedAnimals } = await api.createManagedAnimal({
-        id: addForm.id.trim(),
-        gender: addForm.gender,
-        strain: addForm.strain.trim(),
-        genotype: addForm.genotype.trim() || "未知",
-        cageLocation: addForm.cageLocation.trim(),
-        birthDate: addForm.birthDate,
-        purpose: addForm.purpose,
-      });
-      setCachePartial({ managedAnimals });
-      setAnimals(scopeList(managedAnimals));
-      setAddModalOpen(false);
-      showToast(m.addSuccess);
-    } catch {
-      showToast(m.addError);
-    } finally {
-      setApplying(false);
-    }
-  }
-
   function openEnrollModal() {
+    setCustomId("");
+    setEnrollStrain("");
     setEnrollCageCode("");
     setEnrollMsg("");
     setEnrollOpen(true);
@@ -765,7 +718,7 @@ export function ManagedAnimals({
   async function submitManualEnroll() {
     const cageCode = enrollCageCode.trim();
     if (!cageCode) {
-      setEnrollMsg("请输入笼号，例如 ML0001");
+      setEnrollMsg("请输入小鼠二维码下方的编号，例如 ML0001");
       return;
     }
     setEnrollBusy(true);
@@ -775,7 +728,7 @@ export function ManagedAnimals({
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "enroll_from_cage", cageCode }),
+        body: JSON.stringify({ action: "enroll_from_cage", cageCode, customId, cageNumber:enrollCageNumber, strain:enrollStrain, entryDate:new Date().toLocaleDateString("en-CA") }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -793,7 +746,7 @@ export function ManagedAnimals({
           : `已存在：${id}（笼号 ${cageCode.toUpperCase()}）`
       );
       setEnrollCageCode("");
-      showToast(data.created ? `已分配 ${id}` : `已确认 ${id}`);
+      showToast(data.created ? `已录入 ${id}` : `已确认 ${id}`);
       const { managedAnimals: list } = await api.managedAnimals();
       setAnimals(scopeList(list));
     } catch {
@@ -1341,7 +1294,7 @@ export function ManagedAnimals({
                   {f.batchUpload}
                 </FluentButton>
                 {canEditAnimals && (
-                  <FluentButton size="sm" onClick={openAddModal}>
+                  <FluentButton size="sm" onClick={openEnrollModal}>
                     + {m.addAnimal}
                   </FluentButton>
                 )}
@@ -2205,71 +2158,6 @@ export function ManagedAnimals({
       </FluentModal>
 
       <FluentModal
-        open={addModalOpen}
-        title={m.addAnimal}
-        onClose={() => setAddModalOpen(false)}
-        footer={
-          <div className="flex justify-end gap-2">
-            <FluentButton variant="outline" onClick={() => setAddModalOpen(false)}>
-              {t.common.cancel}
-            </FluentButton>
-            <FluentButton disabled={applying} onClick={() => void submitAddAnimal()}>
-              {t.common.save}
-            </FluentButton>
-          </div>
-        }
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FluentInput
-            label={m.colId}
-            value={addForm.id}
-            onChange={(e) => setAddForm({ ...addForm, id: e.target.value })}
-          />
-          <FluentSelect
-            label={m.gender}
-            value={addForm.gender}
-            onChange={(e) => setAddForm({ ...addForm, gender: e.target.value as "male" | "female" })}
-          >
-            <option value="male">{m.genderMale}</option>
-            <option value="female">{m.genderFemale}</option>
-          </FluentSelect>
-          <FluentInput
-            label={m.colStrain}
-            value={addForm.strain}
-            onChange={(e) => setAddForm({ ...addForm, strain: e.target.value })}
-          />
-          <FluentInput
-            label={m.colGenotype}
-            value={addForm.genotype}
-            onChange={(e) => setAddForm({ ...addForm, genotype: e.target.value })}
-          />
-          <FluentInput
-            label={m.colCage}
-            value={addForm.cageLocation}
-            onChange={(e) => setAddForm({ ...addForm, cageLocation: e.target.value })}
-          />
-          <FluentInput
-            label={m.colBirth}
-            type="date"
-            value={addForm.birthDate}
-            onChange={(e) => setAddForm({ ...addForm, birthDate: e.target.value })}
-          />
-          <FluentSelect
-            label={m.colPurpose}
-            value={addForm.purpose}
-            onChange={(e) => setAddForm({ ...addForm, purpose: e.target.value as AnimalPurpose })}
-            className="sm:col-span-2"
-          >
-            {ANIMAL_PURPOSES.map((p) => (
-              <option key={p} value={p}>
-                {purposeLabel(p)}
-              </option>
-            ))}
-          </FluentSelect>
-        </div>
-      </FluentModal>
-
-      <FluentModal
         open={uploadOpen}
         title={f.batchUpload}
         size="lg"
@@ -2305,7 +2193,7 @@ export function ManagedAnimals({
 
       <FluentModal
         open={enrollOpen}
-        title="录入小鼠"
+        title="新增 / 录入小动物"
         onClose={() => {
           if (!enrollBusy) setEnrollOpen(false);
         }}
@@ -2336,13 +2224,13 @@ export function ManagedAnimals({
       >
         <div className="space-y-4">
           <div className="rounded-xl bg-violet-50/80 p-3">
-            <p className="text-sm font-medium text-thu">测试：手动输入笼号</p>
+            <p className="text-sm font-medium text-thu">输入小鼠二维码下方编号</p>
             <p className="mt-1 text-xs text-lab-muted">
-              二维码未到位前，可直接输入笼号（如 ML0001）完成录入，系统会分配唯一 Animal ID。
+              可用微信扫描下方小程序码，再扫描小鼠二维码录入；也可以在此输入小鼠二维码下方的编号。
             </p>
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <FluentInput
-                label="笼号"
+                label="二维码下方编号"
                 className="min-w-[160px] flex-1"
                 value={enrollCageCode}
                 onChange={(e) => setEnrollCageCode(e.target.value)}
@@ -2351,7 +2239,10 @@ export function ManagedAnimals({
                   if (e.key === "Enter") void submitManualEnroll();
                 }}
               />
-              <FluentButton disabled={enrollBusy} onClick={() => void submitManualEnroll()}>
+              <label>小鼠编号<input className="block w-full rounded border p-2" value={customId} onChange={e=>setCustomId(e.target.value)} placeholder="TJ001" /></label>
+              <label>笼位<input className="block w-full rounded border p-2" value={enrollCageNumber} onChange={e=>setEnrollCageNumber(e.target.value)} placeholder="1A1" /></label>
+              <label>品系<input className="block w-full rounded border p-2" value={enrollStrain} onChange={e=>setEnrollStrain(e.target.value)} /></label>
+              <FluentButton disabled={enrollBusy || !customId.trim() || !enrollStrain.trim()} onClick={() => void submitManualEnroll()}>
                 {enrollBusy ? "录入中…" : "确认录入"}
               </FluentButton>
             </div>
@@ -2362,11 +2253,11 @@ export function ManagedAnimals({
 
           <div className="flex flex-col items-center gap-4 border-t border-white/40 pt-4 sm:flex-row sm:items-start">
             <div className="min-w-0 flex-1 space-y-2 text-sm text-lab-text">
-              <p className="font-medium text-thu">正式流程：手机扫小程序码</p>
+              <p className="font-medium text-thu">手机扫码录入</p>
               <ol className="list-decimal space-y-1.5 pl-5 text-lab-muted">
                 <li>微信扫一扫打开右侧小程序并登录</li>
                 <li>进入「动物 → 实验追溯」</li>
-                <li>扫描鼠笼二维码，或手动输入笼号（如 ML0001）</li>
+                <li>扫描小鼠二维码，或输入二维码下方编号；再填写习惯使用的小鼠编号、笼位和品系</li>
                 <li>录入成功后刷新列表，再勾选派发</li>
               </ol>
             </div>

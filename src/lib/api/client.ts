@@ -394,6 +394,7 @@ export const api = {
   },
 
   createAnimalOpTask: (data: {
+    assistantNames?: string;
     steps?: { opType: import("@/types/animal-ops").AnimalOpType; assigneeUserId: string }[];
     animalIds: string[];
     opType: import("@/types/animal-ops").AnimalOpType;
@@ -416,6 +417,7 @@ export const api = {
     status?: import("@/types/animal-ops").AnimalOpTaskStatus;
     note?: string;
     sortOrder?: number;
+    assistantNames?: string;
     receiptNote?: string;
   }) =>
     request<{ task: import("@/types/animal-ops").AnimalOpTask; tasks: import("@/types/animal-ops").AnimalOpTask[] }>(

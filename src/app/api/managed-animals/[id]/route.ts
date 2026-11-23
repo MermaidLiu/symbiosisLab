@@ -1,3 +1,4 @@
+import { pushNotificationToUsers } from "@/server/notify";
 import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore, uid } from "@/server/store";
@@ -50,7 +51,7 @@ export async function PATCH(
   }
 
   // Claimants may only edit status tip fields
-  const claimantOnlyKeys = new Set(["statusLabel", "statusColor", "recordingStatus"]);
+  const claimantOnlyKeys = new Set(["statusLabel", "statusColor", "recordingStatus", "cageLabelNote", "specialExperiment"]);
   if (!fullEdit && isClaimant) {
     const keys = Object.keys(body).filter((k) => body[k] !== undefined);
     if (keys.length === 0 || keys.some((k) => !claimantOnlyKeys.has(k))) {
@@ -70,6 +71,7 @@ export async function PATCH(
     if (idx < 0) return;
     const cur = s.managedAnimals[idx];
     const next: ManagedAnimal = { ...cur };
+    if (body.cageLabelNote !== undefined) next.cageLabelNote = String(body.cageLabelNote || "").slice(0,4000);
     const prevLife = cur.lifecycleStatus;
     const prevCollection = cur.collectionAt;
 
@@ -212,7 +214,17 @@ export async function PATCH(
       }
     }
 
+    if (next.status === "deceased" || next.lifecycleStatus === "euthanasia") {
+      next.status = "deceased"; next.recordingStatus = "dead";
+      next.deathAt = next.deathAt || new Date().toISOString(); next.exitedAt = next.deathAt;
+      next.cageId = undefined; next.cageLocation = "已退出";
+    }
+    if (cur.cageId !== next.cageId || (cur.status !== next.status && next.status === "deceased")) {
+      const recipients=s.users.filter(u=>canManageAnimals(u.roles)||u.id===next.claimantUserId||u.id===cur.claimantUserId||u.id===next.technicianUserId).map(u=>u.id);
+      pushNotificationToUsers(s,[...new Set(recipients)],{title:"笼位变动",titleEn:"Cage change",message:id+"："+cur.cageLocation+" → "+next.cageLocation,messageEn:"Cage changed: "+id,link:"/animals/facility-board",animalId:id});
+    }
     s.managedAnimals[idx] = next;
+    for (const cage of s.cages) cage.occupied=s.managedAnimals.filter(a=>a.cageId===cage.id&&!a.deathAt&&!a.exitedAt&&a.status!=="deceased").length;
     updated = next;
 
     const now = new Date().toISOString();

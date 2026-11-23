@@ -33,14 +33,14 @@ export function NotificationBell() {
       setItems(
         [...notifications]
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 20)
+
       );
     } catch {
       setItems(
         getNotifications()
           .filter((n) => n.userId === user.id)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 20)
+
       );
     }
   }, [user]);

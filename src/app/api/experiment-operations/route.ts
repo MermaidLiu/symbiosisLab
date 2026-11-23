@@ -214,7 +214,17 @@ export async function PATCH(req: NextRequest) {
         return;
       }
       const images = Array.isArray(body.resultImageUrls) ? body.resultImageUrls.filter((u: unknown) => typeof u === "string" && u) : [];
+      const isSurgery = s.animalOpTasks?.some(t => t.opType === "surgery" && t.status === "scheduled" && t.animalIds.includes(op.animalId));
+      const surgeryImages = Array.isArray(body.surgeryImageUrls) ? body.surgeryImageUrls.filter((u: unknown) => typeof u === "string" && u.startsWith("/uploads/experiments/")) : images;
+      if (isSurgery && (!String(body.surgeryLocation || "").trim() || !surgeryImages.length)) { fail = "surgery_location_and_photo_required"; return; }
       if (typeof body.dataTransferred !== "boolean" || (body.dataTransferred && !images.length)) { fail = "transfer_photo_required"; return; }
+      if (isSurgery) {
+        animal.surgeryLocation = String(body.surgeryLocation).trim();
+        animal.surgeryImageUrls = surgeryImages;
+        animal.surgeryCompletedAt = now;
+        animal.implantAt = animal.implantAt || now;
+      }
+      op.assistantNames = String(body.assistantNames || "").trim().slice(0,500);
       op.dataTransferred = body.dataTransferred;
       op.status = "tech_submitted";
       op.techSubmittedAt = now;

@@ -23,7 +23,7 @@ export function buildFacilityCageCells(
 ): FacilityCageCell[] {
   const byCage = new Map<string, ManagedAnimal[]>();
   for (const m of mice) {
-    if (!m.cageId) continue;
+    if (!m.cageId || m.exitedAt || m.status === "deceased" || m.deathAt) continue;
     const list = byCage.get(m.cageId) ?? [];
     list.push(m);
     byCage.set(m.cageId, list);

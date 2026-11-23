@@ -7,7 +7,14 @@ import { notificationVisibleToUser } from "@/server/instrument-scope";
 
 function notificationsForUser(user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>) {
   const store = getStore();
-  return store.notifications.filter((n) => notificationVisibleToUser(n, user, store));
+  return store.notifications.filter((n) => notificationVisibleToUser(n, user, store)).map(n => {
+    const task = n.animalTaskId ? store.animalOpTasks?.find(t => t.id === n.animalTaskId) : undefined;
+    const op = n.operationId ? store.experimentOperations?.find(o => o.id === n.operationId) : undefined;
+    const booking = n.bookingId ? store.bookings.find(b => b.id === n.bookingId) : undefined;
+    const pending = (task?.status === "scheduled" && n.kind !== "animal_task_receipt") || (n.kind === "experiment_operation" && op && ["open","tech_submitted"].includes(op.status)) || (n.kind === "booking_pending" && booking?.status === "pending");
+    const complete = (task && task.status !== "scheduled" && n.kind !== "animal_task_receipt") || (n.kind === "experiment_operation" && op && ["closed","force_closed"].includes(op.status));
+    return pending ? {...n, read:false, handled:false} : complete ? {...n, read:true, handled:true} : n;
+  });
 }
 
 export async function GET() {

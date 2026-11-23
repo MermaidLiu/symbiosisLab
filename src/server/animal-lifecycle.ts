@@ -10,7 +10,7 @@ import {
   ExperimentOperationStatus,
 } from "@/types/animal-lifecycle";
 
-const ANIMAL_ID_RE = /^M\d{12}$/;
+const ANIMAL_ID_RE = /^[\p{L}\p{N}_-]{1,64}$/u;
 
 export function isPermanentAnimalId(id: string): boolean {
   return ANIMAL_ID_RE.test(id);
@@ -146,6 +146,7 @@ export function reconcileDispatchStateForAnimal(store: DbStore, animalId: string
 }
 
 export function assertCanCreateOperation(animal: ManagedAnimal, store: DbStore): string | null {
+  if (animal.exitedAt) return "animal_exited";
   if (animal.registrationStatus === "deceased" || animal.status === "deceased") {
     return "animal_deceased";
   }
@@ -163,7 +164,7 @@ export function normalizeLegacyRegistration(animal: ManagedAnimal): void {
   if (animal.registrationStatus) {
     // 已建档但缺植入时间：用录入时间补齐
     if (
-      !animal.implantAt &&
+      !animal.qrCode && !animal.implantAt &&
       animal.registeredAt &&
       (animal.registrationStatus === "awaiting_experiment" ||
         animal.registrationStatus === "in_experiment")
@@ -182,7 +183,7 @@ export function normalizeLegacyRegistration(animal: ManagedAnimal): void {
   }
   if (animal.claimantUserId && animal.registeredAt) {
     animal.registrationStatus = "awaiting_experiment";
-    if (!animal.implantAt) animal.implantAt = animal.registeredAt;
+    if (!animal.qrCode && !animal.implantAt) animal.implantAt = animal.registeredAt;
     return;
   }
   if (animal.claimantUserId && animal.surgeryCompletedAt) {
@@ -223,6 +224,19 @@ export const EXPERIMENT_KIND_LABELS: Record<ExperimentKind, string> = {
 };
 
 /** Activate a single successor atomically; retries never dispatch twice. */
+export function animalTasksWithWaiting(tasks: AnimalOpTask[]): AnimalOpTask[] {
+  const waiting: AnimalOpTask[] = [];
+  for (const task of tasks) {
+    if (task.status !== "scheduled" || task.nextTaskId) continue;
+    let previousName = task.assigneeName;
+    for (const [index, step] of (task.remainingSteps || []).entries()) {
+      waiting.push({...task, ...step, id: `${task.id}:waiting:${index}`, isWaiting:true, waitingForName:previousName, remainingSteps:[], nextTaskId:undefined, completedAt:undefined, receiptNote:undefined});
+      previousName=step.assigneeName;
+    }
+  }
+  return [...tasks, ...waiting];
+}
+
 export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: string): void {
   if (task.status !== "done" || task.nextTaskId || !task.remainingSteps?.length) return;
   const [step, ...remainingSteps] = task.remainingSteps;
@@ -250,5 +264,5 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
   store.notifications.unshift({ id: uid("ntf"), userId: next.assigneeUserId, title: "上一操作已完成，轮到你处理",
     titleEn: "Previous step completed — your task is ready", message: next.assigneeName + "：请处理下一步操作",
     messageEn: "Your next animal operation is ready", read: false, handled: false, kind: "animal_task",
-    animalTaskId: next.id, animalId: next.animalIds[0], link: "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]), createdAt: now });
+    animalTaskId: next.id, animalId: next.animalIds[0], link: ["signal_collection","surgery","perfusion","other"].includes(next.opType) ? "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]) : "/", createdAt: now });
 }

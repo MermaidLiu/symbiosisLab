@@ -1,4 +1,5 @@
 <view class="page" wx:if="{{ready}}">
+<button wx:if="{{!guestMode}}" bindtap="goCages">笼位管理 / 批量派发</button>
   <!-- 未登录：可浏览服务介绍，不强制授权 -->
   <block wx:if="{{guestMode}}">
     <view class="hero">

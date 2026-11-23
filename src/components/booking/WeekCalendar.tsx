@@ -15,8 +15,8 @@ interface WeekCalendarProps {
   currentUserId?: string;
 }
 
-const DAY_START_HOUR = 8;
-const DAY_END_HOUR = 20;
+const DAY_START_HOUR = 0;
+const DAY_END_HOUR = 24;
 
 function startOfWeek(d: Date): Date {
   const date = new Date(d);
@@ -216,6 +216,7 @@ export function WeekCalendar({ bookings, onSelectSlot, selectedSlot, currentUser
         </div>
       </div>
 
+      <p className="mb-2 text-sm font-medium text-thu">0:00–24:00 · 全天可预约</p>
       <div className="min-w-[640px] grid grid-cols-8 gap-px overflow-hidden rounded-lg border border-lab-border bg-lab-border">
         <div className="bg-thu-muted p-2 text-[10px] font-medium text-thu" />
         {days.map((day) => (

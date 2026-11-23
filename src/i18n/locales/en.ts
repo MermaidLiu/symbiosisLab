@@ -1,5 +1,5 @@
 const en = {
-  brand: { title: "Symbiosis Lab", subtitle: "Lab Resource Management Platform" },
+  brand: { title: "Daigroup Lab", subtitle: "Lab Resource Management Platform" },
   roles: {
     super_admin: "Super Admin",
     instrument_super_admin: "Instrument Super Admin",

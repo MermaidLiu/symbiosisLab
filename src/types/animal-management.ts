@@ -52,6 +52,11 @@ export const EUTHANASIA_METHODS: EuthanasiaMethod[] = [
 ];
 
 export interface ManagedAnimal {
+  qrCode?: string;
+  exitedAt?: string;
+  exitReason?: string;
+  surgeryLocation?: string;
+  surgeryImageUrls?: string[];
   id: string;
   gender: "male" | "female";
   strain: string;
