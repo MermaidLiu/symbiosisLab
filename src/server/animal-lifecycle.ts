@@ -243,7 +243,7 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
   const duration = Math.max(60000, new Date(task.endTime).getTime() - new Date(task.startTime).getTime());
   const next: AnimalOpTask = { ...task, ...step, id: uid("aot"), remainingSteps, nextTaskId: undefined,
     status: "scheduled", startTime: now, endTime: new Date(new Date(now).getTime() + duration).toISOString(),
-    createdAt: now, completedAt: undefined, receiptNote: undefined, backfill: undefined };
+    createdAt: now, completedAt: undefined, receiptNote: undefined, resultImageUrls: [], backfill: undefined };
   task.nextTaskId = next.id;
   store.animalOpTasks.unshift(next);
   if (["signal_collection", "surgery", "perfusion", "other"].includes(next.opType)) {

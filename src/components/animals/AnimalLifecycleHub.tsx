@@ -1,5 +1,7 @@
 "use client";
-import { experimentPhotoUrl } from "@/lib/experiment-photos";
+import type { AnimalOpTask } from "@/types/animal-ops";
+import { SurgeryRecord } from "./SurgeryRecord";
+import { PhotoPreview } from "./PhotoPreview";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -187,6 +189,7 @@ export function AnimalLifecycleHub() {
   const { user } = useAuth();
   const params = useSearchParams();
   const [animals, setAnimals] = useState<ManagedAnimal[]>([]);
+  const [taskRecords,setTaskRecords] = useState<AnimalOpTask[]>([]);
   const [operations, setOperations] = useState<ExperimentOperation[]>([]);
   const [traces, setTraces] = useState<AnimalLifecycleTraceEvent[]>([]);
   const [scanId, setScanId] = useState(params.get("animalId") ?? "");
@@ -195,7 +198,6 @@ export function AnimalLifecycleHub() {
   const [busy, setBusy] = useState(false);
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
-  const [surgeryLocation,setSurgeryLocation] = useState("");
   const [assistantNames,setAssistantNames] = useState("");
   const [resultNote, setResultNote] = useState("");
   const [dataTransferred, setDataTransferred] = useState<boolean | null>(null);
@@ -251,6 +253,7 @@ export function AnimalLifecycleHub() {
       if (!res.ok) throw new Error("not_found");
       const data = await res.json();
       setSelected(data.animal);
+      setTaskRecords(data.tasks || []);
       setDataTransferred(null);
       setStudentFileSeen(null);
       setPhotoUrls([]);
@@ -655,7 +658,7 @@ export function AnimalLifecycleHub() {
             {isTech && openOp?.status === "open" && openOp.technicianUserId === user.id ? (
               <div className="mb-4 space-y-3 border-t border-white/40 pt-3">
                 <p className="text-xs font-medium text-lab-muted">提交结果照片与说明</p>
-                <label>手术位置（手术任务必填）<input className="block w-full rounded border p-2" value={surgeryLocation} onChange={e=>setSurgeryLocation(e.target.value)} /></label><label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
+                <label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
                 <FluentInput
                   label="结果说明"
                   value={resultNote}
@@ -663,7 +666,7 @@ export function AnimalLifecycleHub() {
                   placeholder="例如：行为学完成，鼠状态正常"
                 />
                 <div>
-                  <label className="block text-sm">是否传输<select className="ml-2 rounded border p-2" value={dataTransferred === null ? "" : String(dataTransferred)} onChange={(e) => setDataTransferred(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是（上传照片）</option><option value="false">否（不上传照片）</option></select></label>
+                  <label className="block text-sm">是否传输<select className="ml-2 rounded border p-2" value={dataTransferred === null ? "" : String(dataTransferred)} onChange={(e) => setDataTransferred(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是</option><option value="false">否</option></select></label>
                   <input
                     ref={photoInputRef}
                     type="file"
@@ -678,20 +681,19 @@ export function AnimalLifecycleHub() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={busy || uploading || (dataTransferred !== true && !surgeryLocation.trim())}
+                      disabled={busy || uploading}
                       onClick={() => photoInputRef.current?.click()}
                     >
                       {uploading ? "上传中…" : "选择 / 拍照上传"}
                     </FluentButton>
-                    <span className="text-xs text-lab-muted">已选 {photoUrls.length} 张</span>
+                    <span className="text-xs text-lab-muted">已选 {photoUrls.length} 张操作照片</span>
                   </div>
                   {photoUrls.length > 0 ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {photoUrls.map((url) => (
                         <div key={url} className="relative">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={experimentPhotoUrl(url)}
+                          <PhotoPreview src={url}
                             alt=""
                             className="h-20 w-20 rounded-lg object-cover ring-1 ring-black/10"
                           />
@@ -717,7 +719,7 @@ export function AnimalLifecycleHub() {
                     }
                     void patchOperation(openOp.id, "tech_submit", {
                       resultNote,
-                      surgeryLocation, surgeryImageUrls: surgeryLocation.trim() ? photoUrls : [], assistantNames, dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
+                      assistantNames, dataTransferred, resultImageUrls: photoUrls,
                     });
                   }}
                 >
@@ -747,8 +749,11 @@ export function AnimalLifecycleHub() {
               </div>
             ) : null}
 
+            <SurgeryRecord key={selected.id} animalId={selected.id} initialLocation={selected.surgeryLocation} initialPhotos={selected.surgeryImageUrls} />
             <div className="border-t border-white/40 pt-3">
-              <h4 className="mb-2 text-sm font-semibold">历史 Operation</h4>
+              <h4 className="mb-2 text-sm font-semibold">操作照片记录</h4>
+              {taskRecords.filter(task=>task.resultImageUrls?.length).map(task=><div key={task.id} className="mb-3 rounded-lg bg-white/70 p-3"><p className="text-sm">{task.note || task.opType} · {task.assigneeName}</p><p className="text-xs text-slate-500">{task.receiptNote}</p><div className="mt-2 flex flex-wrap gap-2">{task.resultImageUrls?.map(url=><PhotoPreview key={url} src={url} alt="操作记录照片"/>)}</div></div>)}
+              <h4 className="mb-2 text-sm font-semibold">实验记录</h4>
               {!animalOps.length ? (
                 <p className="text-xs text-lab-muted">暂无实验记录</p>
               ) : (
@@ -762,9 +767,8 @@ export function AnimalLifecycleHub() {
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {op.resultImageUrls.map((url) => (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              key={url}
-                              src={experimentPhotoUrl(url)}
+                            <PhotoPreview key={url}
+                              src={url}
                               alt=""
                               className="h-14 w-14 rounded object-cover ring-1 ring-black/10"
                             />

@@ -1,4 +1,6 @@
 "use client";
+import { OperationPhotoUpload } from "./OperationPhotoUpload";
+import { PhotoPreview } from "./PhotoPreview";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
@@ -77,6 +79,8 @@ export function AnimalOpSchedule({
   const [msg, setMsg] = useState("");
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [assistantNames,setAssistantNames] = useState("");
+  const [operationPhotos,setOperationPhotos] = useState<string[]>([]);
+  const [uploadingPhotos,setUploadingPhotos] = useState(false);
   const [receiptNote, setReceiptNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -163,13 +167,14 @@ export function AnimalOpSchedule({
   }
 
   async function confirmComplete() {
-    if (!completeId) return;
+    if (!completeId || uploadingPhotos) return;
     setSaving(true);
     try {
       await api.updateAnimalOpTask({
         id: completeId,
         status: "done",
         assistantNames,
+        resultImageUrls:operationPhotos,
         receiptNote: receiptNote.trim() || undefined,
       });
       setCompleteId(null);
@@ -395,6 +400,7 @@ export function AnimalOpSchedule({
                             className="mt-0.5 underline"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setOperationPhotos(task.resultImageUrls || []);
                               setAssistantNames(task.assistantNames || "");
                               setCompleteId(task.id);
                               setReceiptNote("");
@@ -467,7 +473,8 @@ export function AnimalOpSchedule({
                           type="button"
                           className="underline"
                           onClick={() => {
-                            setAssistantNames(task.assistantNames || "");
+                            setOperationPhotos(task.resultImageUrls || []);
+                              setAssistantNames(task.assistantNames || "");
                               setCompleteId(task.id);
                             setReceiptNote("");
                           }}
@@ -518,7 +525,7 @@ export function AnimalOpSchedule({
           <div className="flex justify-end gap-2">
             <FluentButton
               variant="outline"
-              disabled={saving}
+              disabled={saving || uploadingPhotos}
               onClick={() => {
                 setCompleteId(null);
                 setReceiptNote("");
@@ -542,6 +549,7 @@ export function AnimalOpSchedule({
               {" · "}
               {completeTask.createdByName}
             </p>
+            <OperationPhotoUpload photos={operationPhotos} onChange={setOperationPhotos} onBusyChange={setUploadingPhotos} disabled={saving}/>
             <label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
             <FluentInput
               label={o.receiptLabel}
@@ -552,6 +560,7 @@ export function AnimalOpSchedule({
           </div>
         )}
       </FluentModal>
+      {tasks.some(t=>t.status==="done"&&t.resultImageUrls?.length)&&<details className="mt-4 rounded-xl border p-3"><summary>已完成操作照片</summary>{tasks.filter(t=>t.status==="done"&&t.resultImageUrls?.length).map(task=><div key={task.id} className="mt-3"><p className="text-sm">{o.types[task.opType]} · {task.animalIds.join("、")}</p><div className="mt-2 flex flex-wrap gap-2">{task.resultImageUrls?.map(url=><PhotoPreview key={url} src={url} alt="操作记录照片"/>)}</div></div>)}</details>}
     </GlassPanel>
   );
 }

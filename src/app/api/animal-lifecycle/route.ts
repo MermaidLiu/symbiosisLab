@@ -71,10 +71,10 @@ export async function GET(req: NextRequest) {
     canManageAnimals(user.roles);
   if (!canView) return jsonError("forbidden", 403);
 
-  const operations = (store.experimentOperations ?? []).filter((op) => op.animalId === animalId);
-  const traces = (store.animalLifecycleTraces ?? []).filter((t) => t.animalId === animalId);
+  const operations = (store.experimentOperations ?? []).filter((op) => op.animalId === animal.id);
+  const traces = (store.animalLifecycleTraces ?? []).filter((t) => t.animalId === animal.id);
 
-  return jsonOk({ animal, operations, traces, labels: REGISTRATION_LABELS });
+  return jsonOk({ animal, operations, traces, tasks:(store.animalOpTasks||[]).filter(t=>t.animalIds.includes(animal.id)), labels: REGISTRATION_LABELS });
 }
 
 /**

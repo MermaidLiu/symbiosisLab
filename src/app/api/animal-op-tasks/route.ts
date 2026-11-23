@@ -416,6 +416,7 @@ export async function PATCH(req: NextRequest) {
     }
     if (body.assistantNames !== undefined && isAssignee) next.assistantNames = String(body.assistantNames).trim().slice(0,500);
     if (body.receiptNote !== undefined) next.receiptNote = String(body.receiptNote).trim();
+    if (body.resultImageUrls !== undefined && isAssignee) next.resultImageUrls = Array.isArray(body.resultImageUrls) ? body.resultImageUrls.filter((u: unknown) => typeof u === "string" && u.startsWith("/uploads/experiments/")) : [];
     if (new Date(next.endTime) <= new Date(next.startTime)) return;
 
     const now = new Date().toISOString();

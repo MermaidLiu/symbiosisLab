@@ -411,6 +411,7 @@ export const api = {
     ),
 
   updateAnimalOpTask: (data: {
+    resultImageUrls?: string[];
     id: string;
     startTime?: string;
     endTime?: string;

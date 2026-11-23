@@ -27,7 +27,7 @@ Page({
     expectedAnimalId: "",
     expectedHint: "",
     pendingTasks: [],
-    surgeryLocation:"",
+    surgeryLocation:"", surgeryPhotos:[], surgeryPreviews:[], surgeryMessage:"",
     customId: "", cageNumber: "1A1", enrollStrain: "", assistantNames: "",
     scanId: "",
     animal: null,
@@ -114,7 +114,7 @@ Page({
       const [res, taskRes] = await Promise.all([request("/api/experiment-operations"),request("/api/animal-op-tasks?mine=1")]);
       const ops = (res.operations || []).filter((o) => o.status === "open" && o.technicianUserId === getUser().id);
       this.setData({
-        activeAnimalTasks:(taskRes.tasks || []).filter(t=>!t.isWaiting && t.status==="scheduled" && ["fasting","water_deprivation","euthanasia"].includes(t.opType)).map(t=>({...t,taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
+        activeAnimalTasks:(taskRes.tasks || []).filter(t=>!t.isWaiting && t.status==="scheduled" && ["fasting","water_deprivation","euthanasia"].includes(t.opType)).map(t=>({...t,taskPhotoPreviews:this.previewPhotoUrls((this.taskPhotoSets||{})[t.id]||t.resultImageUrls||[]),taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
         waitingTasks: (taskRes.tasks || []).filter(t=>t.isWaiting).map(t=>({...t,taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
         pendingTasks: ops.map((o) => ({
           id: o.id,
@@ -134,9 +134,16 @@ Page({
     }
   },
 
-  async completeSimpleTask(e) {
+  chooseTaskPhotos(e) {
     const id=e.currentTarget.dataset.id;
-    wx.showModal({title:"确认操作已完成",content:"完成后将通知下一步负责人，请确认实际操作已结束。",success:async r=>{if(!r.confirm)return;try{const {request}=require("../../utils/api");await request("/api/animal-op-tasks",{method:"PATCH",data:{id,status:"done",assistantNames:this.data.assistantNames}});await this.loadPendingTasks();wx.showToast({title:"已完成"});}catch(e){wx.showToast({title:e.code||"提交失败",icon:"none"});}}});
+    wx.chooseMedia({count:9,mediaType:["image"],success:async res=>{this.setData({busy:true});try{this.taskPhotoSets=this.taskPhotoSets||{};const photos=[...(this.taskPhotoSets[id]||[])];for(const f of res.tempFiles)photos.push(await api.uploadExperimentPhoto(f.tempFilePath));this.taskPhotoSets[id]=photos;await this.loadPendingTasks();}catch(e){wx.showToast({title:e.code||"上传失败",icon:"none"});}finally{this.setData({busy:false});}}});
+  },
+  previewTaskRecord(e){const t=(this.data.taskRecords||[]).find(t=>t.id===e.currentTarget.dataset.id);if(t)wx.previewImage({urls:t.photoPreviews,current:e.currentTarget.dataset.url});},
+  previewTaskPhoto(e) {const task=(this.data.activeAnimalTasks||[]).find(t=>t.id===e.currentTarget.dataset.id);if(task)wx.previewImage({urls:task.taskPhotoPreviews,current:e.currentTarget.dataset.url});},
+  async completeSimpleTask(e) {
+    if(this.data.busy)return;
+    const id=e.currentTarget.dataset.id;
+    wx.showModal({title:"确认操作已完成",content:"完成后将通知下一步负责人，请确认实际操作已结束。",success:async r=>{if(!r.confirm)return;try{const {request}=require("../../utils/api");await request("/api/animal-op-tasks",{method:"PATCH",data:{id,status:"done",assistantNames:this.data.assistantNames,resultImageUrls:(this.taskPhotoSets||{})[id]||[]}});await this.loadPendingTasks();wx.showToast({title:"已完成"});}catch(e){wx.showToast({title:e.code||"提交失败",icon:"none"});}}});
   },
   pickPending(e) {
     const animalId = e.currentTarget.dataset.animalid;
@@ -317,7 +324,11 @@ Page({
       const pendingOp = ops.find((o) => o.status === "tech_submitted") || null;
       this.setData({
         animal,
+        surgeryLocation:animal.surgeryLocation||"",
+        surgeryPhotos:animal.surgeryImageUrls||[],
+        surgeryPreviews:this.previewPhotoUrls(animal.surgeryImageUrls||[]),
         operations: ops,
+        taskRecords:(data.tasks||[]).filter(t=>(t.resultImageUrls||[]).length).map(t=>({...t,title:TASK_TITLES[t.opType]||t.opType,photoPreviews:this.previewPhotoUrls(t.resultImageUrls)})),
         traces: data.traces || [],
         statusLabel: STATUS[animal.registrationStatus] || animal.registrationStatus || "",
         pendingOp,
@@ -497,6 +508,14 @@ Page({
     }
   },
 
+  chooseSurgeryPhotos() {
+    wx.chooseMedia({count:9,mediaType:["image"],success:async res=>{this.setData({busy:true});try{const photos=[...this.data.surgeryPhotos];for(const f of res.tempFiles)photos.push(await api.uploadExperimentPhoto(f.tempFilePath));this.setData({surgeryPhotos:photos,surgeryPreviews:this.previewPhotoUrls(photos)});}catch(e){wx.showToast({title:e.code||"图片上传失败",icon:"none"});}finally{this.setData({busy:false});}}});
+  },
+  previewSurgeryPhoto(e) {wx.previewImage({urls:this.data.surgeryPreviews,current:this.data.surgeryPreviews[Number(e.currentTarget.dataset.index)]});},
+  async saveSurgeryRecord() {
+    if(!this.data.animal||!this.data.surgeryLocation.trim()||!this.data.surgeryPhotos.length){wx.showToast({title:"请填写位置并上传手术照片",icon:"none"});return;}
+    this.setData({busy:true});try{const {request}=require("../../utils/api");await request("/api/cage-workflow",{method:"POST",data:{action:"surgery",id:this.data.animal.id,location:this.data.surgeryLocation,imageUrls:this.data.surgeryPhotos}});wx.showToast({title:"手术记录已保存"});}catch(e){wx.showToast({title:e.code||"保存失败",icon:"none"});}finally{this.setData({busy:false});}
+  },
   async techSubmit() {
     if (!(await promptLogin("登录后可提交。"))) return;
     const op = this.data.openOp;
@@ -510,11 +529,9 @@ Page({
     try {
       await api.patchExperimentOperation(op.id, "tech_submit", {
         resultNote: this.data.resultNote,
-        surgeryLocation:this.data.surgeryLocation,
-        surgeryImageUrls:this.data.surgeryLocation.trim() ? this.data.photoUrls : [],
         assistantNames:this.data.assistantNames,
         dataTransferred: this.data.dataTransferred,
-        resultImageUrls: this.data.dataTransferred ? this.data.photoUrls : [],
+        resultImageUrls: this.data.photoUrls,
       });
       await this.lookup(this.data.animal.id);
       wx.showToast({ title: "已完成，已通知学生", icon: "success" });

@@ -1,5 +1,6 @@
 "use client";
-import { experimentPhotoUrl } from "@/lib/experiment-photos";
+import { SurgeryRecord } from "./SurgeryRecord";
+import { PhotoPreview } from "./PhotoPreview";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -48,7 +49,6 @@ export function TechTaskHandle() {
   const [verifyMsg, setVerifyMsg] = useState("");
   const [expKind, setExpKind] = useState<ExperimentKind>("ephys");
   const [expTitle, setExpTitle] = useState("数据采集");
-  const [surgeryLocation,setSurgeryLocation] = useState("");
   const [assistantNames,setAssistantNames] = useState("");
   const [resultNote, setResultNote] = useState("");
   const [dataTransferred, setDataTransferred] = useState<boolean | null>(null);
@@ -259,7 +259,7 @@ export function TechTaskHandle() {
           id: op.id,
           action: "tech_submit",
           resultNote,
-          surgeryLocation, surgeryImageUrls: surgeryLocation.trim() ? photoUrls : [], assistantNames, dataTransferred, resultImageUrls: dataTransferred ? photoUrls : [],
+          assistantNames, dataTransferred, resultImageUrls: photoUrls,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -413,7 +413,7 @@ export function TechTaskHandle() {
                 disabled={!verified || busy}
                 onChange={(e) => setExpTitle(e.target.value)}
               />
-              <label>手术位置（手术任务必填）<input className="block w-full rounded border p-2" value={surgeryLocation} onChange={e=>setSurgeryLocation(e.target.value)} /></label><label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
+              <label>协助完成人（手动录入）<input className="block w-full rounded border p-2" value={assistantNames} onChange={e=>setAssistantNames(e.target.value)} /></label>
               <FluentInput
                 label="结果说明（可选）"
                 value={resultNote}
@@ -421,7 +421,7 @@ export function TechTaskHandle() {
                 onChange={(e) => setResultNote(e.target.value)}
               />
               <div>
-                <label className="block text-sm">是否传输<select className="ml-2 rounded border p-2" value={dataTransferred === null ? "" : String(dataTransferred)} onChange={(e) => setDataTransferred(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是（上传照片）</option><option value="false">否（不上传照片）</option></select></label>
+                <label className="block text-sm">是否传输<select className="ml-2 rounded border p-2" value={dataTransferred === null ? "" : String(dataTransferred)} onChange={(e) => setDataTransferred(e.target.value === "" ? null : e.target.value === "true")}><option value="">请选择</option><option value="true">是</option><option value="false">否</option></select></label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -434,7 +434,7 @@ export function TechTaskHandle() {
                 <FluentButton
                   variant="outline"
                   size="sm"
-                  disabled={!verified || uploading || busy || (dataTransferred !== true && !surgeryLocation.trim())}
+                  disabled={!verified || uploading || busy}
                   onClick={() => fileRef.current?.click()}
                 >
                   {uploading ? "上传中…" : `拍照 / 上传（已 ${photoUrls.length} 张）`}
@@ -443,9 +443,8 @@ export function TechTaskHandle() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {photoUrls.map((url) => (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        key={url}
-                        src={experimentPhotoUrl(url)}
+                      <PhotoPreview key={url}
+                        src={url}
                         alt=""
                         className="h-20 w-20 rounded-lg object-cover ring-1 ring-black/10"
                       />
@@ -463,6 +462,7 @@ export function TechTaskHandle() {
           )}
         </GlassPanel>
 
+        {animal && <SurgeryRecord key={animal.id} animalId={animal.id} initialLocation={animal.surgeryLocation} initialPhotos={animal.surgeryImageUrls} />}
         <div className="flex flex-wrap gap-2">
           <Link href="/">
             <FluentButton variant="outline" size="sm">

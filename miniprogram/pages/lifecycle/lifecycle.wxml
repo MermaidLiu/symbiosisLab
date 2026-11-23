@@ -12,7 +12,7 @@
     <view class="sub" wx:else>扫笼码核验派发 ID → 选择操作并拍照 → 提交给学生</view>
   </view>
 
-  <view class="card" wx:if="{{isTech && activeAnimalTasks.length}}"><view class="section">当前操作任务</view><input class="input" placeholder="协助完成人（可选）" value="{{assistantNames}}" bindinput="onAssistantNames"/><view wx:for="{{activeAnimalTasks}}" wx:key="id"><view>{{item.taskTitle}} · 小鼠 {{item.mouseLabels}}</view><view>{{item.note}}</view><button data-id="{{item.id}}" bindtap="completeSimpleTask">操作已完成 · 通知下一步</button></view></view>
+  <view class="card" wx:if="{{isTech && activeAnimalTasks.length}}"><view class="section">当前操作任务</view><input class="input" placeholder="协助完成人（可选）" value="{{assistantNames}}" bindinput="onAssistantNames"/><view wx:for="{{activeAnimalTasks}}" wx:key="id"><view>{{item.taskTitle}} · 小鼠 {{item.mouseLabels}}</view><view>{{item.note}}</view><button data-id="{{item.id}}" disabled="{{busy}}" bindtap="chooseTaskPhotos">上传本次操作照片</button><view class="photos"><image wx:for="{{item.taskPhotoPreviews}}" wx:for-item="photo" wx:key="*this" src="{{photo}}" class="thumb" mode="aspectFill" data-id="{{item.id}}" data-url="{{photo}}" bindtap="previewTaskPhoto"/></view><button disabled="{{busy}}" data-id="{{item.id}}" bindtap="completeSimpleTask">操作已完成 · 通知下一步</button></view></view>
   <view class="card" wx:if="{{isTech && waitingTasks.length}}"><view class="section">待接手的后续步骤</view><view wx:for="{{waitingTasks}}" wx:key="id"><view>{{item.taskTitle}} · 小鼠 {{item.mouseLabels}}</view><view class="meta">派发人：{{item.createdByName}} · 备注：{{item.note}}</view><view class="hint muted">等待 {{item.waitingForName}} 完成前一步，届时自动通知。</view></view></view>
   <view class="card" wx:if="{{isTech && pendingTasks.length}}">
     <view class="section">待处理任务</view>
@@ -90,11 +90,10 @@
     <!-- 技术员：上传照片并完成 -->
     <view class="card" wx:if="{{isTech && openOp && openOp.technicianUserId === currentUserId && !animal.deathAt}}">
       <view class="section">处理中 · {{openOp.title}}</view>
-      <radio-group bindchange="onTransfer"><view>是否传输</view><label><radio value="true" checked="{{dataTransferred === true}}" />是（上传照片）</label><label><radio value="false" checked="{{dataTransferred === false}}" />否（不上传照片）</label></radio-group>
-      <input class="input" placeholder="手术位置（手术任务必填）" value="{{surgeryLocation}}" bindinput="onSurgeryLocation" />
+      <radio-group bindchange="onTransfer"><view>是否传输</view><label><radio value="true" checked="{{dataTransferred === true}}" />是</label><label><radio value="false" checked="{{dataTransferred === false}}" />否</label></radio-group>
       <input class="input" placeholder="协助完成人（手动录入，可选）" value="{{assistantNames}}" bindinput="onAssistantNames" />
       <input class="input" placeholder="结果说明（可选）" value="{{resultNote}}" bindinput="onResultNote" />
-      <button class="btn ghost block" loading="{{uploading || busy}}" disabled="{{dataTransferred !== true && !surgeryLocation}}" bindtap="choosePhotos">
+      <button class="btn ghost block" loading="{{uploading || busy}}" disabled="{{busy}}" bindtap="choosePhotos">
         📷 拍照 / 从相册上传结果图（已 {{photoUrls.length}} 张）
       </button>
       <view class="hint muted" wx:if="{{uploading}}">上传中 {{uploadProgress}}%…</view>
@@ -112,7 +111,7 @@
         />
       </view>
       <view class="hint muted" wx:if="{{photoUrls.length}}">轻触预览，长按可删除</view>
-      <view class="hint muted" wx:elif="{{!photoUrls.length}}">选择是时须上传至少 1 张传输照片</view>
+      <view class="hint muted" wx:elif="{{!photoUrls.length}}">每次操作均可拍照上传，与是否传输数据分开记录</view>
       <button
         class="btn primary block"
         loading="{{busy}}"
@@ -121,6 +120,8 @@
       >完成数据采集 · 提交学生</button>
     </view>
 
+    <view class="card" wx:if="{{animal && !animal.deathAt}}"><view class="section">手术位置与照片 · 独立记录</view><view class="hint muted">仅记录手术时填写，与电生理、行为学等任务分开保存。</view><input class="input" placeholder="手术位置、侧别或坐标" value="{{surgeryLocation}}" bindinput="onSurgeryLocation"/><button class="btn ghost block" disabled="{{busy}}" bindtap="chooseSurgeryPhotos">上传手术位置照片</button><view class="photos"><image wx:for="{{surgeryPreviews}}" wx:for-index="idx" wx:key="*this" src="{{item}}" data-index="{{idx}}" bindtap="previewSurgeryPhoto" class="thumb" mode="aspectFill"/></view><button class="btn primary block" disabled="{{busy || !surgeryLocation || !surgeryPhotos.length}}" bindtap="saveSurgeryRecord">保存手术位置与照片</button></view>
+    <view class="card" wx:if="{{taskRecords.length}}"><view class="section">操作照片记录</view><view wx:for="{{taskRecords}}" wx:key="id"><view>{{item.title}} · {{item.assigneeName}}</view><view>{{item.receiptNote}}</view><image wx:for="{{item.photoPreviews}}" wx:for-item="photo" wx:key="*this" src="{{photo}}" class="thumb" mode="aspectFill" data-id="{{item.id}}" data-url="{{photo}}" bindtap="previewTaskRecord"/></view></view>
     <view class="card" wx:if="{{operations.length}}">
       <view class="section">实验记录</view>
       <block wx:for="{{operations}}" wx:key="id">

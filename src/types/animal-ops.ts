@@ -37,6 +37,7 @@ export const URGENCY_COLORS: Record<AnimalOpUrgency, string> = {
 };
 
 export interface AnimalOpTask {
+  resultImageUrls?: string[];
   isWaiting?: boolean;
   waitingForName?: string;
   assistantNames?: string;

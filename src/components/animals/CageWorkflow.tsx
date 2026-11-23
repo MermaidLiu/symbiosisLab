@@ -6,8 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { canManageAnimals } from "@/lib/roles";
 import { buildCageLayout, CageGridRack } from "@/lib/animals/cage-grid";
 import { ManagedAnimal, Cage } from "@/types/animal-management";
+import { PhotoPreview } from "./PhotoPreview";
 import { AssignAnimalOpModal } from "./AssignAnimalOpModal";
-import { experimentPhotoUrl } from "@/lib/experiment-photos";
 
 const errors: Record<string,string> = {invalid_body:"请填写编号、二维码、日期和品系", invalid_cage:"请选择有效笼位", id_or_qr_exists:"编号或二维码已被使用", invalid_owner:"请选择所属人", cage_full:"目标笼位已满", animal_locked:"实验未闭环，暂不能退出或转移", forbidden:"无操作权限", surgery_location_and_photo_required:"请填写手术位置并上传照片"};
 export function CageWorkflow() {
@@ -74,7 +74,7 @@ export function CageWorkflow() {
     {current&&<div className={styles.detail}><h3 className="font-bold">{current.id} · {current.cageLocation}</h3><p>进入日期：{current.cageEntryAt?.slice(0,10)||"未记录"} · 所属人：{current.claimantName} · 品系：{current.strain}</p>
       <label>术后备注（所属学生可编辑）<textarea className="block w-full rounded border p-2" value={note} onChange={e=>setNote(e.target.value)}/></label><button disabled={busy} onClick={()=>void save({action:"notes",id:current.id,note})}>保存备注</button>
       <div><label>目标笼位<select className="rounded border p-2" value={cageNumber} onChange={e=>setCageNumber(e.target.value)}>{numbers.map(n=><option key={n}>{n}</option>)}</select></label><button disabled={busy||!!current.exitedAt} className="m-2 rounded border p-2" onClick={()=>void save({action:"transfer",id:current.id,cageNumber})}>转移并通知</button><button disabled={busy||!!current.exitedAt} className="rounded border p-2 text-red-700" onClick={()=>{if(window.confirm(`确认 ${current.id} 退出笼位？历史记录将保留。`))void save({action:"exit",id:current.id});}}>退出并通知</button></div>
-      <label>手术位置<input className="block w-full rounded border p-2" value={location} onChange={e=>setLocation(e.target.value)} placeholder="位置、侧别或坐标"/></label><label>手术照片<input type="file" accept="image/*" multiple capture="environment" disabled={busy} onChange={e=>void upload(e.target.files)}/></label><div className="flex flex-wrap gap-2">{photos.map(url=><div key={url}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={experimentPhotoUrl(url)} alt="手术照片" className="h-24 w-24 object-cover"/><button onClick={()=>setPhotos(p=>p.filter(x=>x!==url))}>移除</button></div>)}</div><button disabled={busy||!location.trim()||!photos.length} className="rounded bg-purple-800 p-2 text-white" onClick={()=>void save({action:"surgery",id:current.id,location,imageUrls:photos})}>保存手术位置与照片</button>
+      <label>手术位置<input className="block w-full rounded border p-2" value={location} onChange={e=>setLocation(e.target.value)} placeholder="位置、侧别或坐标"/></label><label>手术照片<input type="file" accept="image/*" multiple capture="environment" disabled={busy} onChange={e=>void upload(e.target.files)}/></label><div className="flex flex-wrap gap-2">{photos.map(url=><div key={url}>{/* eslint-disable-next-line @next/next/no-img-element */}<PhotoPreview src={url} alt="手术照片" className="h-24 w-24 object-cover"/><button onClick={()=>setPhotos(p=>p.filter(x=>x!==url))}>移除</button></div>)}</div><button disabled={busy||!location.trim()||!photos.length} className="rounded bg-purple-800 p-2 text-white" onClick={()=>void save({action:"surgery",id:current.id,location,imageUrls:photos})}>保存手术位置与照片</button>
     </div>}
     <AssignAnimalOpModal open={assign} animalIds={selected} onClose={()=>setAssign(false)} onCreated={()=>{setAssign(false);setSelected([]);void load();}}/>
   </section>;
