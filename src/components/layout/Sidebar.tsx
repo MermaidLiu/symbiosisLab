@@ -67,7 +67,7 @@ export function Sidebar() {
 
   return (
     <aside className="fluent-sidebar flex w-60 shrink-0 flex-col border-r border-white/30">
-      <div className="border-b border-white/25 bg-gradient-to-br from-thu/90 to-thu-light/85 px-5 py-5 backdrop-blur-md">
+      <div className="border-b border-white/25 bg-thu px-5 py-5 ">
         <Link href="/" className="flex items-center gap-3 rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-tsinghua-yellow/60">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-tsinghua-yellow/90 text-lg font-bold text-thu-dark shadow-sm backdrop-blur-sm">
             S
@@ -134,7 +134,7 @@ export function Sidebar() {
               >
                 <NavIcon name={item.icon} className="h-5 w-5 shrink-0" />
                 <span className="flex-1 text-left">{t.nav[item.labelKey]}</span>
-                <span className={clsx("text-xs transition-transform duration-200", groupOpen && "rotate-90")}>›</span>
+                <span className={clsx("text-xs transition-transform duration-200", groupOpen && "rotate-90")}><NavIcon name="right" className="h-3 w-3"/></span>
               </button>
               {groupOpen && (
                 <div className="ml-4 mt-0.5 space-y-0.5 border-l border-white/35 pl-2">

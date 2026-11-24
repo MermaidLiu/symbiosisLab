@@ -2,7 +2,7 @@
   <view class="blob blob-a"></view>
   <view class="blob blob-b"></view>
   <view class="hero">
-    <view class="brand">Symbiosis Lab</view>
+    <view class="brand">Daigroup Lab</view>
     <view class="sub">邮箱密码登录</view>
   </view>
 
@@ -25,7 +25,7 @@
     <view wx:if="{{smsHint}}" class="hint muted">{{smsHint}}</view>
 
     <view class="consent" bindtap="toggleAgree">
-      <view class="check {{agreed ? 'on' : ''}}">{{agreed ? '✓' : ''}}</view>
+      <view class="check {{agreed ? 'on' : ''}}"><text wx:if="{{agreed}}" class="ali-icon ali-icon-sm ali-icon-check"></text></view>
       <view class="consent-text">
         我已阅读并同意
         <text class="link" catchtap="openTerms">《用户服务协议》</text>
@@ -50,7 +50,7 @@
     <input class="input" password placeholder="demo123" value="{{password}}" bindinput="onPassword" />
 
     <view class="consent" bindtap="toggleAgree">
-      <view class="check {{agreed ? 'on' : ''}}">{{agreed ? '✓' : ''}}</view>
+      <view class="check {{agreed ? 'on' : ''}}"><text wx:if="{{agreed}}" class="ali-icon ali-icon-sm ali-icon-check"></text></view>
       <view class="consent-text">
         我已阅读并同意
         <text class="link" catchtap="openTerms">《用户服务协议》</text>

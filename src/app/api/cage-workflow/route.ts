@@ -12,7 +12,7 @@ export async function GET() {
   if ("error" in auth) return auth.error;
   const s = getStore();
   const manager = canManageAnimals(auth.user.roles);
-  return jsonOk({ cages: s.cages, layout: buildCageLayout(s.cages), animals: s.managedAnimals.filter(a => manager || a.claimantUserId === auth.user.id || a.technicianUserId === auth.user.id || s.animalOpTasks?.some(t => (t.assigneeUserId === auth.user.id || t.remainingSteps?.some(step=>step.assigneeUserId===auth.user.id)) && t.animalIds.includes(a.id))), owners: s.users.map(u => ({ id: u.id, name: u.name, email: u.email })) });
+  return jsonOk({ pendingExitAnimalIds:(s.animalOpTasks||[]).filter(t=>t.opType==="euthanasia"&&t.status==="scheduled").flatMap(t=>t.animalIds), cages: s.cages, layout: buildCageLayout(s.cages), animals: s.managedAnimals.filter(a => manager || a.claimantUserId === auth.user.id || a.technicianUserId === auth.user.id || s.animalOpTasks?.some(t => (t.assigneeUserId === auth.user.id || t.remainingSteps?.some(step=>step.assigneeUserId===auth.user.id)) && t.animalIds.includes(a.id))), owners: s.users.map(u => ({ id: u.id, name: u.name, email: u.email })) });
 }
 
 export async function POST(req: NextRequest) {

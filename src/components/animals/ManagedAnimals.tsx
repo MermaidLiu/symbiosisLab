@@ -1,4 +1,7 @@
 "use client";
+import { CageWorkflow } from "./CageWorkflow";
+import { StrainField } from "./StrainField";
+import { AntIcon } from "@/components/ui/AntIcon";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -56,6 +59,7 @@ const EMPTY_FILTER: AnimalFilterState = {
 const COLUMN_KEYS = [
   "recordingStatus",
   "id",
+  "qrCode",
   "implantAt",
   "tracking",
   "trackingStage",
@@ -77,6 +81,8 @@ const PAGE_SIZE = 10;
 
 /** Default visible columns = 吴淑颖表字段 */
 const DEFAULT_COLUMNS: ColumnKey[] = [
+  "qrCode",
+  "cageLocation",
   "recordingStatus",
   "id",
   "implantAt",
@@ -91,6 +97,7 @@ const DEFAULT_COLUMNS: ColumnKey[] = [
 
 /** 饲养员/技术员/采集员：动物信息 + 归属者 / 状态 / 阶段 */
 const OPS_STAFF_COLUMNS: ColumnKey[] = [
+  "qrCode",
   "id",
   "claimantName",
   "recordingStatus",
@@ -172,6 +179,8 @@ export function ManagedAnimals({
   const [toast, setToast] = useState("");
   const [displayMode, setDisplayMode] = useState<"list" | "grid">("list");
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => new Set(DEFAULT_COLUMNS));
+  const modeInitialized=useRef(false);
+  useEffect(()=>{if(user&&!modeInitialized.current){modeInitialized.current=true;setDisplayMode(canManageAnimals(user.roles)?"grid":"list");}},[user]);
   const [columnModalOpen, setColumnModalOpen] = useState(false);
   const [viewAnimal, setViewAnimal] = useState<ManagedAnimal | null>(null);
   const [opAction, setOpAction] = useState<"" | "record_signal" | "force_euthanasia">("");
@@ -286,7 +295,8 @@ export function ManagedAnimals({
 
   const columnLabels: Record<ColumnKey, string> = {
     recordingStatus: isOpsStaff ? m.colStatusNow : m.colRecordingStatus,
-    id: m.colId,
+    id: "小鼠名",
+    qrCode: "小鼠 ID（二维码编号）",
     implantAt: m.colImplant,
     tracking: m.colTracking,
     trackingStage: isOpsStaff ? m.colStage : m.colTrackingStage,
@@ -329,7 +339,7 @@ export function ManagedAnimals({
     if (f.weaningStatus === "not_weaned") rows = rows.filter((r) => r.weaningStatus === "not_weaned");
     if (f.genotypeStatus === "identified") rows = rows.filter((r) => r.genotypeStatus === "identified");
     if (f.genotypeStatus === "unidentified") rows = rows.filter((r) => r.genotypeStatus === "unidentified");
-    if (f.animalId) rows = rows.filter((r) => r.id.toLowerCase().includes(f.animalId.toLowerCase()));
+    if (f.animalId) rows = rows.filter((r) => (r.id+" "+(r.qrCode||"")).toLowerCase().includes(f.animalId.toLowerCase()));
 
     rows.sort((a, b) => {
       if (sortKey === "tracking") {
@@ -746,6 +756,7 @@ export function ManagedAnimals({
           : `已存在：${id}（笼号 ${cageCode.toUpperCase()}）`
       );
       setEnrollCageCode("");
+      setEnrollOpen(false);
       showToast(data.created ? `已录入 ${id}` : `已确认 ${id}`);
       const { managedAnimals: list } = await api.managedAnimals();
       setAnimals(scopeList(list));
@@ -754,12 +765,6 @@ export function ManagedAnimals({
     } finally {
       setEnrollBusy(false);
     }
-  }
-
-  function canDeleteRow(row: ManagedAnimal) {
-    if (canEditAnimals) return true;
-    if (isAnimalExperimentLocked(row)) return false;
-    return Boolean(user && row.claimantUserId === user.id);
   }
 
   function openAssignFor(ids: string[]) {
@@ -781,57 +786,6 @@ export function ManagedAnimals({
     }
     setOpTargetIds(unlocked);
     setOpAssignOpen(true);
-  }
-
-  async function removeSelected() {
-    const ids = [...selected].filter((id) => {
-      const row = animals.find((a) => a.id === id);
-      return row ? canDeleteRow(row) : false;
-    });
-    if (ids.length === 0) {
-      showToast(m.selectRows);
-      return;
-    }
-    if (!window.confirm(m.removeConfirm.replace("{n}", String(ids.length)))) return;
-    setRemoving(true);
-    try {
-      let list = animals;
-      for (const id of ids) {
-        const res = await api.deleteManagedAnimal(id);
-        list = res.managedAnimals;
-      }
-      setCachePartial({ managedAnimals: list });
-      setAnimals(scopeList(list));
-      setSelected(new Set());
-      showToast(m.removeSuccess);
-    } catch {
-      showToast(m.removeError);
-    } finally {
-      setRemoving(false);
-    }
-  }
-
-  async function removeOne(id: string) {
-    const row = animals.find((a) => a.id === id);
-    if (!row || !canDeleteRow(row)) return;
-    if (!window.confirm(m.removeConfirm.replace("{n}", "1"))) return;
-    setRemoving(true);
-    try {
-      const { managedAnimals } = await api.deleteManagedAnimal(id);
-      setCachePartial({ managedAnimals });
-      setAnimals(scopeList(managedAnimals));
-      setSelected((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      if (viewAnimal?.id === id) setViewAnimal(null);
-      showToast(m.removeSuccess);
-    } catch {
-      showToast(m.removeError);
-    } finally {
-      setRemoving(false);
-    }
   }
 
   async function cancelDispatch(row: ManagedAnimal) {
@@ -1243,6 +1197,7 @@ export function ManagedAnimals({
     if (key === "dispatchAssignee") return row.dispatchAssigneeName?.trim() || row.technicianName?.trim() || "—";
     if (key === "dispatchProgress") return row.dispatchProgress?.trim() || "—";
     if (key === "id") return row.id;
+    if (key === "qrCode") return row.qrCode || "未绑定";
     return String(row[key as keyof ManagedAnimal] ?? "");
   }
 
@@ -1295,7 +1250,7 @@ export function ManagedAnimals({
                 </FluentButton>
                 {canEditAnimals && (
                   <FluentButton size="sm" onClick={openEnrollModal}>
-                    + {m.addAnimal}
+                    <AntIcon name="plus" className="h-3.5 w-3.5"/> {m.addAnimal}
                   </FluentButton>
                 )}
               </div>
@@ -1365,7 +1320,7 @@ export function ManagedAnimals({
                 { value: "identified", label: m.genotypeIdentified },
               ]}
             />
-            <FluentInput label={m.animalId} value={filters.animalId} onChange={(e) => setFilters({ ...filters, animalId: e.target.value })} />
+            <FluentInput label="小鼠 ID / 小鼠名" value={filters.animalId} onChange={(e) => setFilters({ ...filters, animalId: e.target.value })} />
           </div>
           <div className="mt-4 flex gap-2">
             <FluentButton
@@ -1394,7 +1349,7 @@ export function ManagedAnimals({
           <GlassPanel className="mb-4">
             <div className="flex flex-wrap items-end gap-3">
               <FluentInput
-                label={m.animalId}
+                label="小鼠 ID / 小鼠名"
                 value={filters.animalId}
                 onChange={(e) => setFilters({ ...filters, animalId: e.target.value })}
                 className="min-w-[160px] flex-1"
@@ -1463,25 +1418,14 @@ export function ManagedAnimals({
                     {t.animalMgmt.animalOps.assignAction}
                     {selected.size > 0 ? ` (${selected.size})` : ""}
                   </FluentButton>
-                  <FluentButton
-                    size="sm"
-                    variant="outline"
-                    className="!text-red-600"
-                    disabled={removing || selected.size === 0}
-                    onClick={() => void removeSelected()}
-                  >
-                    {m.batchDelete}
-                    {selected.size > 0 ? ` (${selected.size})` : ""}
-                  </FluentButton>
+
                   <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                     {f.batchUpload}
                   </FluentButton>
                 </>
               ) : (
                 <>
-                  <FluentButton variant="secondary" size="sm" onClick={openVetModal}>
-                    {m.vetCare}
-                  </FluentButton>
+
                   <FluentButton
                     size="sm"
                     disabled={selected.size === 0}
@@ -1490,16 +1434,7 @@ export function ManagedAnimals({
                     {t.animalMgmt.animalOps.assignAction}
                     {selected.size > 0 ? ` (${selected.size})` : ""}
                   </FluentButton>
-                  <FluentButton
-                    size="sm"
-                    variant="outline"
-                    className="!text-red-600"
-                    disabled={removing || selected.size === 0}
-                    onClick={() => void removeSelected()}
-                  >
-                    {m.batchDelete}
-                    {selected.size > 0 ? ` (${selected.size})` : ""}
-                  </FluentButton>
+
                   <FluentButton size="sm" variant="outline" onClick={() => setUploadOpen(true)}>
                     {f.batchUpload}
                   </FluentButton>
@@ -1532,17 +1467,7 @@ export function ManagedAnimals({
                           >
                             {m.batchApply}
                           </button>
-                          <button
-                            type="button"
-                            className="block w-full px-3 py-2 text-left text-xs text-lab-text hover:bg-white/60 hover:text-red-600"
-                            disabled={removing}
-                            onClick={() => {
-                              setBatchMenuOpen(false);
-                              void removeSelected();
-                            }}
-                          >
-                            {m.batchDelete}
-                          </button>
+
                         </div>,
                         document.body
                       )}
@@ -1566,7 +1491,7 @@ export function ManagedAnimals({
                     displayMode === "list" ? "bg-white/80 text-thu shadow-sm" : "text-lab-muted hover:text-thu"
                   )}
                 >
-                  {m.list}
+                  列表模式
                 </button>
                 <button
                   type="button"
@@ -1576,7 +1501,7 @@ export function ManagedAnimals({
                     displayMode === "grid" ? "bg-white/80 text-thu shadow-sm" : "text-lab-muted hover:text-thu"
                   )}
                 >
-                  {m.grid}
+                  笼位模式
                 </button>
               </div>
               {canExport && (
@@ -1675,7 +1600,7 @@ export function ManagedAnimals({
                                     title={m.lockedHint}
                                     aria-label={m.lockedHint}
                                   >
-                                    🔒
+                                    <AntIcon name="lock" className="h-3.5 w-3.5"/>
                                   </span>
                                 ) : null}
                                 <span>{row.id}</span>
@@ -1741,7 +1666,7 @@ export function ManagedAnimals({
                                 className="inline-flex items-center gap-1 px-1 text-[11px] text-amber-800"
                                 title={m.lockedHint}
                               >
-                                🔒 {m.lockedShort}
+                                <AntIcon name="lock" className="h-3.5 w-3.5"/> {m.lockedShort}
                               </span>
                             ) : (
                               <>
@@ -1752,17 +1677,7 @@ export function ManagedAnimals({
                                 >
                                   {t.animalMgmt.animalOps.assignShort}
                                 </FluentButton>
-                                {canDeleteRow(row) && (
-                                  <FluentButton
-                                    variant="ghost"
-                                    size="sm"
-                                    className="!text-red-600 hover:!bg-red-50/70"
-                                    disabled={removing}
-                                    onClick={() => void removeOne(row.id)}
-                                  >
-                                    {t.common.delete}
-                                  </FluentButton>
-                                )}
+
                               </>
                             )}
                           </div>
@@ -1775,136 +1690,10 @@ export function ManagedAnimals({
             </div>
           </GlassPanel>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {paged.map((row) => (
-              <GlassPanel key={row.id} className="flex flex-col">
-                <div className="mb-3 flex items-start justify-between gap-2">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(row.id)}
-                      disabled={isClaimCatalog && isAnimalExperimentLocked(row)}
-                      onChange={() => {
-                        if (isClaimCatalog && isAnimalExperimentLocked(row)) {
-                          showToast(m.lockedCannotOperate);
-                          return;
-                        }
-                        toggleRow(row.id);
-                      }}
-                      className="accent-thu"
-                    />
-                    <span className="inline-flex items-center gap-1 font-mono text-sm font-semibold text-thu">
-                      {isAnimalExperimentLocked(row) ? (
-                        <span title={m.lockedHint} aria-label={m.lockedHint}>
-                          🔒
-                        </span>
-                      ) : null}
-                      {row.id}
-                      {row.lastOpBackfill ? (
-                        <span
-                          className="rounded px-1.5 py-0.5 font-sans text-[10px] font-semibold text-orange-800 ring-1 ring-inset ring-orange-300/80 bg-orange-50"
-                          title={m.backfillHint}
-                        >
-                          {m.backfillBadge}
-                        </span>
-                      ) : null}
-                    </span>
-                  </label>
-                  {renderRecordingStatusTip(row)}
-                </div>
-                <dl className="flex-1 space-y-1 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lab-muted">
-                      {isOpsStaff ? m.colOwner : m.colClaimant}:{" "}
-                    </span>
-                    <span>{row.claimantName?.trim() || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-lab-muted">
-                      {isOpsStaff ? m.colStatusNow : m.colRecordingStatus}:{" "}
-                    </span>
-                    <span className="font-medium">
-                      {recordingStatusLabel(row.recordingStatus, row.statusLabel)}
-                    </span>
-                  </div>
-                  <div><span className="text-lab-muted">{m.colImplant}: </span>{formatDateOnly(row.implantAt)}</div>
-                  <div>
-                    <span className="text-lab-muted">{m.colTracking}: </span>
-                    {formatTrackingDays(
-                      trackingDaysForAnimal(row),
-                      m.trackingUnit
-                    )}
-                  </div>
-                  <div>
-                    <span className="text-lab-muted">
-                      {isOpsStaff ? m.colStage : m.colTrackingStage}:{" "}
-                    </span>
-                    {stageForRow(row)}
-                  </div>
-                  <div>
-                    <span className="text-lab-muted">{m.colDispatchAssignee}: </span>
-                    <span>{row.dispatchAssigneeName || row.technicianName || "—"}</span>
-                  </div>
-                  <div>
-                    <span className="text-lab-muted">{m.colDispatchProgress}: </span>
-                    <span className="font-medium">{row.dispatchProgress || "—"}</span>
-                  </div>
-                  <div><span className="text-lab-muted">{m.colNextDate}: </span>{formatDateOnly(row.nextCollectionAt)}</div>
-                </dl>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {isOpsStaff ? (
-                    <>
-                      <FluentButton variant="ghost" size="sm" onClick={() => setViewAnimal(row)}>
-                        {m.view}
-                      </FluentButton>
-                      <FluentButton
-                        variant="ghost"
-                        size="sm"
-                        className="!text-amber-700"
-                        onClick={() => openForceFor([row.id])}
-                      >
-                        {m.forceHandle}
-                      </FluentButton>
-                    </>
-                  ) : isClaimCatalog && row.canCancelDispatch ? (
-                    <FluentButton
-                      variant="ghost"
-                      size="sm"
-                      className="!text-amber-800"
-                      disabled={removing}
-                      onClick={() => void cancelDispatch(row)}
-                    >
-                      {m.cancelDispatch}
-                    </FluentButton>
-                  ) : isAnimalExperimentLocked(row) && isClaimCatalog ? (
-                    <span className="text-[11px] text-amber-800" title={m.lockedHint}>
-                      🔒 {m.lockedShort}
-                    </span>
-                  ) : (
-                    <>
-                      <FluentButton variant="ghost" size="sm" onClick={() => openAssignFor([row.id])}>
-                        {t.animalMgmt.animalOps.assignShort}
-                      </FluentButton>
-                      {canDeleteRow(row) && (
-                        <FluentButton
-                          variant="ghost"
-                          size="sm"
-                          className="!text-red-600 hover:!bg-red-50/70"
-                          disabled={removing}
-                          onClick={() => void removeOne(row.id)}
-                        >
-                          {t.common.delete}
-                        </FluentButton>
-                      )}
-                    </>
-                  )}
-                </div>
-              </GlassPanel>
-            ))}
-          </div>
+          <CageWorkflow searchQuery={applied.animalId} onUpdated={()=>void handleRefresh()}/>
         )}
 
-        {filtered.length > 0 && (
+        {displayMode === "list" && filtered.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E0D4E8] bg-white/60 px-4 py-2.5">
             <p className="text-xs text-lab-muted">
               {m.pageInfo
@@ -2239,9 +2028,9 @@ export function ManagedAnimals({
                   if (e.key === "Enter") void submitManualEnroll();
                 }}
               />
-              <label>小鼠编号<input className="block w-full rounded border p-2" value={customId} onChange={e=>setCustomId(e.target.value)} placeholder="TJ001" /></label>
+              <label>小鼠名<input className="block w-full rounded border p-2" value={customId} onChange={e=>setCustomId(e.target.value)} placeholder="TJ001" /></label>
               <label>笼位<input className="block w-full rounded border p-2" value={enrollCageNumber} onChange={e=>setEnrollCageNumber(e.target.value)} placeholder="1A1" /></label>
-              <label>品系<input className="block w-full rounded border p-2" value={enrollStrain} onChange={e=>setEnrollStrain(e.target.value)} /></label>
+              <StrainField value={enrollStrain} onChange={setEnrollStrain}/>
               <FluentButton disabled={enrollBusy || !customId.trim() || !enrollStrain.trim()} onClick={() => void submitManualEnroll()}>
                 {enrollBusy ? "录入中…" : "确认录入"}
               </FluentButton>
@@ -2258,7 +2047,7 @@ export function ManagedAnimals({
                 <li>微信扫一扫打开右侧小程序并登录</li>
                 <li>进入「动物 → 实验追溯」</li>
                 <li>扫描小鼠二维码，或输入二维码下方编号；再填写习惯使用的小鼠编号、笼位和品系</li>
-                <li>录入成功后刷新列表，再勾选派发</li>
+                <li>录入成功后列表自动刷新，再勾选派发</li>
               </ol>
             </div>
             <div className="shrink-0 rounded-2xl bg-white/90 p-3 text-center shadow-sm ring-1 ring-black/5">

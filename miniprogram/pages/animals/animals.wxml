@@ -6,6 +6,7 @@
   </view>
 
   <block wx:else>
+  <view class="card"><button size="mini">列表模式</button><button size="mini" bindtap="goCages">笼位模式</button></view>
   <view class="search card lifecycle-entry" bindtap="goLifecycle">
     <view class="entry-title">扫码录入 / 实验追溯</view>
     <view class="entry-sub muted">扫鼠笼二维码分配 Animal ID · 一鼠一闭环</view>
@@ -13,28 +14,23 @@
 
   <view class="search card">
     <view class="ali-icon ali-icon-sm ali-icon-search"></view>
-    <input class="search-input" placeholder="按动物 ID 筛选" value="{{keyword}}" bindinput="onSearch" />
+    <input class="search-input" placeholder="小鼠 ID / 小鼠名" value="{{keyword}}" bindinput="onSearch" />
   </view>
 
   <view wx:if="{{filtered.length === 0}}" class="empty">暂无名下动物</view>
 
   <view class="swipe-wrap" wx:for="{{filtered}}" wx:key="id">
-    <view class="swipe-actions" wx:if="{{isStudent && item.canDelete}}">
-      <view class="swipe-del" data-id="{{item.id}}" catchtap="confirmDelete">删除</view>
-    </view>
+
     <view
       class="card animal {{item.locked ? 'locked' : ''}}"
       style="transform: translateX({{item.offsetX || 0}}px);"
       data-id="{{item.id}}"
-      bindtouchstart="onTouchStart"
-      bindtouchmove="onTouchMove"
-      bindtouchend="onTouchEnd"
       bindtap="onCardTap"
     >
       <view class="row">
         <view class="id">
-          <text wx:if="{{item.locked}}" class="lock">🔒</text>
-          {{item.id}}
+          <text wx:if="{{item.locked}}" class="lock"><text class="ali-icon ali-icon-sm ali-icon-lock"></text></text>
+          小鼠名：{{item.id}}
           <text wx:if="{{item.lastOpBackfill}}" class="backfill">补录</text>
         </view>
         <view
@@ -44,6 +40,8 @@
           catchtap="openEdit"
         >{{item.label}}</view>
       </view>
+      <view class="muted line">小鼠 ID：{{item.qrCode || '未绑定'}}</view>
+      <view class="muted line">笼位：{{item.cageLocation || '未分配'}}</view>
       <view class="muted line">植入：{{item.implantText}}</view>
       <view class="muted line">追踪：{{item.trackingText}} · 阶段 {{item.stage}}</view>
       <view class="muted line">下次采集：{{item.nextText}}</view>
@@ -51,7 +49,7 @@
       <view class="muted line progress" wx:if="{{item.progressText}}">进度：{{item.progressText}}</view>
       <view class="edit-hint" wx:if="{{item.canCancel}}">技术员尚未处理 · 可撤销派发</view>
       <view class="edit-hint" wx:elif="{{item.locked}}">实验未闭环 · 已锁定，不可改状态/派发</view>
-      <view class="edit-hint" wx:elif="{{isStudent}}">点击卡片派发 · 左滑删除 · 轻触状态改文案</view>
+      <view class="edit-hint" wx:elif="{{isStudent}}">点击卡片派发 · 轻触状态改文案</view>
       <view class="edit-hint" wx:else>轻触状态可改文案与果冻色</view>
       <button
         wx:if="{{isStudent && item.canAssign}}"

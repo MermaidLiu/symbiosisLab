@@ -1,7 +1,7 @@
 .wrap {
   padding: 24rpx;
   min-height: 100vh;
-  background: linear-gradient(165deg, #ede0ff, #f5fbff);
+  background: #f6f5f8;
 }
 .card {
   background: rgba(255, 255, 255, 0.92);

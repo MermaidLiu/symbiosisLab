@@ -1,4 +1,4 @@
-const TASK_TITLES={fasting:"禁食",water_deprivation:"禁水",signal_collection:"信号采集",surgery:"手术",perfusion:"灌流取材",euthanasia:"处死",other:"其他"};
+const TASK_TITLES={fasting:"禁食",water_deprivation:"禁水",signal_collection:"信号采集",ephys:"电生理",behavior:"行为学",surgery:"手术",perfusion:"灌流取材",euthanasia:"处死",other:"其他"};
 const { isAnimalClaimantStudent, isAnimalTechnician } = require("../../utils/account-status");
 const { api } = require("../../utils/api");
 const { isLoggedIn, getUser, goLogin, promptLogin } = require("../../utils/auth");
@@ -28,6 +28,7 @@ Page({
     expectedHint: "",
     pendingTasks: [],
     surgeryLocation:"", surgeryPhotos:[], surgeryPreviews:[], surgeryMessage:"",
+    strainOptions:["转基因","C57"],
     customId: "", cageNumber: "1A1", enrollStrain: "", assistantNames: "",
     scanId: "",
     animal: null,
@@ -204,6 +205,7 @@ Page({
   onSurgeryLocation(e) {this.setData({surgeryLocation:e.detail.value});},
   onCustomId(e) {this.setData({customId:e.detail.value});},
   onCageNumber(e) {this.setData({cageNumber:e.detail.value});},
+  pickStrain(e){this.setData({enrollStrain:this.data.strainOptions[Number(e.detail.value)]});},
   onEnrollStrain(e) {this.setData({enrollStrain:e.detail.value});},
   onAssistantNames(e) {this.setData({assistantNames:e.detail.value});},
   async enroll(code) {

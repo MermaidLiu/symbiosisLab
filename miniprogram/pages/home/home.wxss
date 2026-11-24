@@ -10,8 +10,8 @@
   border-radius: 36rpx;
   overflow: hidden;
   color: #fff;
-  background: linear-gradient(145deg, #b794f6 0%, #7b4db8 48%, #5b3a9e 100%);
-  box-shadow: 0 18rpx 40rpx rgba(123, 77, 184, 0.28);
+  background: #f6f5f8;
+  box-shadow: none;
 }
 
 .hero-glow {
@@ -21,7 +21,7 @@
   width: 220rpx;
   height: 220rpx;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 246, 194, 0.55), transparent 70%);
+  background: #f6f5f8;
 }
 
 .hello {
@@ -101,26 +101,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10rpx 20rpx rgba(90, 70, 120, 0.12);
+  box-shadow: none;
 }
 
 .jelly-sky {
-  background: linear-gradient(145deg, #e8f7ff, #a8ddff);
+  background: #f6f5f8;
 }
 .jelly-lemon {
-  background: linear-gradient(145deg, #fff9d6, #ffe08a);
+  background: #f6f5f8;
 }
 .jelly-mint {
-  background: linear-gradient(145deg, #e6fff3, #8eebc0);
+  background: #f6f5f8;
 }
 .jelly-rose {
-  background: linear-gradient(145deg, #ffe8ef, #ffb0c4);
+  background: #f6f5f8;
 }
 .jelly-peach {
-  background: linear-gradient(145deg, #fff0e4, #ffc49a);
+  background: #f6f5f8;
 }
 .jelly-grape {
-  background: linear-gradient(145deg, #f1e9ff, #c9b0f5);
+  background: #f6f5f8;
 }
 
 .tile-title {

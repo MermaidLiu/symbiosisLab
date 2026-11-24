@@ -210,6 +210,9 @@ export type CageStatus =
   | "unidentified";
 
 export interface Cage {
+  allocationOwnerName?: string;
+  allocationOwnerUserId?: string;
+  allocationPurpose?: "blank" | "signal_processing" | "other" | "test";
   id: string;
   number: string;
   rack: string;

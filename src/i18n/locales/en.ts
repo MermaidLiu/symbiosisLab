@@ -731,6 +731,7 @@ const en = {
         fasting: "Fasting",
         water_deprivation: "Water deprivation",
         signal_collection: "Signal collection",
+        ephys: "Electrophysiology", behavior: "Behavior",
         euthanasia: "Euthanasia",
         perfusion: "Perfusion / harvest",
         surgery: "Surgery",

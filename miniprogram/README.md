@@ -1,4 +1,4 @@
-# Symbiosis Lab 微信小程序（一期）
+# Daigroup Lab 微信小程序（一期）
 
 AppID：`wxb4ad423abf19b61f`
 

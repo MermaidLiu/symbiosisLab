@@ -93,7 +93,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-thu-muted via-white to-tsinghua-yellow-light/30 p-4 pb-12">
+    <div className="flex min-h-screen items-center justify-center bg-[#f6f5f8] p-4 pb-12">
       <div className="w-full max-w-md rounded-xl border border-lab-border bg-white p-8 shadow-card">
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -152,13 +152,13 @@ function LoginForm() {
 
         {showPassword ? (
           <form onSubmit={(e) => void onPasswordLogin(e)} className="mt-4 space-y-3 border-t border-lab-border pt-4">
-            <p className="text-xs text-lab-muted">{t.auth.passwordLoginHint}</p>
+            <p className="text-xs text-lab-muted">{PHONE_VERIFICATION_ENABLED ? t.auth.passwordLoginHint : "使用邮箱和密码登录"}</p>
             <Input
-              label={t.auth.phoneOrEmailLogin}
+              label={PHONE_VERIFICATION_ENABLED ? t.auth.phoneOrEmailLogin : "邮箱"}
               type="text"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={t.auth.phoneOrEmailPlaceholder}
+              placeholder={PHONE_VERIFICATION_ENABLED ? t.auth.phoneOrEmailPlaceholder : "name@example.com"}
               required
             />
             <Input

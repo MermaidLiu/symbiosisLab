@@ -1,7 +1,7 @@
 <view class="wrap">
   <view class="card">
     <view class="title">完善个人资料</view>
-    <view class="sub">申请「学生」或「技术员」时，姓名与手机号须与管理员录入的课题组名单一致，否则无法使用系统</view>
+    <view class="sub">请完善个人资料，手机号验证暂未启用。</view>
     <view class="status">{{statusText}}</view>
     <view wx:if="{{rejectReason}}" class="err">原因：{{rejectReason}}</view>
   </view>
@@ -9,8 +9,8 @@
   <view class="card" wx:if="{{canSubmit}}">
     <view class="label">姓名 *</view>
     <input class="input" value="{{name}}" bindinput="onName" />
-    <view class="label">{{phoneLocked ? '手机号（登录凭证，不可改）' : '手机号 *'}}</view>
-    <input class="input" type="number" maxlength="11" value="{{phone}}" disabled="{{phoneLocked}}" bindinput="onPhone" />
+    <block wx:if="{{phoneVerificationEnabled}}"><view class="label">{{phoneLocked ? '手机号（登录凭证，不可改）' : '手机号 *'}}</view>
+    <input class="input" type="number" maxlength="11" value="{{phone}}" disabled="{{phoneLocked}}" bindinput="onPhone" /></block>
     <view class="label">邮箱 *</view>
     <input class="input" value="{{email}}" bindinput="onEmail" placeholder="name@university.edu.cn" />
     <view class="label">学校 / 单位 *</view>

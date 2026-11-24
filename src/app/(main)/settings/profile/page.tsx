@@ -1,4 +1,5 @@
 "use client";
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -62,7 +63,7 @@ export default function ProfilePage() {
         personType,
         contactExtra,
         nickname,
-        ...(phoneEditable ? { phone } : {}),
+        ...(PHONE_VERIFICATION_ENABLED && phoneEditable ? { phone } : {}),
       });
       void updated;
       await refreshUser();
@@ -175,7 +176,7 @@ export default function ProfilePage() {
             {saving ? "保存中…" : "保存修改"}
           </FluentButton>
           <p className="text-[11px] text-lab-muted">
-            {phoneEditable
+            {!PHONE_VERIFICATION_ENABLED ? "手机号验证暂未启用。个人资料用于实验室管理与追溯。" : phoneEditable
               ? "邮箱登录账号可修改手机号。账号实名信息用于实验室管理与追溯，必填项不可留空。"
               : "手机号验证登录的账号，手机号为登录凭证不可修改。其余实名信息可改但不可留空。"}
           </p>

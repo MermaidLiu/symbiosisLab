@@ -1,7 +1,7 @@
 .wrap {
   padding: 24rpx;
   padding-bottom: 48rpx;
-  background: linear-gradient(165deg, #ede0ff 0%, #f5fbff 100%);
+  background: #f6f5f8;
   min-height: 100vh;
 }
 
@@ -10,7 +10,7 @@
   border-radius: 20rpx;
   padding: 24rpx;
   margin-bottom: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(91, 58, 158, 0.08);
+  box-shadow: none;
 }
 
 .hero .title {

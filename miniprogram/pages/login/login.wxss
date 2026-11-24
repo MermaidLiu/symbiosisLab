@@ -3,7 +3,7 @@
   min-height: 100vh;
   overflow: hidden;
   padding: 72rpx 32rpx 48rpx;
-  background: linear-gradient(165deg, #ede0ff 0%, #d0eeff 40%, #fff6c2 100%);
+  background: #f6f5f8;
 }
 
 .blob {
@@ -18,7 +18,7 @@
   height: 280rpx;
   right: -60rpx;
   top: 40rpx;
-  background: radial-gradient(circle, #ffd6e0, transparent 70%);
+  background: #f6f5f8;
 }
 
 .blob-b {
@@ -26,7 +26,7 @@
   height: 240rpx;
   left: -50rpx;
   top: 280rpx;
-  background: radial-gradient(circle, #c8f7e0, transparent 70%);
+  background: #f6f5f8;
 }
 
 .hero {

@@ -81,6 +81,7 @@ Page({
     this.setData({ password: e.detail.value });
   },
   toggleMode() {
+    if(!this.data.phoneVerificationEnabled){this.setData({mode:"password"});return;}
     this.setData({ mode: this.data.mode === "phone" ? "password" : "phone" });
   },
   toggleAgree() {
@@ -98,7 +99,7 @@ Page({
     wx.showModal({
       title: "请先同意协议",
       content:
-        "本小程序涉及收集、使用和存储用户信息（含手机号）。请先阅读并同意《用户服务协议》及《隐私政策》后，再获取验证码或登录。",
+        "请先阅读并同意《用户服务协议》及《隐私政策》后登录。",
       confirmText: "去阅读",
       success: (res) => {
         if (res.confirm) wx.navigateTo({ url: "/pages/legal/privacy" });
@@ -125,6 +126,7 @@ Page({
   },
 
   async onSendSms() {
+    if(!this.data.phoneVerificationEnabled)return;
     if (isInsecureApiBase()) return;
     if (!this.ensureAgreed()) return;
     this.setData({ sending: true, smsHint: "" });
@@ -144,6 +146,7 @@ Page({
   },
 
   async onPhoneLogin() {
+    if(!this.data.phoneVerificationEnabled)return;
     if (isInsecureApiBase()) {
       wx.showModal({
         title: "无法登录",

@@ -85,7 +85,7 @@
 .lifecycle-entry {
   flex-direction: column;
   align-items: flex-start;
-  background: linear-gradient(135deg, rgba(123, 77, 184, 0.12), rgba(255, 246, 194, 0.35));
+  background: #f6f5f8;
 }
 
 .entry-title {
@@ -168,7 +168,7 @@
   background: #fff;
   border-radius: 32rpx 32rpx 0 0;
   padding: 36rpx 32rpx calc(36rpx + env(safe-area-inset-bottom));
-  box-shadow: 0 -12rpx 40rpx rgba(123, 77, 184, 0.15);
+  box-shadow: none;
 }
 
 .editor-title {
@@ -201,7 +201,7 @@
   height: 52rpx;
   border-radius: 50%;
   border: 4rpx solid transparent;
-  box-shadow: 0 6rpx 14rpx rgba(90, 70, 120, 0.12);
+  box-shadow: none;
 }
 
 .swatch.on {

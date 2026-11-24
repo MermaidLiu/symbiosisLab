@@ -3,6 +3,8 @@ export const ANIMAL_OP_TYPES = [
   "fasting",
   "water_deprivation",
   "signal_collection",
+  "ephys",
+  "behavior",
   "euthanasia",
   "perfusion",
   "surgery",

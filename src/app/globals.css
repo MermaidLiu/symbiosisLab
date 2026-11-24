@@ -28,8 +28,8 @@ body {
 
   .fluent-sidebar {
     background: rgba(255, 255, 255, 0.42);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter:none;
+    backdrop-filter:none;
   }
 
   .fluent-header {
@@ -43,15 +43,15 @@ body {
 
   .fluent-glass {
     background: var(--fluent-glass-bg);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter:none;
+    backdrop-filter:none;
     border: 1px solid var(--fluent-glass-border);
     border-radius: 12px;
-    box-shadow: var(--fluent-shadow);
+    box-shadow:none;
   }
 
   .fluent-nav-active {
-    box-shadow: inset 0 0 0 1px rgba(102, 8, 116, 0.12);
+    box-shadow:none;
   }
 
   .page-enter {
@@ -74,7 +74,7 @@ body {
     appearance: none;
     -webkit-appearance: none;
     background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(8px);
+    backdrop-filter:none;
     border: 1px solid rgba(102, 8, 116, 0.14);
     color: #1f2937;
     @apply text-lab-text;
@@ -83,7 +83,7 @@ body {
   .fluent-input:focus {
     outline: none;
     border-color: rgba(102, 8, 116, 0.35);
-    box-shadow: 0 0 0 2px rgba(102, 8, 116, 0.12);
+    box-shadow:none;
   }
 
   select.fluent-input {
@@ -103,36 +103,36 @@ body {
 
   .fluent-segment {
     background: rgba(255, 255, 255, 0.45);
-    backdrop-filter: blur(12px);
+    backdrop-filter:none;
     border: 1px solid rgba(255, 255, 255, 0.35);
   }
 
   .fluent-badge {
     background: rgba(255, 255, 255, 0.6);
-    backdrop-filter: blur(8px);
+    backdrop-filter:none;
     border: 1px solid rgba(255, 255, 255, 0.4);
     @apply text-thu;
   }
 
   .fluent-cage-card {
-    backdrop-filter: blur(12px) saturate(150%);
-    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    backdrop-filter:none;
+    backdrop-filter:none;
   }
 
   .fluent-cart-glow {
     background: linear-gradient(135deg, rgba(102, 8, 116, 0.85) 0%, rgba(79, 70, 229, 0.75) 100%);
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter:none;
+    backdrop-filter:none;
     border: 1px solid rgba(255, 255, 255, 0.35);
   }
 
   .fluent-btn-primary {
-    backdrop-filter: blur(12px);
-    box-shadow: 0 4px 16px rgba(102, 8, 116, 0.2);
+    backdrop-filter:none;
+    box-shadow:none;
   }
 
   .fluent-btn-secondary {
-    backdrop-filter: blur(8px);
+    backdrop-filter:none;
   }
 }
 
@@ -154,5 +154,12 @@ input, select, textarea {
 }
 
 .shadow-fluent-lg {
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.12);
+  box-shadow:none;
 }
+
+/* Shared flat UI: preserve status colors and keyboard focus without elevation. */
+:root{--fluent-glass-bg:#fff;--fluent-glass-border:#e6e1eb;--fluent-shadow:none;--fluent-mica:#f6f5f8}
+.fluent-sidebar,.fluent-header{background:#fff!important}.fluent-glass{background:#fff!important;border-color:#e6e1eb}.fluent-cart-glow{background:#75258c!important}
+[class*="shadow"]{box-shadow:none!important}[class*="backdrop"],.fluent-sidebar,.fluent-glass,.fluent-cage-card{backdrop-filter:none;-webkit-backdrop-filter:none!important}
+.fluent-btn-primary{background:#75258c;border-color:#75258c;box-shadow:none!important}.fluent-btn-secondary{background:#fff;border-color:#ddd3e5}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #9e6ab3;outline-offset:2px}

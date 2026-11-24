@@ -106,7 +106,7 @@ export function completeScheduledTasksAfterExperimentClose(
 ): void {
   for (const task of store.animalOpTasks ?? []) {
     if (task.status !== "scheduled") continue;
-    if (!["signal_collection", "surgery", "perfusion", "other"].includes(task.opType)) continue;
+    if (!["signal_collection", "ephys", "behavior", "surgery", "perfusion", "other"].includes(task.opType)) continue;
     if (!task.animalIds.includes(animalId)) continue;
     const allDone = task.animalIds.every((id) => !isExperimentActiveForAnimal(store, id));
     if (!allDone) continue;
@@ -246,12 +246,12 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
     createdAt: now, completedAt: undefined, receiptNote: undefined, resultImageUrls: [], backfill: undefined };
   task.nextTaskId = next.id;
   store.animalOpTasks.unshift(next);
-  if (["signal_collection", "surgery", "perfusion", "other"].includes(next.opType)) {
+  if (["signal_collection", "ephys", "behavior", "surgery", "perfusion", "other"].includes(next.opType)) {
     for (const id of next.animalIds) {
       const animal = findAnimal(store, id);
       if (!animal || assertCanCreateOperation(animal, store)) continue;
       const operation: ExperimentOperation = { id: uid("exp"), animalId: id, status: "open",
-        kind: next.opType === "signal_collection" ? "ephys" : "other", title: next.note || next.opType,
+        kind: next.opType === "behavior" ? "behavior" : ["signal_collection","ephys"].includes(next.opType) ? "ephys" : "other", title: next.note || next.opType,
         technicianUserId: next.assigneeUserId, technicianName: next.assigneeName,
         studentUserId: animal.claimantUserId || next.createdByUserId, studentName: animal.claimantName || next.createdByName,
         startedAt: now, createdAt: now, updatedAt: now };
@@ -264,5 +264,5 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
   store.notifications.unshift({ id: uid("ntf"), userId: next.assigneeUserId, title: "上一操作已完成，轮到你处理",
     titleEn: "Previous step completed — your task is ready", message: next.assigneeName + "：请处理下一步操作",
     messageEn: "Your next animal operation is ready", read: false, handled: false, kind: "animal_task",
-    animalTaskId: next.id, animalId: next.animalIds[0], link: ["signal_collection","surgery","perfusion","other"].includes(next.opType) ? "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]) : "/", createdAt: now });
+    animalTaskId: next.id, animalId: next.animalIds[0], link: ["signal_collection","ephys","behavior","surgery","perfusion","other"].includes(next.opType) ? "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]) : "/", createdAt: now });
 }

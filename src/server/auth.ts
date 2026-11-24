@@ -247,7 +247,7 @@ export async function submitRealNameProfile(
   if (!me) return { ok: false as const, error: "not_found" };
 
   let nextPhone = me.phone ? normalizePhone(me.phone) : "";
-  if (input.phone !== undefined) {
+  if (PHONE_VERIFICATION_ENABLED && input.phone !== undefined) {
     if (isPhoneLocked(me)) {
       return { ok: false as const, error: "phone_locked" };
     }
@@ -260,7 +260,7 @@ export async function submitRealNameProfile(
     );
     if (dupPhone) return { ok: false as const, error: "phone_exists" };
   }
-  if (!nextPhone) return { ok: false as const, error: "no_phone" };
+  if (PHONE_VERIFICATION_ENABLED && !nextPhone) return { ok: false as const, error: "no_phone" };
 
   const wasActive = (me.accountStatus ?? "active") === "active";
   // 已开通账号补资料时免查名单；新申请仍须匹配。
@@ -303,7 +303,7 @@ export async function submitRealNameProfile(
       u.accountStatus = "active";
       u.roles = rolesForAppliedRole("student");
       u.approvedAt = now;
-      u.approvedBy = "auto_roster";
+      u.approvedBy = PHONE_VERIFICATION_ENABLED ? "auto_roster" : "profile_completed";
     } else {
       u.accountStatus = "pending_review";
       u.roles = ["user"];
@@ -379,7 +379,7 @@ export async function updateIdentityProfile(
       : String(me.email ?? "").trim().toLowerCase();
 
   let nextPhone = me.phone ? normalizePhone(me.phone) : "";
-  if (input.phone !== undefined) {
+  if (PHONE_VERIFICATION_ENABLED && input.phone !== undefined) {
     if (isPhoneLocked(me)) {
       return { ok: false as const, error: "phone_locked" };
     }
@@ -454,7 +454,7 @@ export async function updateIdentityProfile(
       if (input.contactExtra !== undefined) {
         u.contactExtra = String(input.contactExtra).trim();
       }
-      if (input.phone !== undefined) {
+      if (PHONE_VERIFICATION_ENABLED && input.phone !== undefined) {
         u.phone = nextPhone;
         u.phoneLocked = false;
       }
@@ -696,7 +696,7 @@ export async function updateUserByAdmin(input: {
   }
 
   let phone: string | undefined = target.phone;
-  if (input.phone !== undefined) {
+  if (PHONE_VERIFICATION_ENABLED && input.phone !== undefined) {
     const raw = String(input.phone ?? "").trim();
     if (!raw) {
       phone = undefined;

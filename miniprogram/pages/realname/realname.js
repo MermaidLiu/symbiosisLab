@@ -5,6 +5,7 @@ const { needsProfileCompletion: needsProfile, canEditRealnameForm } = require(".
 
 Page({
   data: {
+    phoneVerificationEnabled:require("../../utils/phone-verification").enabled,
     phone: "",
     phoneLocked: true,
     status: "",
@@ -117,7 +118,7 @@ Page({
         contactExtra: this.data.contactExtra,
         appliedRole: this.data.appliedRole,
       };
-      if (!this.data.phoneLocked) {
+      if (this.data.phoneVerificationEnabled && !this.data.phoneLocked) {
         payload.phone = this.data.phone;
       }
       const res = await api.submitRealname(payload);

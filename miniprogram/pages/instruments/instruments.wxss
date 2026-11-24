@@ -30,7 +30,7 @@
 
 .accent {
   width: 12rpx;
-  background: linear-gradient(180deg, #a8ddff, #c9b0f5);
+  background: #f6f5f8;
 }
 
 .body {

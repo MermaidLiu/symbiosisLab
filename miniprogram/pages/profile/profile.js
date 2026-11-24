@@ -3,6 +3,7 @@ const { requireLogin, getUser, setSession, getToken, clearSession } = require(".
 
 Page({
   data: {
+    phoneVerificationEnabled:require("../../utils/phone-verification").enabled,
     phone: "",
     phoneLocked: true,
     name: "",
@@ -98,7 +99,7 @@ Page({
         contactExtra: this.data.contactExtra,
         nickname: this.data.nickname,
       };
-      if (!this.data.phoneLocked) {
+      if (this.data.phoneVerificationEnabled && !this.data.phoneLocked) {
         payload.phone = this.data.phone;
       }
       const res = await api.updateProfile(payload);

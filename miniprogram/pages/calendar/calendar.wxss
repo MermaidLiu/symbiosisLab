@@ -83,10 +83,10 @@
 }
 
 .cell.selected .day {
-  background: linear-gradient(135deg, #a78bfa, #7b4db8);
+  background: #f6f5f8;
   color: #fff;
   font-weight: 700;
-  box-shadow: 0 8rpx 16rpx rgba(123, 77, 184, 0.28);
+  box-shadow: none;
 }
 
 .dot {

@@ -102,39 +102,9 @@ export async function POST(req: NextRequest) {
   return jsonOk({ animal, managedAnimals: getStore().managedAnimals }, { status: 201 });
 }
 
-/** DELETE ?id= — managers, or students deleting their own mice */
-export async function DELETE(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return jsonError("unauthorized", 401);
-
-  const id = req.nextUrl.searchParams.get("id");
-  if (!id) return jsonError("invalid_body", 400);
-
-  const existing = getStore().managedAnimals.find((a) => a.id === id);
-  if (!existing) return jsonError("not_found", 404);
-
-  const isOwner = existing.claimantUserId === user.id;
-  if (!canManageAnimals(user.roles) && !isOwner) {
-    return jsonError("forbidden", 403);
-  }
-
-  normalizeLegacyRegistration(existing);
-  if (!canManageAnimals(user.roles) && isOwner && isAnimalExperimentLocked(existing)) {
-    return jsonError("animal_locked", 409);
-  }
-
-  await mutateStore((s) => {
-    s.managedAnimals = s.managedAnimals.filter((a) => a.id !== id);
-  });
-
-  await appendAuditLog({
-    userId: user.id,
-    userName: user.name,
-    action: "delete",
-    entityType: "managed_animal",
-    entityId: id,
-    details: `移除代管动物: ${id}`,
-  });
-
-  return jsonOk({ managedAnimals: getStore().managedAnimals });
+/** Animal history is retained; exits and euthanasia must use lifecycle operations. */
+export async function DELETE() {
+  const user=await getCurrentUser();
+  if(!user)return jsonError("unauthorized",401);
+  return jsonError("use_lifecycle_operation",405);
 }

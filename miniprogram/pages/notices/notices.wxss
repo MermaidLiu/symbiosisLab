@@ -19,7 +19,7 @@
 }
 
 .notice.unread {
-  background: linear-gradient(135deg, rgba(255, 246, 194, 0.55), rgba(255, 255, 255, 0.9));
+  background: #f6f5f8;
 }
 
 .dot {
@@ -30,7 +30,7 @@
   height: 14rpx;
   border-radius: 50%;
   background: #ff8fb3;
-  box-shadow: 0 0 0 6rpx rgba(255, 143, 179, 0.25);
+  box-shadow: none;
 }
 
 .title {

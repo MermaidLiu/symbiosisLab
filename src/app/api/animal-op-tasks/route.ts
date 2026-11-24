@@ -31,13 +31,16 @@ function isOpType(v: string): v is AnimalOpTask["opType"] {
 /** 派发时同步创建实验 Operation（需扫码拍照 + 学生 NAS 闭环）的操作类型 */
 const EXPERIMENT_DISPATCH_TYPES = new Set([
   "signal_collection",
+  "ephys",
+  "behavior",
   "surgery",
   "perfusion",
   "other",
 ]);
 
 function kindFromOpType(opType: string): ExperimentKind {
-  if (opType === "signal_collection") return "ephys";
+  if (opType === "signal_collection" || opType === "ephys") return "ephys";
+  if (opType === "behavior") return "behavior";
   if (opType === "surgery") return "other";
   return "other";
 }
@@ -46,6 +49,7 @@ const OP_TYPE_TITLE: Record<string, string> = {
   fasting: "禁食",
   water_deprivation: "禁水",
   signal_collection: "数据采集",
+  ephys: "电生理", behavior: "行为学",
   euthanasia: "安乐死",
   perfusion: "灌流",
   surgery: "手术",
@@ -449,6 +453,7 @@ export async function PATCH(req: NextRequest) {
         fasting: "禁食",
         water_deprivation: "禁水",
         signal_collection: "信号采集",
+        ephys: "电生理", behavior: "行为学",
         euthanasia: "处死",
         perfusion: "灌流取材",
         surgery: "手术",

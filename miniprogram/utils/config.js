@@ -16,6 +16,6 @@ function isInsecureApiBase(base = API_BASE) {
 
 module.exports = {
   API_BASE: String(API_BASE || "").replace(/\/+$/, ""),
-  APP_NAME: "Symbiosis Lab",
+  APP_NAME: "Daigroup Lab",
   isInsecureApiBase,
 };

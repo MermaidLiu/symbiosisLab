@@ -1,4 +1,6 @@
 "use client";
+import { AntIcon } from "@/components/ui/AntIcon";
+
 
 import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
@@ -62,6 +64,7 @@ export function AssignAnimalOpModal({
   useEffect(() => {
     if (!open) return;
     setMsg("");
+    const now=new Date();setStartLocal(toLocalInput(now));setEndLocal(toLocalInput(new Date(now.getTime()+3600000)));
     setNote("");
     setSteps([]);
     (async () => {
@@ -75,7 +78,7 @@ export function AssignAnimalOpModal({
           "lvxinwei@lab.edu.cn",
         ];
         const list = users
-          .filter((u) => canReceiveAnimalOps(u.roles))
+          .filter((u) => canReceiveAnimalOps(u.roles) && (u.accountStatus ?? "active") === "active")
           .sort((a, b) => {
             const ia = preferred.indexOf(a.email);
             const ib = preferred.indexOf(b.email);
@@ -85,7 +88,7 @@ export function AssignAnimalOpModal({
             return a.name.localeCompare(b.name, "zh");
           });
         setStaff(list);
-        if (!assigneeId && list[0]) setAssigneeId(list[0].id);
+        if (!list.some(u=>u.id===assigneeId) && list[0]) setAssigneeId(list[0].id);
       } catch {
         setStaff([]);
       }
@@ -146,8 +149,10 @@ export function AssignAnimalOpModal({
       setMsg(o.createOk);
       onCreated();
       setTimeout(onClose, 500);
-    } catch {
-      setMsg(o.createFail);
+    } catch (e) {
+      const code=e instanceof Error?e.message:"";
+      const messages:Record<string,string>={animal_locked:"小鼠已有未闭环实验，请先完成当前任务和学生确认。",invalid_assignee:"负责人账号尚未激活或无动物操作权限，请重新选择。",invalid_or_unauthorized_animals:"所选小鼠已退出、已处死，或不属于当前账号，请刷新后重选。",account_not_active:"当前账号尚未激活，请联系管理员。",invalid_duration:"结束时间须晚于开始时间。",euthanasia_must_be_last:"处死必须是最后一个步骤。",unauthorized:"登录已过期，请重新登录。",invalid_body:"请完整填写操作、负责人及时间。"};
+      setMsg(messages[code] || `${o.createFail}（${code || "网络异常"}）`);
     } finally {
       setSaving(false);
     }
@@ -200,7 +205,7 @@ export function AssignAnimalOpModal({
           </FluentSelect>
         </div>
       <div className="flex justify-end">
-        <FluentButton variant="outline" onClick={() => setSteps([...steps, { opType: "fasting", assigneeUserId: "" }])} aria-label="新增操作步骤">＋</FluentButton>
+        <FluentButton variant="outline" onClick={() => setSteps([...steps, { opType: "fasting", assigneeUserId: "" }])} aria-label="新增操作步骤"><AntIcon name="plus" className="h-4 w-4"/></FluentButton>
       </div>
       </div>
       {steps.map((step, index) => (
@@ -213,9 +218,7 @@ export function AssignAnimalOpModal({
             {staff.map((u) => <option key={u.id} value={u.id}>{displayName(u)}</option>)}
           </FluentSelect>
           <FluentButton variant="outline" aria-label="移除步骤" title="移除步骤" onClick={() => setSteps(steps.filter((_, i) => i !== index))}>
-            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 7h12m-8-3h4l1 3H9l1-3Zm-3 3 1 13h8l1-13M10 10v7m4-7v7" />
-            </svg>
+            <AntIcon name="delete" className="h-4 w-4"/>
           </FluentButton>
         </div>
       ))}

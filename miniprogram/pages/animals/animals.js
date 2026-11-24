@@ -11,7 +11,7 @@ const {
 } = require("../../utils/format");
 
 const ACTION_W = 76;
-const EXPERIMENT_TYPES = new Set(["signal_collection", "surgery", "perfusion", "other"]);
+const EXPERIMENT_TYPES = new Set(["ephys","behavior","signal_collection", "surgery", "perfusion", "other"]);
 
 const { isAnimalClaimantStudent: isStudentUser } = require("../../utils/account-status");
 
@@ -41,6 +41,7 @@ Page({
       { v: "fasting", l: "禁食" },
       { v: "water_deprivation", l: "禁水" },
       { v: "signal_collection", l: "信号采集（将锁定）" },
+      {v:"ephys",l:"电生理（将锁定）"},{v:"behavior",l:"行为学（将锁定）"},
       { v: "surgery", l: "手术（将锁定）" },
       { v: "perfusion", l: "灌流取材（将锁定）" },
       { v: "euthanasia", l: "处死" },
@@ -55,10 +56,14 @@ Page({
     const user = getUser();
     this.setData({ guestMode: !loggedIn, isStudent: isStudentUser(user) });
     if (!loggedIn) return;
+    const key="daigroup_animal_view_"+user.id;
+    const preferred=wx.getStorageSync(key)||((user.roles||[]).some(r=>["super_admin","animal_manager","animal_facility_supervisor"].includes(r))?"cages":"list");
+    if(preferred==="cages"){wx.setStorageSync(key,"list");wx.navigateTo({url:"/pages/cages/cages"});}
     this.load();
     if (isStudentUser(user)) this.loadStaff();
   },
 
+  goCages(){const user=getUser();wx.setStorageSync("daigroup_animal_view_"+user.id,"cages");wx.navigateTo({url:"/pages/cages/cages"});},
   goLogin() {
     goLogin();
   },
@@ -81,9 +86,10 @@ Page({
       const staff = (users || [])
         .filter((u) =>
           (u.roles || []).some((r) =>
-            ["animal_manager", "animal_caretaker", "animal_facility_supervisor"].includes(r)
+            ["super_admin", "animal_manager", "animal_caretaker", "animal_collector", "animal_facility_supervisor"].includes(r)
           )
         )
+        .filter(u=>(u.accountStatus || "active")==="active")
         .map((u) => ({
           v: u.id,
           l: u.nickname || u.name || u.email || u.id,
@@ -154,7 +160,7 @@ Page({
 
   applyFilter(keyword, list) {
     const q = keyword.trim().toLowerCase();
-    const filtered = !q ? list : list.filter((a) => String(a.id).toLowerCase().includes(q));
+    const filtered = !q ? list : list.filter((a) => (String(a.id)+" "+(a.qrCode||"")).toLowerCase().includes(q));
     this.setData({ filtered });
   },
 
@@ -319,32 +325,6 @@ Page({
               ? "当前状态不可撤销"
               : code || "请重试",
         showCancel: false,
-      });
-    }
-  },
-
-  confirmDelete(e) {
-    const id = e.currentTarget.dataset.id;
-    const row = this.data.list.find((a) => a.id === id);
-    if (!row || !row.canDelete) return;
-    wx.showModal({
-      title: "删除小鼠",
-      content: `确认删除 ${id}？锁定中的小鼠不可删。`,
-      success: (res) => {
-        if (res.confirm) void this.doDelete(id);
-      },
-    });
-  },
-
-  async doDelete(id) {
-    try {
-      await api.deleteManagedAnimal(id);
-      await this.load();
-      wx.showToast({ title: "已删除", icon: "success" });
-    } catch (e) {
-      wx.showToast({
-        title: (e && e.code) === "animal_locked" ? "已锁定不可删" : "删除失败",
-        icon: "none",
       });
     }
   },

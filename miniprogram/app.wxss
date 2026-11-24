@@ -1,6 +1,6 @@
 @import "./styles/icons.wxss";
 
-/* Symbiosis Lab MP — Fluent jelly palette */
+/* Daigroup Lab MP — Fluent jelly palette */
 page {
   --jelly-mint: #c8f7e0;
   --jelly-peach: #ffe0c8;
@@ -13,7 +13,7 @@ page {
   --muted: #7a7190;
   --brand: #7b4db8;
   --brand-deep: #5b3a9e;
-  background: linear-gradient(180deg, #f3eaff 0%, #eef7ff 42%, #fff6f0 100%);
+  background: #f6f5f8;
   background-attachment: fixed;
   color: var(--ink);
   font-size: 28rpx;
@@ -25,17 +25,17 @@ page {
   border-radius: 28rpx;
   padding: 28rpx;
   margin: 20rpx 24rpx;
-  box-shadow: 0 12rpx 32rpx rgba(123, 77, 184, 0.08);
+  box-shadow: none;
   border: 2rpx solid rgba(255, 255, 255, 0.9);
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #a78bfa, #7b4db8);
+  background: #f6f5f8;
   color: #fff;
   border-radius: 999rpx;
   font-size: 30rpx;
   font-weight: 600;
-  box-shadow: 0 10rpx 24rpx rgba(123, 77, 184, 0.28);
+  box-shadow: none;
   border: none;
 }
 
@@ -107,3 +107,10 @@ page {
 .guest-card .btn.primary {
   margin-top: 8rpx;
 }
+
+/* Flat visual system */
+page{background:#f6f5f8;color:#302c3d}.card,.hero{background:#fff!important;border:1rpx solid #e6e1eb;box-shadow:none!important}.blob,.hero-glow{display:none}.icon{background:transparent!important;box-shadow:none!important}.btn-primary,.btn.primary{background:#75258c!important;color:#fff!important;border:0}.btn-ghost,.btn.ghost{background:#fff!important;color:#75258c;border:1rpx solid #ddd3e5}
+
+.hero{color:#302c3d!important}.hero-chip{background:#f3edf7;color:#75258c}
+
+.check.on{background:#fff!important;border-color:#75258c!important}

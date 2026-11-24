@@ -725,6 +725,7 @@ const zh = {
         fasting: "禁食",
         water_deprivation: "禁水",
         signal_collection: "信号采集",
+        ephys: "电生理", behavior: "行为学",
         euthanasia: "处死",
         perfusion: "灌流取材",
         surgery: "手术",

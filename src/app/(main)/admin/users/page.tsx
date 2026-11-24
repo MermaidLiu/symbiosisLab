@@ -12,6 +12,8 @@ import { api, PublicUser } from "@/lib/api/client";
 import { Role } from "@/types";
 import { ALL_ROLES } from "@/lib/roles";
 import clsx from "clsx";
+import { exportToCsv } from "@/lib/export";
+import { ACCOUNT_STATUS_LABELS } from "@/lib/account-status";
 
 type EditForm = {
   userId: string;
@@ -47,6 +49,30 @@ export default function AdminUsersPage() {
   const [listMsg, setListMsg] = useState("");
   const [listError, setListError] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  async function exportAll() {
+    setExporting(true);
+    setListError("");
+    setListMsg("");
+    try {
+      // Fetch all saved accounts, rather than exporting stale cache or role drafts.
+      const { users: list } = await api.users();
+      const cell = (value: unknown) => {
+        const text=String(value ?? "");
+        return /^[=+@\-\t\r]/.test(text) || /^0\d+$/.test(text) || /^\d{11,}$/.test(text) ? "'"+text : text;
+      };
+      exportToCsv(`Daigroup-Lab-全部用户-${new Date().toLocaleDateString("en-CA")}.csv`,
+        ["用户ID","姓名","花名","登录邮箱","手机号","学校/单位","实验室/课题组","学号/工号","人员类型","角色","账号状态"],
+        list.map(u=>[u.id,u.name,u.nickname,u.email,u.phone,u.school,u.department,u.employeeId,u.personType,
+          u.roles.map(r=>t.roles[r] || r).join("、"),ACCOUNT_STATUS_LABELS[u.accountStatus ?? "active"]].map(cell)));
+      setListMsg(`已导出全部 ${list.length} 个用户（CSV，可用 Excel 打开）`);
+    } catch {
+      setListError("导出失败，请检查网络后重试。");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function applyList(list: PublicUser[]) {
     setCachePartial({ users: list });
@@ -204,7 +230,7 @@ export default function AdminUsersPage() {
 
   return (
     <>
-      <PageHeader title={t.admin.usersTitle} subtitle={t.admin.usersSubtitle} />
+      <PageHeader title={t.admin.usersTitle} subtitle={t.admin.usersSubtitle} action={<Button variant="outline" disabled={exporting} onClick={()=>void exportAll()}>{exporting ? "导出中…" : "导出全部"}</Button>} />
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         <Card>
           <h3 className="mb-3 font-semibold text-thu">{t.admin.createTitle}</h3>

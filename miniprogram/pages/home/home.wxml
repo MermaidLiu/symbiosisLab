@@ -4,7 +4,7 @@
   <block wx:if="{{guestMode}}">
     <view class="hero">
       <view class="hero-glow"></view>
-      <view class="hello">Symbiosis Lab</view>
+      <view class="hello">Daigroup Lab</view>
       <view class="roles">实验室资源 · 实验动物追溯</view>
       <view class="hero-chip">可先浏览服务，登录后使用完整功能</view>
     </view>

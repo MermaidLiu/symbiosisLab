@@ -1,4 +1,5 @@
 "use client";
+import { PHONE_VERIFICATION_ENABLED } from "@/lib/phone-verification";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -72,7 +73,7 @@ export default function RealnamePage() {
       personType,
       contactExtra,
       appliedRole,
-      ...(phoneEditable ? { phone } : {}),
+      ...(PHONE_VERIFICATION_ENABLED && phoneEditable ? { phone } : {}),
     });
     setSaving(false);
     if (!res.ok) {
@@ -99,7 +100,7 @@ export default function RealnamePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-thu-muted via-white to-tsinghua-yellow-light/30 p-4 pb-12">
+    <div className="flex min-h-screen items-center justify-center bg-[#f6f5f8] p-4 pb-12">
       <div className="w-full max-w-lg rounded-xl border border-lab-border bg-white p-8 shadow-card">
         <h1 className="text-xl font-bold text-thu">完善个人资料</h1>
         <p className="mt-2 text-sm text-lab-muted">
@@ -132,14 +133,14 @@ export default function RealnamePage() {
         {showForm && (
           <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-3">
             <Input label="姓名 *" value={name} onChange={(e) => setName(e.target.value)} required />
-            <Input
+            {PHONE_VERIFICATION_ENABLED && (<Input
               label={phoneEditable ? "手机号 *" : "手机号（登录凭证，不可改）"}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               disabled={!phoneEditable}
               required={phoneEditable}
               placeholder={phoneEditable ? "11 位手机号" : undefined}
-            />
+            />)}
             <Input
               label="邮箱 *"
               type="email"

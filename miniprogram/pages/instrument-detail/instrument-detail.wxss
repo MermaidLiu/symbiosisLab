@@ -3,7 +3,7 @@
 }
 
 .hero {
-  background: linear-gradient(145deg, rgba(208, 238, 255, 0.95), rgba(237, 224, 255, 0.95));
+  background: #f6f5f8;
 }
 
 .title {
