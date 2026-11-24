@@ -251,7 +251,7 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
       const animal = findAnimal(store, id);
       if (!animal || assertCanCreateOperation(animal, store)) continue;
       const operation: ExperimentOperation = { id: uid("exp"), animalId: id, status: "open",
-        kind: next.opType === "behavior" ? "behavior" : ["signal_collection","ephys"].includes(next.opType) ? "ephys" : "other", title: next.note || next.opType,
+        dispatchOpType:next.opType, kind: next.opType === "behavior" ? "behavior" : ["signal_collection","ephys"].includes(next.opType) ? "ephys" : "other", title: next.note || next.opType,
         technicianUserId: next.assigneeUserId, technicianName: next.assigneeName,
         studentUserId: animal.claimantUserId || next.createdByUserId, studentName: animal.claimantName || next.createdByName,
         startedAt: now, createdAt: now, updatedAt: now };
@@ -265,4 +265,16 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
     titleEn: "Previous step completed — your task is ready", message: next.assigneeName + "：请处理下一步操作",
     messageEn: "Your next animal operation is ready", read: false, handled: false, kind: "animal_task",
     animalTaskId: next.id, animalId: next.animalIds[0], link: ["signal_collection","ephys","behavior","surgery","perfusion","other"].includes(next.opType) ? "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]) : "/", createdAt: now });
+}
+
+/** Vacate the blank-mouse cage without terminating the animal or its experiment. */
+export function vacateBlankCageAfterSurgery(s:DbStore,animal:ManagedAnimal,now:string):void {
+  if(animal.exitedAt||animal.deathAt||animal.status==="deceased"||(!animal.cageId&&animal.cageLocation==="已退出"))return;
+  if(!(animal.entryType==="blank"||(!animal.entryType&&(!animal.purpose||animal.purpose==="blank"))))return;
+  const from=animal.cageLocation;
+  animal.cageId=undefined;animal.cageLocation="已退出";animal.cageExitedAfterSurgeryAt=now;animal.surgeryCompletedAt=now;
+  for(const cage of s.cages||[])cage.occupied=s.managedAnimals.filter(a=>a.cageId===cage.id&&!a.exitedAt&&!a.deathAt&&a.status!=="deceased").length;
+  appendLifecycleTrace(s,{animalId:animal.id,timestamp:now,action:"cage_exit_after_surgery",userId:animal.technicianUserId||animal.claimantUserId||"system",userName:animal.technicianName||"系统",details:from+"：空白鼠手术完成，自动退出原笼位"});
+  const recipients=(s.users||[]).filter(u=>u.id===animal.claimantUserId||u.roles.some(r=>["super_admin","animal_manager","animal_facility_supervisor"].includes(r)));
+  for(const u of recipients)(s.notifications ||= []).unshift({id:uid("ntf"),userId:u.id,title:"手术完成，已自动退出原笼位",titleEn:"Surgery completed; cage vacated",message:animal.id+" 已从 "+from+" 自动退出，手术任务和记录保留。",messageEn:"Mouse vacated its original cage after surgery",read:false,createdAt:now,animalId:animal.id,link:"/animals/managed"});
 }

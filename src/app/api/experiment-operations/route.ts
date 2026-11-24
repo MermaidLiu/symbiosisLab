@@ -1,3 +1,4 @@
+import { vacateBlankCageAfterSurgery } from "@/server/animal-lifecycle";
 import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk, requireActiveUser } from "@/server/auth";
 import { appendAuditLog } from "@/server/audit";
@@ -219,6 +220,8 @@ export async function PATCH(req: NextRequest) {
       op.dataTransferred = body.dataTransferred;
       op.status = "tech_submitted";
       op.techSubmittedAt = now;
+      const isSurgery=op.dispatchOpType==="surgery"||(!op.dispatchOpType&&op.kind==="other"&&(s.animalOpTasks||[]).some(t=>t.status==="scheduled"&&t.opType==="surgery"&&t.assigneeUserId===op.technicianUserId&&t.animalIds.includes(op.animalId)));
+      if(isSurgery)vacateBlankCageAfterSurgery(s,animal,now);
       op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
       animal.lastOpBackfill = op.backfill;
       op.resultNote = String(body.resultNote ?? "").trim();

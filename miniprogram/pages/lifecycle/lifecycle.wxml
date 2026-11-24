@@ -40,7 +40,7 @@
       confirm-type="done"
       bindconfirm="onConfirmInput"
     />
-<view><input class="input" placeholder="小鼠名，例如 TJ001" value="{{customId}}" bindinput="onCustomId" /><input class="input" placeholder="笼位，例如 1A1" value="{{cageNumber}}" bindinput="onCageNumber" /><picker range="{{strainOptions}}" bindchange="pickStrain"><view class="input">选择品系：转基因 / C57</view></picker><input class="input" placeholder="品系（可自行输入）" value="{{enrollStrain}}" bindinput="onEnrollStrain" /></view>
+<view><input class="input" placeholder="小鼠名，例如 TJ001" value="{{customId}}" bindinput="onCustomId" /><input class="input" placeholder="笼位，例如 1A1" value="{{cageNumber}}" bindinput="onCageNumber" /><picker range="{{entryTypes}}" value="{{entryIndex}}" bindchange="onEntryType"><view class="input">进入类型：{{entryTypes[entryIndex]}}</view></picker><input wx:if="{{entryIndex==4}}" class="input" placeholder="请填写其他类型" value="{{entryTypeOther}}" bindinput="onEntryOther"/><picker range="{{housingTypes}}" range-key="label" value="{{housingIndex}}" bindchange="onHousing"><view class="input">同笼饲养情况：{{housingTypes[housingIndex].label}}</view></picker><input class="input" type="digit" placeholder="周龄（如6或8）" value="{{ageWeeks}}" bindinput="onAgeWeeks"/><picker range="{{strainOptions}}" bindchange="pickStrain"><view class="input">选择品系：转基因 / C57</view></picker><input class="input" placeholder="品系（可自行输入）" value="{{enrollStrain}}" bindinput="onEnrollStrain" /></view>
     <view class="hint muted" wx:if="{{isStudent}}">扫描小鼠二维码，再填写习惯使用的小鼠编号与笼位。</view>
     <view class="hint muted" wx:else>须与网页通知中的派发 Animal ID 为同一只鼠，否则无法继续。</view>
     <view class="row">

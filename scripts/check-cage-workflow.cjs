@@ -2,11 +2,13 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 let store,user,notes;
 function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||(n.startsWith('@/')?{}:require(n)),process,Buffer,console});return m.exports;}
 const grid=load('src/lib/animals/cage-grid.ts');
+const housing=load('src/lib/animals/housing.ts');
+assert.equal(housing.housingError(Array(5).fill({})),null);assert.equal(housing.housingError(Array(6).fill({})),'adult_cage_full');assert.equal(housing.housingError([...Array(6).fill({housingType:'pup'}),{housingType:'dam'}]),null);assert.equal(housing.housingError([...Array(7).fill({housingType:'pup'}),{housingType:'dam'}]),'litter_cage_full');assert.equal(housing.housingError([{housingType:'signal_headpiece'},{}]),'headpiece_single_cage');assert.equal(housing.housingError([{housingType:'pup'},{}]),'litter_cage_only');
 const roles={canManageAnimals:r=>r.includes('animal_manager'),canReceiveAnimalOps:r=>r.includes('animal_manager')};
 const auth={requireActiveUser:async()=>({user}),getCurrentUser:async()=>user,jsonOk:body=>body,jsonError:(error,status)=>({error,status})};
 const db={getStore:()=>store,mutateStore:async f=>f(store),uid:p=>p+'-test'};
 const lifecycle={openOperationForAnimal:(s,id)=>s.experimentOperations.find(o=>o.animalId===id&&['open','tech_submitted'].includes(o.status)),appendLifecycleTrace:()=>{},findAnimal:(s,id)=>s.managedAnimals.find(a=>a.id===id),assertCanCreateOperation:()=>null,setRegistrationStatus:(a,status)=>{a.registrationStatus=status;},advanceAnimalTask:()=>{}};
-const route=load('src/app/api/cage-workflow/route.ts',{'@/server/auth':auth,'@/server/store':db,'@/lib/roles':roles,'@/lib/animals/cage-grid':grid,'@/server/animal-lifecycle':lifecycle,'@/server/notify':{pushNotificationToUsers:(s,ids,payload)=>notes.push({ids,...payload})}});
+const route=load('src/app/api/cage-workflow/route.ts',{'@/server/auth':auth,'@/server/store':db,'@/lib/roles':roles,'@/lib/animals/cage-grid':grid,'@/lib/animals/housing':housing,'@/server/animal-lifecycle':lifecycle,'@/server/notify':{pushNotificationToUsers:(s,ids,payload)=>notes.push({ids,...payload})}});
 function reset(){user={id:'owner',name:'学生',roles:['user']};notes=[];store={users:[user,{id:'manager',name:'管理员',roles:['animal_manager']},{id:'other',roles:['user']},{id:'tech',roles:['animal_manager']}],cages:[],managedAnimals:[],retiredAnimalIds:[],experimentOperations:[],animalOpTasks:[],notifications:[],bookings:[]};}
 const post=b=>route.POST({json:async()=>b});
 const enroll={action:'enroll',id:'TJ001',qrCode:'qr:001',cageNumber:'1A1',entryDate:'2026-11-23',strain:'C57',ownerUserId:'owner'};
@@ -18,6 +20,10 @@ const enroll={action:'enroll',id:'TJ001',qrCode:'qr:001',cageNumber:'1A1',entryD
   assert.equal(many.length,3);assert.equal(many[0].rows.length,12);assert.ok(many.every(r=>r.columns.includes('H')));assert.equal(many.flatMap(r=>r.rows.flatMap(row=>row.cells)).filter(c=>c.cageId).length,3);
   reset();await post(enroll);assert.equal(store.managedAnimals[0].id,'TJ001');assert.equal(store.managedAnimals[0].qrCode,'qr:001');assert.ok(notes[0].ids.includes('manager'));assert.ok(notes[0].ids.includes('owner'));
   assert.equal((await post({...enroll,id:'TJ002'})).error,'id_or_qr_exists');
+  await post({action:'edit',id:'TJ001',field:'displayName',value:'测试鼠'});assert.equal(store.managedAnimals[0].displayName,'测试鼠');assert.equal(store.managedAnimals[0].id,'TJ001');
+  await post({action:'edit',id:'TJ001',field:'strain',value:'转基因'});assert.equal(store.managedAnimals[0].strain,'转基因');
+  assert.equal((await post({action:'edit',id:'TJ001',field:'ownerUserId',value:'other'})).error,'forbidden');
+  assert.equal((await post({action:'edit',id:'TJ001',field:'cageEntryAt',value:'bad'})).error,'invalid_body');
   await post({action:'transfer',id:'TJ001',cageNumber:'3H4'});assert.equal(store.managedAnimals[0].cageLocation,'3H4');assert.equal(store.cages.find(c=>c.number==='1A1').occupied,0);
   user=store.users.find(u=>u.id==='other');assert.equal((await post({action:'notes',id:'TJ001',note:'unauthorized'})).error,'forbidden');
   user=store.users[0];await post({action:'notes',id:'TJ001',note:'术后良好'});assert.equal(store.managedAnimals[0].cageLabelNote,'术后良好');
@@ -39,5 +45,12 @@ const enroll={action:'enroll',id:'TJ001',qrCode:'qr:001',cageNumber:'1A1',entryD
     user=store.users.find(u=>u.id==='other');assert.equal((await batch.POST({json:async()=>body})).error,'invalid_or_unauthorized_animals');user=store.users[0];
   }
   const managed=load('src/app/api/managed-animals/route.ts',{'@/server/auth':auth});assert.equal((await managed.DELETE()).status,405);
+  reset();store.cages=[{id:'legacy',number:'1A1',rack:'Rack A',capacity:1,occupied:99}];
+  for(let i=0;i<5;i++){const result=await post({...enroll,id:'capacity-'+i,qrCode:'capacity-qr-'+i});assert.equal(result.error,undefined);}
+  assert.equal((await post({...enroll,id:'capacity-6',qrCode:'capacity-qr-6'})).error,'adult_cage_full');assert.equal(store.cages[0].capacity,5);
+  reset();await post({...enroll,entryType:'blank'});store.experimentOperations=[{animalId:'TJ001',status:'open'}];store.managedAnimals[0].animalLock=true;store.animalOpTasks=[{id:'surgery-task',opType:'surgery',status:'scheduled',animalIds:['TJ001']}];
+  assert.equal((await post({action:'transfer',id:'TJ001',cageNumber:'1B1'})).error,'animal_locked');
+  assert.equal((await post({action:'exit',id:'TJ001'})).error,'animal_locked');assert.equal(store.managedAnimals[0].exitedAt,undefined);assert.equal(store.experimentOperations.length,1);assert.equal(store.animalOpTasks[0].status,'scheduled');
+  reset();assert.equal((await post({...enroll,entryType:'other'})).error,'entry_type_other_required');await post({...enroll,entryType:'other',entryTypeOther:'自定义类型'});assert.equal(store.managedAnimals[0].entryTypeOther,'自定义类型');
   console.log('PASS: three-rack cage layout preserves historical coordinates and 12 rows; custom ID/QR uniqueness; owner permissions; transfer/exit notifications; surgery photo requirement; task badge lifecycle; 20-mouse batch dispatch with assistant; euthanasia clears cage occupancy');
 })().catch(e=>{console.error(e);process.exitCode=1;});

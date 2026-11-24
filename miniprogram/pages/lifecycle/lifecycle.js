@@ -29,6 +29,7 @@ Page({
     pendingTasks: [],
     surgeryLocation:"", surgeryPhotos:[], surgeryPreviews:[], surgeryMessage:"",
     strainOptions:["转基因","C57"],
+    entryTypes:["植入电极手术鼠","植入电极幼鼠","免疫手术鼠","空白鼠","其他"],entryIndex:3,entryTypeOther:"",housingTypes:[{value:'adult_blank',label:'成年空白鼠'},{value:'pup',label:'幼鼠（未离乳）'},{value:'dam',label:'哺乳鼠妈'},{value:'signal_headpiece',label:'带头件信号鼠（单笼）'},{value:'immunity',label:'免疫鼠'}],housingIndex:0,ageWeeks:'6',
     customId: "", cageNumber: "1A1", enrollStrain: "", assistantNames: "",
     scanId: "",
     animal: null,
@@ -206,6 +207,10 @@ Page({
   onCustomId(e) {this.setData({customId:e.detail.value});},
   onCageNumber(e) {this.setData({cageNumber:e.detail.value});},
   pickStrain(e){this.setData({enrollStrain:this.data.strainOptions[Number(e.detail.value)]});},
+  onEntryType(e){this.setData({entryIndex:Number(e.detail.value)});},
+  onEntryOther(e){this.setData({entryTypeOther:e.detail.value});},
+  onHousing(e){this.setData({housingIndex:Number(e.detail.value)});},
+  onAgeWeeks(e){this.setData({ageWeeks:e.detail.value});},
   onEnrollStrain(e) {this.setData({enrollStrain:e.detail.value});},
   onAssistantNames(e) {this.setData({assistantNames:e.detail.value});},
   async enroll(code) {
@@ -216,7 +221,7 @@ Page({
     }
     this.setData({ busy: true, error: "", tip: "" });
     try {
-      const data = await api.lifecycleAction("enroll_from_cage", { cageCode, customId:this.data.customId, cageNumber:this.data.cageNumber, strain:this.data.enrollStrain, entryDate:new Date().toISOString().slice(0,10) });
+      const data = await api.lifecycleAction("enroll_from_cage", { cageCode,entryType:["electrode","electrode_young","immune_surgery","blank","other"][this.data.entryIndex],entryTypeOther:this.data.entryTypeOther,housingType:this.data.housingTypes[this.data.housingIndex].value,ageWeeks:Number(this.data.ageWeeks),customId:this.data.customId, cageNumber:this.data.cageNumber, strain:this.data.enrollStrain, entryDate:new Date().toISOString().slice(0,10) });
       const animal = data.animal;
       if (!animal || !animal.id) {
         this.setData({ error: "服务器未返回小鼠信息，请确认后台已更新 enroll 接口" });

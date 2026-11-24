@@ -1,4 +1,6 @@
 "use client";
+import { ENTRY_TYPES, HOUSING_TYPES, HOUSING_LABELS, HousingType } from "@/lib/animals/housing";
+import { cageOwnerPlan } from "@/lib/animals/cage-owner-plan";
 import { CageWorkflow } from "./CageWorkflow";
 import { StrainField } from "./StrainField";
 import { AntIcon } from "@/components/ui/AntIcon";
@@ -206,6 +208,10 @@ export function ManagedAnimals({
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [customId,setCustomId]=useState("");
   const [enrollCageNumber,setEnrollCageNumber]=useState("1A1");
+  const [entryType,setEntryType]=useState("blank");
+  const [entryTypeOther,setEntryTypeOther]=useState("");
+  const [housingType,setHousingType]=useState<HousingType>("adult_blank");
+  const [ageWeeks,setAgeWeeks]=useState("6");
   const [enrollStrain,setEnrollStrain]=useState("");
   const [enrollCageCode, setEnrollCageCode] = useState("");
   const [enrollBusy, setEnrollBusy] = useState(false);
@@ -339,7 +345,7 @@ export function ManagedAnimals({
     if (f.weaningStatus === "not_weaned") rows = rows.filter((r) => r.weaningStatus === "not_weaned");
     if (f.genotypeStatus === "identified") rows = rows.filter((r) => r.genotypeStatus === "identified");
     if (f.genotypeStatus === "unidentified") rows = rows.filter((r) => r.genotypeStatus === "unidentified");
-    if (f.animalId) rows = rows.filter((r) => (r.id+" "+(r.qrCode||"")).toLowerCase().includes(f.animalId.toLowerCase()));
+    if (f.animalId) rows = rows.filter((r) => (r.id+" "+(r.displayName||"")+" "+(r.qrCode||"")).toLowerCase().includes(f.animalId.toLowerCase()));
 
     rows.sort((a, b) => {
       if (sortKey === "tracking") {
@@ -738,14 +744,14 @@ export function ManagedAnimals({
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "enroll_from_cage", cageCode, customId, cageNumber:enrollCageNumber, strain:enrollStrain, entryDate:new Date().toLocaleDateString("en-CA") }),
+        body: JSON.stringify({ action: "enroll_from_cage", entryType,entryTypeOther,housingType,ageWeeks:Number(ageWeeks),cageCode, customId, cageNumber:enrollCageNumber, strain:enrollStrain, entryDate:new Date().toLocaleDateString("en-CA") }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setEnrollMsg(
           data.error === "cage_occupied_or_invalid"
             ? "该笼号无法录入（可能已被他人占用）"
-            : data.error || "录入失败"
+            : ({adult_cage_full:"成年鼠每笼最多5只",litter_cage_full:"育幼笼最多6只幼鼠和1只鼠妈",litter_cage_only:"育幼笼仅允许幼鼠和哺乳鼠妈",headpiece_single_cage:"带头件信号鼠必须单笼单只"} as Record<string,string>)[data.error] || data.error || "录入失败"
         );
         return;
       }
@@ -1193,10 +1199,10 @@ export function ManagedAnimals({
     if (key === "trackingStage") return stageForRow(row);
     if (key === "repeatDays") return row.repeatDays != null ? String(row.repeatDays) : "—";
     if (key === "cageLocation") return row.cageLocation || "—";
-    if (key === "claimantName") return row.claimantName ?? "—";
+    if (key === "claimantName") return cageOwnerPlan(row.cageLocation)?.name || row.claimantName || "—";
     if (key === "dispatchAssignee") return row.dispatchAssigneeName?.trim() || row.technicianName?.trim() || "—";
     if (key === "dispatchProgress") return row.dispatchProgress?.trim() || "—";
-    if (key === "id") return row.id;
+    if (key === "id") return row.displayName || row.id;
     if (key === "qrCode") return row.qrCode || "未绑定";
     return String(row[key as keyof ManagedAnimal] ?? "");
   }
@@ -1603,7 +1609,7 @@ export function ManagedAnimals({
                                     <AntIcon name="lock" className="h-3.5 w-3.5"/>
                                   </span>
                                 ) : null}
-                                <span>{row.id}</span>
+                                <span>{row.displayName || row.id}</span>
                                 {row.lastOpBackfill ? (
                                   <span
                                     className="inline-flex shrink-0 items-center rounded px-1.5 py-0.5 text-[10px] font-semibold text-orange-800 ring-1 ring-inset ring-orange-300/80 bg-orange-50"
@@ -2030,6 +2036,7 @@ export function ManagedAnimals({
               />
               <label>小鼠名<input className="block w-full rounded border p-2" value={customId} onChange={e=>setCustomId(e.target.value)} placeholder="TJ001" /></label>
               <label>笼位<input className="block w-full rounded border p-2" value={enrollCageNumber} onChange={e=>setEnrollCageNumber(e.target.value)} placeholder="1A1" /></label>
+              <label>进入类型<select className="block rounded border p-2" value={entryType} onChange={e=>setEntryType(e.target.value)}>{ENTRY_TYPES.map(type=><option key={type.value} value={type.value}>{type.label}</option>)}</select></label>{entryType==="other"&&<label>其他类型<input required className="block rounded border p-2" value={entryTypeOther} onChange={e=>setEntryTypeOther(e.target.value)} placeholder="请填写具体类型"/></label>}<label>同笼饲养情况<select className="block rounded border p-2" value={housingType} onChange={e=>setHousingType(e.target.value as HousingType)}>{HOUSING_TYPES.map(type=><option key={type} value={type}>{HOUSING_LABELS[type]}</option>)}</select></label><label>周龄<input className="block rounded border p-2" type="number" min="0" max="200" step="0.5" value={ageWeeks} onChange={e=>setAgeWeeks(e.target.value)}/></label>
               <StrainField value={enrollStrain} onChange={setEnrollStrain}/>
               <FluentButton disabled={enrollBusy || !customId.trim() || !enrollStrain.trim()} onClick={() => void submitManualEnroll()}>
                 {enrollBusy ? "录入中…" : "确认录入"}
