@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     appendLifecycleTrace(s, {animalId: id, timestamp: now, action: "cage_" + action, userId: user.id, userName: user.name, details: `${action}：${id}，${from} → ${animal!.cageLocation}`});
     if (["enroll", "exit", "transfer"].includes(action)) {
       const recipients = s.users.filter(u => canManageAnimals(u.roles) || u.id === animal!.claimantUserId || u.id === animal!.technicianUserId).map(u => u.id);
-      pushNotificationToUsers(s, [...new Set(recipients)], {title: "笼位变动", titleEn: "Cage change", message: `${user.name}：${id} ${action === "exit" ? "退出" : action === "transfer" ? "转移" : "进入"}，${from} → ${animal!.cageLocation}`, messageEn: `${id}: ${action}`, link: "/animals/facility-board", animalId: id});
+      pushNotificationToUsers(s, [...new Set(recipients)], {title: "笼位变动", titleEn: "Cage change", message: `${user.name}：${id} ${action === "exit" ? "退出" : action === "transfer" ? "转移" : "进入"}，${from} → ${animal!.cageLocation}`, messageEn: `${id}: ${action}`, link: "/animals/managed", animalId: id});
     }
     result = { ...animal! };
   });

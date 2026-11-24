@@ -1,5 +1,5 @@
-import { FacilityCageBoard } from "@/components/animals/FacilityCageBoard";
+import { redirect } from "next/navigation";
 
 export default function FacilityBoardPage() {
-  return <FacilityCageBoard mode="board" />;
+  redirect("/animals/managed");
 }

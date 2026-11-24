@@ -45,11 +45,6 @@ export const NAV_ENTRIES: NavEntry[] = [
     show: () => true,
     children: [
       {
-        href: "/animals/facility-board",
-        labelKey: "facilityBoard",
-        show: canSuperviseAnimalFacility,
-      },
-      {
         href: "/animals/managed",
         labelKey: "managedAnimals",
         show: (roles) => !isAnimalOpsStaff(roles),

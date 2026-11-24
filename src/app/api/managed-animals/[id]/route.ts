@@ -221,7 +221,7 @@ export async function PATCH(
     }
     if (cur.cageId !== next.cageId || (cur.status !== next.status && next.status === "deceased")) {
       const recipients=s.users.filter(u=>canManageAnimals(u.roles)||u.id===next.claimantUserId||u.id===cur.claimantUserId||u.id===next.technicianUserId).map(u=>u.id);
-      pushNotificationToUsers(s,[...new Set(recipients)],{title:"笼位变动",titleEn:"Cage change",message:id+"："+cur.cageLocation+" → "+next.cageLocation,messageEn:"Cage changed: "+id,link:"/animals/facility-board",animalId:id});
+      pushNotificationToUsers(s,[...new Set(recipients)],{title:"笼位变动",titleEn:"Cage change",message:id+"："+cur.cageLocation+" → "+next.cageLocation,messageEn:"Cage changed: "+id,link:"/animals/managed",animalId:id});
     }
     s.managedAnimals[idx] = next;
     for (const cage of s.cages) cage.occupied=s.managedAnimals.filter(a=>a.cageId===cage.id&&!a.deathAt&&!a.exitedAt&&a.status!=="deceased").length;
@@ -306,7 +306,7 @@ export async function PATCH(
           message: msg,
           messageEn: msg,
           read: false,
-          link: "/animals/facility-board",
+          link: "/animals/managed",
           kind: "info",
           handled: false,
           createdAt: now,
