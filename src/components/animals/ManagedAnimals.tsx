@@ -1,6 +1,5 @@
 "use client";
 import { ENTRY_TYPES, HOUSING_TYPES, HOUSING_LABELS, HousingType } from "@/lib/animals/housing";
-import { cageOwnerPlan } from "@/lib/animals/cage-owner-plan";
 import { CageWorkflow } from "./CageWorkflow";
 import { StrainField } from "./StrainField";
 import { AntIcon } from "@/components/ui/AntIcon";
@@ -1199,7 +1198,7 @@ export function ManagedAnimals({
     if (key === "trackingStage") return stageForRow(row);
     if (key === "repeatDays") return row.repeatDays != null ? String(row.repeatDays) : "—";
     if (key === "cageLocation") return row.cageLocation || "—";
-    if (key === "claimantName") return cageOwnerPlan(row.cageLocation)?.name || row.claimantName || "—";
+    if (key === "claimantName") return row.claimantName || "—";
     if (key === "dispatchAssignee") return row.dispatchAssigneeName?.trim() || row.technicianName?.trim() || "—";
     if (key === "dispatchProgress") return row.dispatchProgress?.trim() || "—";
     if (key === "id") return row.displayName || row.id;
