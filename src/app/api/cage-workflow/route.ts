@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
       const assigned = animal.technicianUserId === user.id || s.animalOpTasks?.some(t => t.assigneeUserId === user.id && t.status === "scheduled" && t.animalIds.includes(id));
       if (!manager && animal.claimantUserId !== user.id && !(action === "surgery" && assigned)) { error = "forbidden"; return; }
       if (animal.exitedAt || animal.deathAt) { error = "animal_exited"; return; }
-      if ((action === "exit" || action === "transfer") && (animal.animalLock || openOperationForAnimal(s, id))) { error = "animal_locked"; return; }
+      const manualSurgeryExit=action==="exit"&&Boolean(animal.surgeryCompletedAt)&&(animal.entryType==="blank"||(!animal.entryType&&animal.purpose==="blank"));
+      if (!manualSurgeryExit && (action === "exit" || action === "transfer") && (animal.animalLock || openOperationForAnimal(s, id))) { error = "animal_locked"; return; }
     }
     if(action === "edit") {
       const field=String(b.field||"");const value=String(b.value??"").trim();

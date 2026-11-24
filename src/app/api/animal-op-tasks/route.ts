@@ -11,7 +11,6 @@ import {
   urgencyFromFlags,
 } from "@/types/animal-ops";
 import {
-  vacateBlankCageAfterSurgery,
   advanceAnimalTask,
   animalTasksWithWaiting,
   appendLifecycleTrace,
@@ -427,7 +426,7 @@ export async function PATCH(req: NextRequest) {
 
     const now = new Date().toISOString();
     const becameDone = prevStatus !== "done" && next.status === "done";
-    if (becameDone && next.opType==="surgery") for(const aid of next.animalIds){const a=findAnimal(s,aid);if(a)vacateBlankCageAfterSurgery(s,a,now);}
+    if (becameDone && next.opType==="surgery") for(const aid of next.animalIds){const a=findAnimal(s,aid);if(a)a.surgeryCompletedAt=now;}
     if (becameDone) {
       next.completedAt = now;
       next.backfill = isBackfillProcessing(next.startTime || next.createdAt, now);

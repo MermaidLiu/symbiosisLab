@@ -1,4 +1,3 @@
-import { vacateBlankCageAfterSurgery } from "@/server/animal-lifecycle";
 import { POST as enrollInCage } from "@/app/api/cage-workflow/route";
 import { NextRequest } from "next/server";
 import { getCurrentUser, jsonError, jsonOk, requireActiveUser } from "@/server/auth";
@@ -238,7 +237,6 @@ export async function POST(req: NextRequest) {
       ) {
         return;
       }
-      vacateBlankCageAfterSurgery(s,animal,now);
       animal.surgeryCompletedAt = now;
       animal.surgeryLocation = surgeryLocation;
       animal.surgeryImageUrls = surgeryImages;
