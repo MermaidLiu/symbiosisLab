@@ -175,11 +175,6 @@ const api = {
       data: { action: "student_cancel", ...payload },
     });
   },
-  deleteManagedAnimal(id) {
-    return request(`/api/managed-animals?id=${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-  },
   logout() {
     return request("/api/auth", { method: "POST", data: { action: "logout" }, silent: true });
   },

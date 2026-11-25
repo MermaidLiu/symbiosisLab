@@ -5,7 +5,13 @@ const { isInsecureApiBase } = require("../../utils/config");
 const { displayName } = require("../../utils/format");
 const { monthLabel, buildMonthRows, pad } = require("../../utils/calendar");
 
+function roleLabel(user){return (user.roles || []).filter(r=>r!=="user").map(r=>({super_admin:"系统管理员",animal_manager:"动物技术员",animal_facility_supervisor:"动物管理员",animal_caretaker:"动物饲养员",animal_collector:"动物采集员",veterinarian:"兽医",instrument_manager:"仪器管理员",instrument_super_admin:"仪器总管理员",research_assistant:"科研助理"}[r]||"实验室成员")).join(" · ") || "实验室成员";}
+
 Page({
+  async scanEnroll(){
+    if(!(await promptLogin('登录后扫码录入小鼠')))return;
+    wx.scanCode({scanType:['qrCode','barCode'],success:r=>{const code=String(r.result||'').trim();if(!code){wx.showToast({title:'未识别到二维码内容',icon:'none'});return;}wx.navigateTo({url:'/pages/cages/cages?enrollQR='+encodeURIComponent(code)});},fail:e=>{if(!String(e.errMsg||'').includes('cancel'))wx.showToast({title:'扫码失败，请重试',icon:'none'});}});
+  },
   goCages(){wx.navigateTo({url:"/pages/cages/cages"});},
   data: {
     loggedIn: false,
@@ -86,6 +92,7 @@ Page({
       this.setData({ guestMode: true, loggedIn: false });
       return;
     }
+    this.setData({name:displayName(user)||"实验室成员",rolesText:roleLabel(user)});
     const { year, month } = this.data;
     try {
       const [inst, animals, bookings, notices, log] = await Promise.all([
@@ -105,7 +112,7 @@ Page({
         guestMode: false,
         loggedIn: true,
         name: displayName(user),
-        rolesText: (user.roles || []).join(" · "),
+        rolesText: roleLabel(user),
         instrumentCount: (inst.instruments || []).length,
         animalCount: myAnimals.length,
         bookingCount: myBookings.length,

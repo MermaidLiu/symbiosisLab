@@ -1,5 +1,5 @@
 <view class="page" wx:if="{{ready}}">
-<button wx:if="{{!guestMode}}" bindtap="goCages">笼位管理 / 批量派发</button>
+
   <!-- 未登录：可浏览服务介绍，不强制授权 -->
   <block wx:if="{{guestMode}}">
     <view class="hero">
@@ -33,36 +33,27 @@
         <view class="section-title">快捷入口</view>
         <view class="section-sub">可先了解模块</view>
       </view>
-      <view class="grid">
-        <view class="tile" bindtap="goInstruments">
-          <view class="icon jelly-sky">
+      <view class="shortcut-list"><view class="shortcut-row"><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goInstruments">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-instrument"></view>
           </view>
-          <view class="tile-title">仪器</view>
-          <view class="tile-sub">浏览模块</view>
-        </view>
-        <view class="tile" bindtap="goAnimals">
-          <view class="icon jelly-mint">
+          <view class="tile-copy"><view class="tile-title">仪器</view><view class="tile-sub">浏览模块</view></view>
+        </view></view><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goAnimals">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-animal"></view>
           </view>
-          <view class="tile-title">动物</view>
-          <view class="tile-sub">浏览模块</view>
-        </view>
-        <view class="tile" bindtap="goNotices">
-          <view class="icon jelly-rose">
+          <view class="tile-copy"><view class="tile-title">动物</view><view class="tile-sub">浏览模块</view></view>
+        </view></view></view><view class="shortcut-row"><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goNotices">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-bell"></view>
           </view>
-          <view class="tile-title">通知</view>
-          <view class="tile-sub">浏览模块</view>
-        </view>
-        <view class="tile" bindtap="goLogin">
-          <view class="icon jelly-grape">
+          <view class="tile-copy"><view class="tile-title">通知</view><view class="tile-sub">浏览模块</view></view>
+        </view></view><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goLogin">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-logout"></view>
           </view>
-          <view class="tile-title">去登录</view>
-          <view class="tile-sub">自愿授权</view>
-        </view>
-      </view>
+          <view class="tile-copy"><view class="tile-title">去登录</view><view class="tile-sub">自愿授权</view></view>
+        </view></view></view></view>
     </view>
   </block>
 
@@ -70,11 +61,12 @@
   <block wx:else>
     <view class="hero">
       <view class="hero-glow"></view>
-      <view class="hello" bindtap="goProfile">你好，{{name}}</view>
+      <view class="brand-line">Daigroup Lab <button class="home-scan" bindtap="scanEnroll" aria-label="扫码录入小鼠"><view class="ali-icon ali-icon-scan"></view></button></view><view class="hello" bindtap="goProfile">你好，{{name || '实验室成员'}}</view>
       <view class="roles">{{rolesText}}</view>
-      <view class="hero-chip" bindtap="goProfile">个人信息 · 点此查看/修改</view>
+      <view class="hero-chip" bindtap="goProfile">查看个人资料</view>
     </view>
 
+    <view class="facility-entry" bindtap="goCages"><view class="facility-icon"><view class="ali-icon ali-icon-animal"></view></view><view class="facility-copy"><view class="facility-title">动物与笼位管理</view><view class="facility-sub">查看笼位 · 录入小鼠 · 批量派发</view></view><view class="ali-icon ali-icon-right"></view></view>
     <view class="overview card">
       <view class="section-title">今日概览</view>
       <view class="metrics">
@@ -102,50 +94,37 @@
         <view class="section-title">快捷操作</view>
         <view class="section-sub">常用入口</view>
       </view>
-      <view class="grid">
-        <view class="tile" bindtap="goInstruments">
-          <view class="icon jelly-sky">
+      <view class="shortcut-list"><view class="shortcut-row"><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goInstruments">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-instrument"></view>
           </view>
-          <view class="tile-title">仪器列表</view>
-          <view class="tile-sub">浏览与预约</view>
-        </view>
-        <view class="tile" bindtap="goBookings">
-          <view class="icon jelly-lemon">
+          <view class="tile-copy"><view class="tile-title">仪器列表</view><view class="tile-sub">浏览与预约</view></view>
+        </view></view><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goBookings">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-calendar"></view>
           </view>
-          <view class="tile-title">我的预约</view>
-          <view class="tile-sub">查看进度</view>
-        </view>
-        <view class="tile" bindtap="goAnimals">
-          <view class="icon jelly-mint">
+          <view class="tile-copy"><view class="tile-title">我的预约</view><view class="tile-sub">查看进度</view></view>
+        </view></view></view><view class="shortcut-row"><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goAnimals">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-animal"></view>
           </view>
-          <view class="tile-title">代管动物</view>
-          <view class="tile-sub">状态与阶段</view>
-        </view>
-        <view class="tile" bindtap="goNotices">
-          <view class="icon jelly-rose">
+          <view class="tile-copy"><view class="tile-title">代管动物</view><view class="tile-sub">状态与阶段</view></view>
+        </view></view><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goNotices">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-bell"></view>
           </view>
-          <view class="tile-title">通知中心</view>
-          <view class="tile-sub">待办提醒</view>
-        </view>
-        <view class="tile" bindtap="goInstruments">
-          <view class="icon jelly-peach">
+          <view class="tile-copy"><view class="tile-title">通知中心</view><view class="tile-sub">待办提醒</view></view>
+        </view></view></view><view class="shortcut-row"><view class="shortcut-slot"><view class="shortcut-tile" bindtap="goInstruments">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-tool"></view>
           </view>
-          <view class="tile-title">报修入口</view>
-          <view class="tile-sub">仪器详情内</view>
-        </view>
-        <view class="tile" bindtap="onLogout">
-          <view class="icon jelly-grape">
+          <view class="tile-copy"><view class="tile-title">报修入口</view><view class="tile-sub">仪器详情内</view></view>
+        </view></view><view class="shortcut-slot"><view class="shortcut-tile" bindtap="onLogout">
+          <view class="shortcut-icon">
             <view class="ali-icon ali-icon-lg ali-icon-logout"></view>
           </view>
-          <view class="tile-title">退出登录</view>
-          <view class="tile-sub">切换账号</view>
-        </view>
-      </view>
+          <view class="tile-copy"><view class="tile-title">退出登录</view><view class="tile-sub">切换账号</view></view>
+        </view></view></view></view>
     </view>
 
     <view class="card cal-card {{calExpanded ? 'expanded' : 'collapsed'}}">
