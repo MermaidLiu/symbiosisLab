@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
    * cageCode 可为笼位二维码原文、cageId=xxx、或已有 M############
    */
   if (action === "enroll_from_cage") {
-    return enrollInCage(new NextRequest(req.url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"enroll",id:body.customId,qrCode:body.cageCode,entryType:body.entryType,entryTypeOther:body.entryTypeOther,housingType:body.housingType,ageWeeks:body.ageWeeks,cageNumber:body.cageNumber,entryDate:body.entryDate,strain:body.strain,note:body.note,ownerUserId:body.ownerUserId || user.id})}));
+    return enrollInCage(new NextRequest(req.url, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"enroll",id:body.customId,qrCode:body.cageCode,entryType:body.entryType,entryTypeOther:body.entryTypeOther,housingType:body.housingType,ageWeeks:body.ageWeeks,ageDays:body.ageDays,cageNumber:body.cageNumber,entryDate:body.entryDate,strain:body.strain,note:body.note,ownerUserId:body.ownerUserId || user.id})}));
   }
 
   /** 技术员按笼号/笼码查找小鼠（核验是否与派发 ID 一致） */

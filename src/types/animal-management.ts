@@ -72,6 +72,7 @@ export interface ManagedAnimal {
   damGenotype: string;
   birthDate: string;
   ageWeeks: number;
+  ageDays?: number;
   /** Display location label, e.g. SPF-A-A01 */
   cageLocation: string;
   /** Link to Cage.id for facility board */

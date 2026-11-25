@@ -211,6 +211,7 @@ export function ManagedAnimals({
   const [entryTypeOther,setEntryTypeOther]=useState("");
   const [housingType,setHousingType]=useState<HousingType>("adult_blank");
   const [ageWeeks,setAgeWeeks]=useState("6");
+  const [ageUnit,setAgeUnit]=useState("weeks");
   const [enrollStrain,setEnrollStrain]=useState("");
   const [enrollCageCode, setEnrollCageCode] = useState("");
   const [enrollBusy, setEnrollBusy] = useState(false);
@@ -743,7 +744,7 @@ export function ManagedAnimals({
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "enroll_from_cage", entryType,entryTypeOther,housingType,ageWeeks:Number(ageWeeks),cageCode, customId, cageNumber:enrollCageNumber, strain:enrollStrain, entryDate:new Date().toLocaleDateString("en-CA") }),
+        body: JSON.stringify({ action: "enroll_from_cage", entryType,entryTypeOther,housingType,ageWeeks:ageUnit==="days"?Number(ageWeeks)/7:Number(ageWeeks),ageDays:ageUnit==="days"?Number(ageWeeks):undefined,cageCode, customId, cageNumber:enrollCageNumber, strain:enrollStrain, entryDate:new Date().toLocaleDateString("en-CA") }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -2035,7 +2036,7 @@ export function ManagedAnimals({
               />
               <label>小鼠名<input className="block w-full rounded border p-2" value={customId} onChange={e=>setCustomId(e.target.value)} placeholder="TJ001" /></label>
               <label>笼位<input className="block w-full rounded border p-2" value={enrollCageNumber} onChange={e=>setEnrollCageNumber(e.target.value)} placeholder="1A1" /></label>
-              <label>进入类型<select className="block rounded border p-2" value={entryType} onChange={e=>setEntryType(e.target.value)}>{ENTRY_TYPES.map(type=><option key={type.value} value={type.value}>{type.label}</option>)}</select></label>{entryType==="other"&&<label>其他类型<input required className="block rounded border p-2" value={entryTypeOther} onChange={e=>setEntryTypeOther(e.target.value)} placeholder="请填写具体类型"/></label>}<label>同笼饲养情况<select className="block rounded border p-2" value={housingType} onChange={e=>setHousingType(e.target.value as HousingType)}>{HOUSING_TYPES.map(type=><option key={type} value={type}>{HOUSING_LABELS[type]}</option>)}</select></label><label>周龄<input className="block rounded border p-2" type="number" min="0" max="200" step="0.5" value={ageWeeks} onChange={e=>setAgeWeeks(e.target.value)}/></label>
+              <label>进入类型<select className="block rounded border p-2" value={entryType} onChange={e=>setEntryType(e.target.value)}>{ENTRY_TYPES.map(type=><option key={type.value} value={type.value}>{type.label}</option>)}</select></label>{entryType==="other"&&<label>其他类型<input required className="block rounded border p-2" value={entryTypeOther} onChange={e=>setEntryTypeOther(e.target.value)} placeholder="请填写具体类型"/></label>}<label>同笼饲养情况<select className="block rounded border p-2" value={housingType} onChange={e=>setHousingType(e.target.value as HousingType)}>{HOUSING_TYPES.map(type=><option key={type} value={type}>{HOUSING_LABELS[type]}</option>)}</select></label><label>年龄（可自行输入）<div className="flex gap-2"><input required className="min-w-0 flex-1 rounded border p-2" type="number" min="0" max={ageUnit==="days"?1400:200} step={ageUnit==="days"?1:0.5} placeholder="输入年龄" value={ageWeeks} onChange={e=>setAgeWeeks(e.target.value)}/><select aria-label="年龄单位" className="rounded border p-2" value={ageUnit} onChange={e=>{setAgeUnit(e.target.value);setAgeWeeks("");}}><option value="weeks">周龄</option><option value="days">天龄</option></select></div></label>
               <StrainField value={enrollStrain} onChange={setEnrollStrain}/>
               <FluentButton disabled={enrollBusy || !customId.trim() || !enrollStrain.trim()} onClick={() => void submitManualEnroll()}>
                 {enrollBusy ? "录入中…" : "确认录入"}

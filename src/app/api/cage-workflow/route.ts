@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     if (action === "enroll") {
       if(b.housingType!==undefined && !HOUSING_TYPES.includes(b.housingType)){error="invalid_body";return;}
       if(b.ageWeeks!==undefined && (!Number.isFinite(Number(b.ageWeeks))||Number(b.ageWeeks)<0||Number(b.ageWeeks)>200)){error="invalid_body";return;}
+      if(b.ageDays!==undefined && (!Number.isInteger(Number(b.ageDays))||Number(b.ageDays)<0||Number(b.ageDays)>1400)){error="invalid_body";return;}
       if(b.entryType && !["electrode","electrode_young","immune_surgery","blank","other"].includes(b.entryType)){error="invalid_body";return;}
       if(b.entryType==="other"&&!String(b.entryTypeOther||"").trim()){error="entry_type_other_required";return;}
       const qrCode = String(b.qrCode || "").trim();
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       if (s.managedAnimals.some(a => a.id.toLowerCase() === id.toLowerCase() || a.qrCode === qrCode) || (s.retiredAnimalIds || []).some(x => x.toLowerCase() === id.toLowerCase())) { error = "id_or_qr_exists"; return; }
       const owner = s.users.find(u => u.id === (manager ? b.ownerUserId : user.id));
       if (!owner) { error = "invalid_owner"; return; }
-      animal = { id, qrCode, gender: "male", strain: String(b.strain).trim(), genotype: "未知", sireId: "—", sireGenotype: "—", damId: "—", damGenotype: "—", birthDate: "", entryType:String(b.entryType||"blank"),entryTypeOther:String(b.entryTypeOther||"").trim().slice(0,200),housingType:b.housingType||"adult_blank", ageWeeks: Number(b.ageWeeks||0), cageLocation: number, status: "active", strainType: "public", generation: 1, weaningStatus: b.housingType==="pup"?"not_weaned":"weaned", genotypeStatus: "unidentified", purpose: b.housingType==="immunity"?"immunity":b.housingType==="signal_headpiece"?"signal_processing":"blank", lifecycleStatus: "entered", registrationStatus: "awaiting_experiment", registeredAt: now, cageEntryAt: String(b.entryDate), claimantUserId: owner.id, claimantName: owner.name, cageLabelNote: String(b.note || "") };
+      animal = { id, qrCode, gender: "male", strain: String(b.strain).trim(), genotype: "未知", sireId: "—", sireGenotype: "—", damId: "—", damGenotype: "—", birthDate: "", entryType:String(b.entryType||"blank"),entryTypeOther:String(b.entryTypeOther||"").trim().slice(0,200),housingType:b.housingType||"adult_blank", ageWeeks: b.ageDays!==undefined?Number(b.ageDays)/7:Number(b.ageWeeks||0), ageDays:b.ageDays!==undefined?Number(b.ageDays):undefined, cageLocation: number, status: "active", strainType: "public", generation: 1, weaningStatus: b.housingType==="pup"?"not_weaned":"weaned", genotypeStatus: "unidentified", purpose: b.housingType==="immunity"?"immunity":b.housingType==="signal_headpiece"?"signal_processing":"blank", lifecycleStatus: "entered", registrationStatus: "awaiting_experiment", registeredAt: now, cageEntryAt: String(b.entryDate), claimantUserId: owner.id, claimantName: owner.name, cageLabelNote: String(b.note || "") };
     } else {
       if (!animal) { error = "not_found"; return; }
       const assigned = animal.technicianUserId === user.id || s.animalOpTasks?.some(t => t.assigneeUserId === user.id && t.status === "scheduled" && t.animalIds.includes(id));
