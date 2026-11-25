@@ -21,15 +21,25 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!user) return;
-    void (async () => {
+    let active = true;
+    const load = async () => {
       try {
         const { notifications } = await api.notifications();
+        if (!active) return;
         setCachePartial({ notifications });
         setItems(notifications.filter((n) => n.userId === user.id));
       } catch {
-        setItems(getNotifications().filter((n) => n.userId === user.id));
+        if (active) setItems(getNotifications().filter((n) => n.userId === user.id));
       }
-    })();
+    };
+    void load();
+    const timer = setInterval(() => void load(), 4000);
+    window.addEventListener("focus", load);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", load);
+    };
   }, [user]);
 
   if (!user) return null;

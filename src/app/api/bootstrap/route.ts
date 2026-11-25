@@ -1,3 +1,4 @@
+import { notificationState } from "@/server/notification-state";
 import { getCurrentUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore, publicUser } from "@/server/store";
 import { normalizeInstrument } from "@/lib/instruments";
@@ -21,7 +22,7 @@ export async function GET() {
     animals: store.animals,
     bookings: store.bookings,
     logs: store.logs,
-    notifications: store.notifications.filter((n) => n.userId === user.id),
+    notifications: store.notifications.filter((n) => n.userId === user.id).map(n => notificationState(n, store)),
     managedAnimals: store.managedAnimals,
     cages: store.cages,
     applications: store.applications,
