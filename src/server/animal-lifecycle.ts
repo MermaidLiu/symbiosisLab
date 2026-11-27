@@ -264,5 +264,5 @@ export function advanceAnimalTask(store: DbStore, task: AnimalOpTask, now: strin
   store.notifications.unshift({ id: uid("ntf"), userId: next.assigneeUserId, title: "上一操作已完成，轮到你处理",
     titleEn: "Previous step completed — your task is ready", message: next.assigneeName + "：请处理下一步操作",
     messageEn: "Your next animal operation is ready", read: false, handled: false, kind: "animal_task",
-    animalTaskId: next.id, animalId: next.animalIds[0], link: ["signal_collection","ephys","behavior","surgery","perfusion","other"].includes(next.opType) ? "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]) : "/", createdAt: now });
+    animalTaskId: next.id, animalId: next.animalIds[0], link: ["signal_collection","ephys","behavior","surgery","perfusion","other"].includes(next.opType) ? "/animals/task-handle?animalId=" + encodeURIComponent(next.animalIds[0]) : "/animals/lifecycle?animalId=" + encodeURIComponent(next.animalIds[0]) + "&taskId=" + encodeURIComponent(next.id), createdAt: now });
 }

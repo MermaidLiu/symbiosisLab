@@ -60,7 +60,8 @@ export function TechnicianWorkbench() {
   });
   const [calDay, setCalDay] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"facility" | "list">("facility");
+  // 技术员工作台优先显示待处理任务；笼位模式仍可随时切换。
+  const [viewMode, setViewMode] = useState<"facility" | "list">("list");
 
   const todayStr = useMemo(() => {
     const d = new Date();

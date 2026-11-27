@@ -1,4 +1,4 @@
-const TASK_TITLES={fasting:"禁食",water_deprivation:"禁水",signal_collection:"信号采集",ephys:"电生理",behavior:"行为学",surgery:"手术",perfusion:"灌流取材",euthanasia:"处死",other:"其他"};
+const TASK_TITLES={fasting:"禁食",water_deprivation:"禁水",stop_fasting:"停止禁食",stop_water_deprivation:"停止禁水",signal_collection:"信号采集",ephys:"光标记",behavior:"行为学",surgery:"手术",perfusion:"灌流取材",euthanasia:"处死",other:"其他"};
 const { isAnimalClaimantStudent, isAnimalTechnician } = require("../../utils/account-status");
 const { api } = require("../../utils/api");
 const { isLoggedIn, getUser, goLogin, promptLogin } = require("../../utils/auth");
@@ -54,7 +54,7 @@ Page({
     pendingOp: null,
     openOp: null,
     kinds: [
-      { v: "ephys", l: "电生理/采集" },
+      { v: "ephys", l: "光标记" },
       { v: "behavior", l: "行为学" },
       { v: "optotagging", l: "Optotagging" },
       { v: "imaging", l: "成像" },
@@ -116,7 +116,7 @@ Page({
       const [res, taskRes] = await Promise.all([request("/api/experiment-operations"),request("/api/animal-op-tasks?mine=1")]);
       const ops = (res.operations || []).filter((o) => o.status === "open" && o.technicianUserId === getUser().id);
       this.setData({
-        activeAnimalTasks:(taskRes.tasks || []).filter(t=>!t.isWaiting && t.status==="scheduled" && ["fasting","water_deprivation","euthanasia"].includes(t.opType)).map(t=>({...t,taskPhotoPreviews:this.previewPhotoUrls((this.taskPhotoSets||{})[t.id]||t.resultImageUrls||[]),taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
+        activeAnimalTasks:(taskRes.tasks || []).filter(t=>!t.isWaiting && t.status==="scheduled" && ["fasting","water_deprivation","stop_fasting","stop_water_deprivation","euthanasia","perfusion"].includes(t.opType)).map(t=>({...t,taskPhotoPreviews:this.previewPhotoUrls((this.taskPhotoSets||{})[t.id]||t.resultImageUrls||[]),taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
         waitingTasks: (taskRes.tasks || []).filter(t=>t.isWaiting).map(t=>({...t,taskTitle:TASK_TITLES[t.opType]||t.opType,mouseLabels:t.animalIds.join("、")})),
         pendingTasks: ops.map((o) => ({
           id: o.id,
@@ -147,6 +147,7 @@ Page({
     const id=e.currentTarget.dataset.id;
     wx.showModal({title:"确认操作已完成",content:"完成后将通知下一步负责人，请确认实际操作已结束。",success:async r=>{if(!r.confirm)return;try{const {request}=require("../../utils/api");await request("/api/animal-op-tasks",{method:"PATCH",data:{id,status:"done",assistantNames:this.data.assistantNames,resultImageUrls:(this.taskPhotoSets||{})[id]||[]}});await this.loadPendingTasks();wx.showToast({title:"已完成"});}catch(e){wx.showToast({title:e.code||"提交失败",icon:"none"});}}});
   },
+  terminateSimpleTask(e) { const id=e.currentTarget.dataset.id; wx.showModal({title:"强制终止任务",editable:true,placeholderText:"请输入终止原因",success:async r=>{if(!r.confirm)return;try{await api.forceTerminateAnimalTask({id,reason:r.content||"任务异常终止"});await this.loadPendingTasks();if(this.data.animal)await this.lookup(this.data.animal.id);wx.showToast({title:"任务已终止"});}catch(err){wx.showToast({title:err.code||"终止失败",icon:"none"});}}}); },
   pickPending(e) {
     const animalId = e.currentTarget.dataset.animalid;
     this.setData({

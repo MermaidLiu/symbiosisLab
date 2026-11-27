@@ -6,7 +6,10 @@ import { AnimalOpTask } from "@/types/animal-ops";
 const OP_TYPE_LABEL: Record<string, string> = {
   fasting: "禁食",
   water_deprivation: "禁水",
+  stop_fasting: "停止禁食",
+  stop_water_deprivation: "停止禁水",
   signal_collection: "数据采集",
+  ephys: "光标记",
   euthanasia: "安乐死",
   perfusion: "灌流",
   surgery: "手术",

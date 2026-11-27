@@ -15,7 +15,7 @@ import { EXPERIMENT_KINDS, ExperimentKind, ExperimentOperation } from "@/types/a
 import { ManagedAnimal } from "@/types/animal-management";
 
 const KIND_LABEL: Record<ExperimentKind, string> = {
-  ephys: "电生理 / 数据采集",
+  ephys: "光标记",
   behavior: "行为学",
   optotagging: "Optotagging",
   imaging: "成像",

@@ -730,8 +730,10 @@ const en = {
       types: {
         fasting: "Fasting",
         water_deprivation: "Water deprivation",
+        stop_fasting: "Stop fasting",
+        stop_water_deprivation: "Stop water deprivation",
         signal_collection: "Signal collection",
-        ephys: "Electrophysiology", behavior: "Behavior",
+        ephys: "Optotagging", behavior: "Behavior",
         euthanasia: "Euthanasia",
         perfusion: "Perfusion / harvest",
         surgery: "Surgery",

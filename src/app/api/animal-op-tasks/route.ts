@@ -48,8 +48,10 @@ function kindFromOpType(opType: string): ExperimentKind {
 const OP_TYPE_TITLE: Record<string, string> = {
   fasting: "禁食",
   water_deprivation: "禁水",
+  stop_fasting: "停止禁食",
+  stop_water_deprivation: "停止禁水",
   signal_collection: "数据采集",
-  ephys: "电生理", behavior: "行为学",
+  ephys: "光标记", behavior: "行为学",
   euthanasia: "安乐死",
   perfusion: "灌流",
   surgery: "手术",
@@ -62,12 +64,15 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const mine = url.searchParams.get("mine") === "1";
+  const createdByMe = url.searchParams.get("createdByMe") === "1";
   const assigneeId = url.searchParams.get("assigneeId") || undefined;
 
   const tasks = animalTasksWithWaiting(getStore().animalOpTasks ?? []);
   let list = tasks;
   if (mine) {
     list = tasks.filter((t) => t.assigneeUserId === user.id);
+  } else if (createdByMe) {
+    list = tasks.filter((t) => t.createdByUserId === user.id);
   } else if (assigneeId) {
     list = tasks.filter((t) => t.assigneeUserId === assigneeId);
   }
@@ -207,18 +212,18 @@ export async function POST(req: NextRequest) {
     s.notifications.unshift({
       id: uid("ntf"),
       userId: assignee.id,
-      title: needScan ? "新的实验处理任务（需扫码）" : "新的动物操作任务",
+      title: needScan ? `新的${OP_TYPE_TITLE[opTypeRaw] || "实验"}处理任务（需扫码）` : `新的动物操作任务：${OP_TYPE_TITLE[opTypeRaw] || opTypeRaw}`,
       titleEn: needScan ? "New experiment task (scan required)" : "New animal operation task",
       message: needScan
         ? `${displayName(user)} 派发 ${createdOps.length} 只小鼠：请打开通知进入处理页，扫小程序码与笼码后拍照提交。`
-        : `${displayName(user)} 指派你处理 ${targetIds.length} 只小鼠的操作`,
+        : `${displayName(user)} 指派你执行「${OP_TYPE_TITLE[opTypeRaw] || opTypeRaw}」：${targetIds.join("、")}`,
       messageEn: needScan
         ? `${displayName(user)} assigned ${createdOps.length} mouse(es). Open handle page, scan QR codes, upload photos.`
         : `${displayName(user)} assigned you an animal op on ${targetIds.length} mouse(es)`,
       read: false,
       link: needScan && firstId
         ? `/animals/task-handle?animalId=${encodeURIComponent(firstId)}`
-        : "/",
+        : `/animals/lifecycle?animalId=${encodeURIComponent(firstId)}&taskId=${encodeURIComponent(task.id)}`,
       kind: needScan ? "experiment_operation" : "animal_task",
       animalTaskId: task.id,
       animalId: firstId,
@@ -230,7 +235,7 @@ export async function POST(req: NextRequest) {
         title:"你有一个后续步骤待接手", titleEn:"Upcoming animal task",
         message:`${displayName(user)} 已将第 ${index+2} 步「${OP_TYPE_TITLE[step.opType] || step.opType}」派发给你，涉及小鼠 ${targetIds.join("、")}。请等待前一步完成后处理。`,
         messageEn:"An upcoming task has been assigned to you. Wait for the preceding step to finish.",
-        link:"/", animalId:targetIds[0],
+        link:`/animals/lifecycle?animalId=${encodeURIComponent(targetIds[0])}&taskId=${encodeURIComponent(task.id)}` , animalId:targetIds[0],
       });
     }
   });
@@ -384,6 +389,32 @@ export async function PATCH(req: NextRequest) {
     });
   }
 
+  // 卡死任务的安全终止：派发人、当前负责人或动物房主管均可终止，并恢复小鼠可继续处理状态。
+  if (action === "force_terminate") {
+    const taskId = String(body.id ?? "").trim();
+    const reason = String(body.reason ?? "").trim() || "任务异常终止";
+    if (!taskId) return jsonError("invalid_body", 400);
+    let stopped: AnimalOpTask | undefined;
+    let fail: string | undefined;
+    await mutateStore((s) => {
+      const task=(s.animalOpTasks||[]).find(t=>t.id===taskId);
+      if(!task){fail="not_found";return;}
+      if(task.status!=="scheduled"){fail="invalid_state";return;}
+      if(task.createdByUserId!==user.id && task.assigneeUserId!==user.id && !canManageAnimals(user.roles)){fail="forbidden";return;}
+      const now=new Date().toISOString();
+      task.status="cancelled"; task.completedAt=now; task.receiptNote=`强制终止：${reason}`;
+      for(const aid of task.animalIds){
+        for(const op of s.experimentOperations||[]){if(op.animalId===aid && (op.status==="open"||op.status==="tech_submitted")){op.status="force_closed";op.closedAt=now;op.updatedAt=now;op.forceClosedBy=user.id;op.forceClosedByName=displayName(user);op.forceCloseReason=reason;}}
+        const animal=findAnimal(s,aid); if(animal){finalizeRegistrationAfterClose(animal);animal.technicianUserId=undefined;animal.technicianName=undefined;animal.lastOpBackfill=false;appendLifecycleTrace(s,{animalId:aid,timestamp:now,action:"task_force_terminated",userId:user.id,userName:displayName(user),details:`任务强制终止：${reason}`});}
+      }
+      s.notifications=s.notifications.map(n=>n.animalTaskId===task.id?{...n,read:true,handled:true}:n);
+      stopped={...task};
+    });
+    if(fail) return jsonError(fail,fail==="forbidden"?403:fail==="invalid_state"?409:404);
+    await appendAuditLog({userId:user.id,userName:displayName(user),action:"force_terminate_animal_task",entityType:"animal_op_task",entityId:taskId,details:reason});
+    return jsonOk({task:stopped,tasks:getStore().animalOpTasks,managedAnimals:getStore().managedAnimals});
+  }
+
   const id = String(body.id ?? "").trim();
   if (!id) return jsonError("invalid_body", 400);
   if (id.includes(":waiting:")) return jsonError("task_not_ready", 409);
@@ -443,6 +474,17 @@ export async function PATCH(req: NextRequest) {
         }
         for (const cage of s.cages) cage.occupied=s.managedAnimals.filter(a=>a.cageId===cage.id&&!a.exitedAt&&!a.deathAt&&a.status!=="deceased").length;
       }
+      if (next.opType === "perfusion") {
+        for (const aid of next.animalIds) {
+          const animal=findAnimal(s,aid); if(!animal) continue;
+          animal.exitedAt=now; animal.cageId=undefined; animal.cageLocation="已退出";
+          appendLifecycleTrace(s,{animalId:aid,timestamp:now,action:"perfusion_exit",userId:user.id,userName:displayName(user),details:"灌流完成，已退出笼位"});
+        }
+      }
+      if (next.opType === "fasting") for (const aid of next.animalIds) { const animal=findAnimal(s,aid); if(animal) animal.fastingStartedAt=now; }
+      if (next.opType === "water_deprivation") for (const aid of next.animalIds) { const animal=findAnimal(s,aid); if(animal) animal.waterDeprivationStartedAt=now; }
+      if (next.opType === "stop_fasting") for (const aid of next.animalIds) { const animal=findAnimal(s,aid); if(animal) animal.fastingStartedAt=undefined; }
+      if (next.opType === "stop_water_deprivation") for (const aid of next.animalIds) { const animal=findAnimal(s,aid); if(animal) animal.waterDeprivationStartedAt=undefined; }
     }
 
     s.animalOpTasks[idx] = next;
@@ -454,8 +496,10 @@ export async function PATCH(req: NextRequest) {
       const opLabel: Record<string, string> = {
         fasting: "禁食",
         water_deprivation: "禁水",
+        stop_fasting: "停止禁食",
+        stop_water_deprivation: "停止禁水",
         signal_collection: "信号采集",
-        ephys: "电生理", behavior: "行为学",
+        ephys: "光标记", behavior: "行为学",
         euthanasia: "处死",
         perfusion: "灌流取材",
         surgery: "手术",

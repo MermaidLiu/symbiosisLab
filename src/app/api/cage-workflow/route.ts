@@ -2,7 +2,7 @@ import { HOUSING_TYPES, housingError } from "@/lib/animals/housing";
 import { NextRequest } from "next/server";
 import { requireActiveUser, jsonError, jsonOk } from "@/server/auth";
 import { getStore, mutateStore } from "@/server/store";
-import { canManageAnimals } from "@/lib/roles";
+import { canManageAnimals, canReceiveAnimalOps } from "@/lib/roles";
 import { isCageNumber, buildCageLayout } from "@/lib/animals/cage-grid";
 import { appendLifecycleTrace, openOperationForAnimal } from "@/server/animal-lifecycle";
 import { pushNotificationToUsers } from "@/server/notify";
@@ -13,7 +13,8 @@ export async function GET() {
   if ("error" in auth) return auth.error;
   const s = getStore();
   const manager = canManageAnimals(auth.user.roles);
-  return jsonOk({ pendingExitAnimalIds:(s.animalOpTasks||[]).filter(t=>t.opType==="euthanasia"&&t.status==="scheduled").flatMap(t=>t.animalIds), cages: s.cages, layout: buildCageLayout(s.cages), animals: s.managedAnimals.filter(a => manager || a.claimantUserId === auth.user.id || a.technicianUserId === auth.user.id || s.animalOpTasks?.some(t => (t.assigneeUserId === auth.user.id || t.remainingSteps?.some(step=>step.assigneeUserId===auth.user.id)) && t.animalIds.includes(a.id))), owners: s.users.map(u => ({ id: u.id, name: u.name, email: u.email })) });
+  const canViewAll = manager || canReceiveAnimalOps(auth.user.roles);
+  return jsonOk({ pendingExitAnimalIds:(s.animalOpTasks||[]).filter(t=>t.opType==="euthanasia"&&t.status==="scheduled").flatMap(t=>t.animalIds), cages: s.cages, layout: buildCageLayout(s.cages), animals: s.managedAnimals.filter(a => canViewAll || a.claimantUserId === auth.user.id || a.technicianUserId === auth.user.id || s.animalOpTasks?.some(t => (t.assigneeUserId === auth.user.id || t.remainingSteps?.some(step=>step.assigneeUserId===auth.user.id)) && t.animalIds.includes(a.id))), owners: s.users.map(u => ({ id: u.id, name: u.name, email: u.email })) });
 }
 
 export async function POST(req: NextRequest) {
@@ -40,10 +41,15 @@ export async function POST(req: NextRequest) {
       if(b.entryType==="other"&&!String(b.entryTypeOther||"").trim()){error="entry_type_other_required";return;}
       const qrCode = String(b.qrCode || "").trim();
       if (!/^[\p{L}\p{N}_-]{1,64}$/u.test(id) || !qrCode || qrCode.length > 2048 || !b.strain || !/^\d{4}-\d{2}-\d{2}$/.test(String(b.entryDate)) || Number.isNaN(Date.parse(b.entryDate))) { error = "invalid_body"; return; }
-      if (s.managedAnimals.some(a => a.id.toLowerCase() === id.toLowerCase() || a.qrCode === qrCode) || (s.retiredAnimalIds || []).some(x => x.toLowerCase() === id.toLowerCase())) { error = "id_or_qr_exists"; return; }
+      const allowRepeatedBlankName = String(b.entryType || "blank") === "blank";
+      if (s.managedAnimals.some(a => a.qrCode === qrCode)) { error = "id_or_qr_exists"; return; }
+      if (!allowRepeatedBlankName && (s.managedAnimals.some(a => a.id.toLowerCase() === id.toLowerCase()) || (s.retiredAnimalIds || []).some(x => x.toLowerCase() === id.toLowerCase()))) { error = "id_or_qr_exists"; return; }
+      const internalId = allowRepeatedBlankName && s.managedAnimals.some(a => a.id.toLowerCase() === id.toLowerCase())
+        ? `${id}-${s.managedAnimals.filter(a => a.id === id || a.id.startsWith(`${id}-`)).length + 1}`
+        : id;
       const owner = s.users.find(u => u.id === (manager ? b.ownerUserId : user.id));
       if (!owner) { error = "invalid_owner"; return; }
-      animal = { id, qrCode, gender: "male", strain: String(b.strain).trim(), genotype: "未知", sireId: "—", sireGenotype: "—", damId: "—", damGenotype: "—", birthDate: "", entryType:String(b.entryType||"blank"),entryTypeOther:String(b.entryTypeOther||"").trim().slice(0,200),housingType:b.housingType||"adult_blank", ageWeeks: b.ageDays!==undefined?Number(b.ageDays)/7:Number(b.ageWeeks||0), ageDays:b.ageDays!==undefined?Number(b.ageDays):undefined, cageLocation: number, status: "active", strainType: "public", generation: 1, weaningStatus: b.housingType==="pup"?"not_weaned":"weaned", genotypeStatus: "unidentified", purpose: b.housingType==="immunity"?"immunity":b.housingType==="signal_headpiece"?"signal_processing":"blank", lifecycleStatus: "entered", registrationStatus: "awaiting_experiment", registeredAt: now, cageEntryAt: String(b.entryDate), claimantUserId: owner.id, claimantName: owner.name, cageLabelNote: String(b.note || "") };
+      animal = { id: internalId, displayName: allowRepeatedBlankName ? id : undefined, qrCode, gender: "male", strain: String(b.strain).trim(), genotype: "未知", sireId: "—", sireGenotype: "—", damId: "—", damGenotype: "—", birthDate: "", entryType:String(b.entryType||"blank"),entryTypeOther:String(b.entryTypeOther||"").trim().slice(0,200),housingType:b.housingType||"adult_blank", ageWeeks: b.ageDays!==undefined?Number(b.ageDays)/7:Number(b.ageWeeks||0), ageDays:b.ageDays!==undefined?Number(b.ageDays):undefined, cageLocation: number, status: "active", strainType: "public", generation: 1, weaningStatus: b.housingType==="pup"?"not_weaned":"weaned", genotypeStatus: "unidentified", purpose: b.housingType==="immunity"?"immunity":b.housingType==="signal_headpiece"?"signal_processing":"blank", lifecycleStatus: "entered", registrationStatus: "awaiting_experiment", registeredAt: now, cageEntryAt: String(b.entryDate), claimantUserId: owner.id, claimantName: owner.name, cageLabelNote: String(b.note || "") };
     } else {
       if (!animal) { error = "not_found"; return; }
       const assigned = animal.technicianUserId === user.id || s.animalOpTasks?.some(t => t.assigneeUserId === user.id && t.status === "scheduled" && t.animalIds.includes(id));

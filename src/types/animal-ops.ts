@@ -2,6 +2,8 @@
 export const ANIMAL_OP_TYPES = [
   "fasting",
   "water_deprivation",
+  "stop_fasting",
+  "stop_water_deprivation",
   "signal_collection",
   "ephys",
   "behavior",

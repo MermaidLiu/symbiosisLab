@@ -221,6 +221,8 @@ export async function PATCH(req: NextRequest) {
       op.techSubmittedAt = now;
       const isSurgery=op.dispatchOpType==="surgery"||(!op.dispatchOpType&&op.kind==="other"&&(s.animalOpTasks||[]).some(t=>t.status==="scheduled"&&t.opType==="surgery"&&t.assigneeUserId===op.technicianUserId&&t.animalIds.includes(op.animalId)));
       if(isSurgery)animal.surgeryCompletedAt=now;
+      const exitsCage = isSurgery || op.dispatchOpType === "perfusion";
+      op.requiresNas = !exitsCage;
       op.backfill = isBackfillProcessing(op.startedAt || op.createdAt, now);
       animal.lastOpBackfill = op.backfill;
       op.resultNote = String(body.resultNote ?? "").trim();
@@ -240,11 +242,22 @@ export async function PATCH(req: NextRequest) {
         details: `${op.backfill ? "【补录】" : ""}技术员提交实验结果：${op.resultNote || "—"}`,
         operationId: op.id,
       });
+      if (exitsCage) {
+        op.status = "closed";
+        op.closedAt = now;
+        if (op.dispatchOpType === "perfusion") {
+          animal.exitedAt = now;
+          animal.cageId = undefined;
+          animal.cageLocation = "已退出";
+        }
+        finalizeRegistrationAfterClose(animal);
+        completeScheduledTasksAfterExperimentClose(s, op.animalId, op.dispatchOpType === "perfusion" ? "灌流已完成，已退出笼位" : "手术已完成，无需填写 NAS 路径", now, op.backfill);
+      }
     } else if (action === "student_close") {
       if (op.studentUserId !== user.id && !canSuperviseAnimalFacility(user.roles)) return;
       if (op.status !== "tech_submitted") return;
       const nas = String(body.nasDataPath ?? "").trim();
-      if (!nas) return;
+      if (op.requiresNas !== false && !nas) return;
       if (op.dataTransferred === true && typeof body.studentFileSeen !== "boolean") { fail = "file_confirmation_required"; return; }
       if (op.dataTransferred === true && body.studentFileSeen === false) {
         op.studentFileSeen = false;
@@ -257,7 +270,7 @@ export async function PATCH(req: NextRequest) {
         return;
       }
       op.studentFileSeen = op.dataTransferred === true ? true : undefined;
-      op.nasDataPath = nas;
+      op.nasDataPath = nas || undefined;
       op.status = "closed";
       op.closedAt = now;
       op.updatedAt = now;
@@ -269,7 +282,7 @@ export async function PATCH(req: NextRequest) {
       completeScheduledTasksAfterExperimentClose(
         s,
         op.animalId,
-        `实验已闭环，NAS：${nas}`,
+        nas ? `实验已闭环，NAS：${nas}` : "实验已闭环",
         now,
         op.backfill
       );
@@ -281,7 +294,7 @@ export async function PATCH(req: NextRequest) {
         userName: user.name,
         details: `${op.backfill ? "【补录】" : ""}${
           animal.deathAt ? "【死亡登记后】" : ""
-        }学生完成闭环，NAS：${nas}`,
+        }学生完成闭环${nas ? `，NAS：${nas}` : ""}`,
         operationId: op.id,
       });
     } else if (action === "force_close") {
@@ -328,11 +341,12 @@ export async function PATCH(req: NextRequest) {
 
   if (action === "tech_submit" && notifyStudentId) {
     await mutateStore((s) => {
+      const isClosed = (updated as ExperimentOperation).status === "closed";
       pushNotificationToUsers(s, [notifyStudentId!], {
-        title: "实验已完成，请上传 NAS 路径",
-        titleEn: "Experiment submitted — upload NAS path",
-        message: `小鼠 ${(updated as ExperimentOperation).animalId} 的技术员阶段已提交，请填写 NAS 路径，并反馈是否在文件夹看到传输文件后完成闭环。`,
-        messageEn: `Technician submitted results for ${(updated as ExperimentOperation).animalId}. Upload NAS path to close.`,
+        title: isClosed ? "操作已完成" : "实验已完成，请上传 NAS 路径",
+        titleEn: isClosed ? "Operation completed" : "Experiment submitted — upload NAS path",
+        message: isClosed ? `小鼠 ${(updated as ExperimentOperation).animalId} 操作已完成，结果已同步，无需填写 NAS 路径。` : `小鼠 ${(updated as ExperimentOperation).animalId} 的技术员阶段已提交，请填写 NAS 路径，并反馈是否在文件夹看到传输文件后完成闭环。`,
+        messageEn: isClosed ? `Operation completed for ${(updated as ExperimentOperation).animalId}.` : `Technician submitted results for ${(updated as ExperimentOperation).animalId}. Upload NAS path to close.`,
         link: `/animals/lifecycle?animalId=${(updated as ExperimentOperation).animalId}`,
         kind: "experiment_operation",
         operationId: (updated as ExperimentOperation).id,

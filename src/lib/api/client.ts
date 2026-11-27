@@ -383,9 +383,10 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ id, action, feedback }) }
     ),
 
-  animalOpTasks: (opts?: { mine?: boolean; assigneeId?: string }) => {
+  animalOpTasks: (opts?: { mine?: boolean; createdByMe?: boolean; assigneeId?: string }) => {
     const q = new URLSearchParams();
     if (opts?.mine) q.set("mine", "1");
+    if (opts?.createdByMe) q.set("createdByMe", "1");
     if (opts?.assigneeId) q.set("assigneeId", opts.assigneeId);
     const qs = q.toString();
     return request<{ tasks: import("@/types/animal-ops").AnimalOpTask[] }>(

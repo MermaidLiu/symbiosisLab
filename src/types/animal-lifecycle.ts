@@ -64,6 +64,8 @@ export interface ExperimentOperation {
   /** 实验结果截图/照片（存储路径或 URL） */
   resultImageUrls?: string[];
   dataTransferred?: boolean;
+  /** 手术不产生 NAS 原始数据，技术员提交即完成。 */
+  requiresNas?: boolean;
   studentFileSeen?: boolean;
   /** 学生上传的 NAS 原始数据路径 */
   nasDataPath?: string;

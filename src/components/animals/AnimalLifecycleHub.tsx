@@ -53,7 +53,7 @@ const OP_STATUS: Record<string, string> = {
 };
 
 const KIND_LABEL: Record<ExperimentKind, string> = {
-  ephys: "电生理 / 数据采集",
+  ephys: "光标记",
   behavior: "行为学",
   optotagging: "Optotagging",
   imaging: "成像",
@@ -215,6 +215,8 @@ export function AnimalLifecycleHub() {
   const isStudent = user ? isAnimalClaimantStudent(user.roles) : false;
   const isTech = user ? isAnimalExperimentTechnician(user.roles) : false;
   const isSupervisor = user ? canSuperviseAnimalFacility(user.roles) : false;
+  const requestedTaskId = params.get("taskId");
+  const activeSimpleTask = taskRecords.find(task => task.status === "scheduled" && (!requestedTaskId || task.id === requestedTaskId));
 
   const load = useCallback(async () => {
     setError("");
@@ -266,6 +268,21 @@ export function AnimalLifecycleHub() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function finishSimpleTask(task: AnimalOpTask) {
+    setBusy(true); setError("");
+    try {
+      const res=await fetch("/api/animal-op-tasks",{method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:task.id,status:"done",assistantNames})});
+      const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error||"task_failed");
+      if(selected) await lookup(selected.id);
+    } catch(e) { setError(e instanceof Error ? `任务处理失败：${e.message}` : "任务处理失败"); } finally { setBusy(false); }
+  }
+
+  async function terminateSimpleTask(task: AnimalOpTask) {
+    const reason=window.prompt("请输入强制终止原因", "任务异常终止"); if(reason===null) return;
+    setBusy(true); setError("");
+    try { const res=await fetch("/api/animal-op-tasks",{method:"PATCH",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"force_terminate",id:task.id,reason})}); const data=await res.json().catch(()=>({})); if(!res.ok) throw new Error(data.error||"terminate_failed"); if(selected) await lookup(selected.id); } catch(e){setError(e instanceof Error?`终止失败：${e.message}`:"终止失败");} finally {setBusy(false);}
   }
 
   async function reportDeath() {
@@ -538,6 +555,13 @@ export function AnimalLifecycleHub() {
 
         {selected ? (
           <GlassPanel className="mb-4">
+            {activeSimpleTask ? (
+              <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-3">
+                <p className="font-semibold text-thu">待处理任务：{({fasting:"禁食",water_deprivation:"禁水",stop_fasting:"停止禁食",stop_water_deprivation:"停止禁水",euthanasia:"处死",perfusion:"灌流",ephys:"光标记"} as Record<string,string>)[activeSimpleTask.opType] || activeSimpleTask.opType}</p>
+                <p className="mt-1 text-xs text-lab-muted">小鼠 {activeSimpleTask.animalIds.join("、")} · 派发人 {activeSimpleTask.createdByName}{activeSimpleTask.note ? ` · ${activeSimpleTask.note}` : ""}</p>
+                {(activeSimpleTask.assigneeUserId===user.id || isSupervisor) ? <div className="mt-3 flex gap-2"><FluentButton disabled={busy} onClick={()=>void finishSimpleTask(activeSimpleTask)}>确认完成</FluentButton><FluentButton variant="outline" disabled={busy} onClick={()=>void terminateSimpleTask(activeSimpleTask)}>强制终止任务</FluentButton></div> : <p className="mt-2 text-xs text-lab-muted">任务进行中，可由负责人或动物房主管强制终止。</p>}
+              </div>
+            ) : null}
             <div className="mb-4">
               <h3 className="text-lg font-bold text-thu">{selected.id}</h3>
               <p className="text-sm text-lab-muted">

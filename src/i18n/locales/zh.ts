@@ -724,8 +724,10 @@ const zh = {
       types: {
         fasting: "禁食",
         water_deprivation: "禁水",
+        stop_fasting: "停止禁食",
+        stop_water_deprivation: "停止禁水",
         signal_collection: "信号采集",
-        ephys: "电生理", behavior: "行为学",
+        ephys: "光标记", behavior: "行为学",
         euthanasia: "处死",
         perfusion: "灌流取材",
         surgery: "手术",

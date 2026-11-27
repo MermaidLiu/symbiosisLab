@@ -72,6 +72,9 @@ export interface ManagedAnimal {
   damGenotype: string;
   birthDate: string;
   ageWeeks: number;
+  /** Current dietary restriction, controlled by animal operation tasks. */
+  fastingStartedAt?: string;
+  waterDeprivationStartedAt?: string;
   ageDays?: number;
   /** Display location label, e.g. SPF-A-A01 */
   cageLocation: string;

@@ -20,6 +20,7 @@ import {
   ManagedAnimal,
   OperationApplication,
 } from "@/types/animal-management";
+import { AnimalOpTask } from "@/types/animal-ops";
 import {
   deriveInstrumentDisplayStatus,
   instrumentImageUrl,
@@ -60,6 +61,7 @@ export function StudentDashboard() {
 
   const [applications, setApplications] = useState<OperationApplication[]>([]);
   const [managed, setManaged] = useState<ManagedAnimal[]>([]);
+  const [activeAnimalTasks, setActiveAnimalTasks] = useState<AnimalOpTask[]>([]);
   const [bookingsOpen, setBookingsOpen] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [idFilter, setIdFilter] = useState("");
@@ -89,6 +91,8 @@ export function StudentDashboard() {
       }
     })();
   }, []);
+
+  useEffect(() => { void api.animalOpTasks({createdByMe:true}).then(({tasks})=>setActiveAnimalTasks(tasks.filter(t=>t.status==="scheduled" && ["fasting","water_deprivation"].includes(t.opType)))).catch(()=>setActiveAnimalTasks([])); }, []);
 
   const myBookings = useMemo(
     () => bookings.filter((b) => b.userId === user?.id),
@@ -271,6 +275,11 @@ export function StudentDashboard() {
                 </Link>
               ))}
             </div>
+
+            {activeAnimalTasks.length ? <GlassPanel>
+              <div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold text-thu">正在进行中的任务</h3><Link href="/animals/lifecycle" className="text-xs text-thu hover:underline">查看全部</Link></div>
+              <div className="space-y-2">{activeAnimalTasks.map(task=><Link key={task.id} href={`/animals/lifecycle?animalId=${encodeURIComponent(task.animalIds[0]||"")}&taskId=${encodeURIComponent(task.id)}`} className="block rounded-lg bg-violet-50 px-3 py-2 text-sm text-lab-text"><b>{task.opType==="fasting"?"禁食":"禁水"}</b> · {task.animalIds.join("、")} <span className="ml-2 text-xs text-lab-muted">负责人：{task.assigneeName}</span></Link>)}</div>
+            </GlassPanel> : null}
 
             {/* Collapsible: instruments I manage */}
             <GlassPanel>

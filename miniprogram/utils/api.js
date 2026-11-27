@@ -175,6 +175,9 @@ const api = {
       data: { action: "student_cancel", ...payload },
     });
   },
+  forceTerminateAnimalTask(payload) {
+    return request("/api/animal-op-tasks", { method: "PATCH", data: { action: "force_terminate", ...payload } });
+  },
   logout() {
     return request("/api/auth", { method: "POST", data: { action: "logout" }, silent: true });
   },

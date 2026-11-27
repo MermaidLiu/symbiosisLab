@@ -52,19 +52,16 @@ export function AssignAnimalOpModal({
   const [assigneeId, setAssigneeId] = useState("");
   const [necessary, setNecessary] = useState(true);
   const [urgent, setUrgent] = useState(false);
-  const [startLocal, setStartLocal] = useState(() => toLocalInput(new Date()));
-  const [endLocal, setEndLocal] = useState(() => {
-    const d = new Date();
-    d.setHours(d.getHours() + 1);
-    return toLocalInput(d);
-  });
+  const defaultHours = () => { const d=new Date(); const start=new Date(d); start.setHours(9,0,0,0); const end=new Date(d); end.setHours(18,0,0,0); return {start,end}; };
+  const [startLocal, setStartLocal] = useState(() => toLocalInput(defaultHours().start));
+  const [endLocal, setEndLocal] = useState(() => toLocalInput(defaultHours().end));
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setMsg("");
-    const now=new Date();setStartLocal(toLocalInput(now));setEndLocal(toLocalInput(new Date(now.getTime()+3600000)));
+    const {start,end}=defaultHours();setStartLocal(toLocalInput(start));setEndLocal(toLocalInput(end));
     setNote("");
     setSteps([]);
     (async () => {
